@@ -59,9 +59,9 @@ salen `Ke`, los mapas por categoría de riesgo y la clase «parcialmente abierto
 - **2.4.5 Parapetos:** `GCpn = +1,5` barlovento, `−1,0` sotavento.
 - **Tabla 2.5-2:** método simplificado, 16 velocidades × 3 columnas.
 
-## FALTA — capítulo 1, parte 2
+## RECIBIDO — capítulo 1, parte 2 (págs. 36-70)
 
-Es **bloqueante**. Contiene:
+Llegó completo. Contenía:
 
 | Art. | Qué |
 |---|---|
@@ -73,8 +73,39 @@ Es **bloqueante**. Contiene:
 | **1.13** | **`Kz`/`Kh` — Tabla 1.13-1 — y la expresión (1.13-1) de `q`** |
 | 1.14 | **Tabla 1.14-1**, categoría de riesgo |
 
-**Sin el artículo 1.13 no se puede calcular `q`, y sin `q` no hay presión.** Todo lo demás
-está listo para transcribirse.
+**Con esto el reglamento está completo para la versión 1.** La expresión que faltaba es
+
+$$ q_z = 0{,}613 \cdot K_z \cdot K_{zt} \cdot K_d \cdot K_e \cdot V^2 \qquad (1.13\text{-}1) $$
+
+en N/m² con `V` en m/s, y `q_h` es la misma evaluada con `K_z` a la altura media de
+cubierta —no hay una fórmula aparte—. El 0,613 es ½·ρ con ρ = 1,225 kg/m³.
+
+### Dos hallazgos del capítulo 1 parte 2
+
+**La Tabla 1.13-1 entera se reconstruye desde seis números.** La nota 1 da la expresión de
+`K_z` en función de α y `zg`, que salen de la Tabla 1.9-1. Sus **60 celdas** se reproducen
+con una diferencia máxima de **0,0050**, dentro del 0,01 que el propio comentario C 1.13.1
+anuncia: donde el recálculo quedaba a menos de 0,01 del CIRSOC 102-2005, la comisión
+conservó los valores viejos. Por eso el motor usa la fórmula y la tabla queda como control,
+con tolerancia justificada y no arbitraria.
+
+**En exposición B el tramo constante de `K_z` es vacío.** La nota 1 lo define para
+`zg < z ≤ 1000 m`, y en B resulta `zg = 1000 m`: el perfil llega a 2,41 justo en el extremo
+del alcance del reglamento y no hay ninguna altura por encima. En C (`zg = 750`) y D
+(`zg = 590`) sí existe. Es una sutileza fácil de pasar por alto al escribir el código.
+
+**La tabla de `K1` de la Figura 1.8-1 corresponde a exposición C**, aunque su encabezado no
+lo diga: se verificó que sus siete filas son exactamente `(K1/(H/Lh))_C × (H/Lh)` para las
+tres formas. La nota 4 —«los multiplicadores deben ser usados para cualquier exposición»—
+se refiere a `K2` y `K3`, que no dependen de la exposición. Leerla como que `K1` tampoco
+depende daría un error del 20 % en exposición D.
+
+**La Tabla 1.12-1 de `Ke` y su fórmula no coinciden exactamente**: a 1200 m la fórmula da
+0,8669 y la tabla dice 0,86. La norma admite las dos vías, así que no hay una correcta y
+otra equivocada; el motor usa la fórmula, que es continua, y el test verifica concordancia
+dentro de 0,008 en vez de exigir igualdad.
+
+## Lo que contenía (referencia)
 
 ## LA TABLA 2.5-2 ES UN BANCO DE PRUEBA DEL MOTOR ENTERO
 
