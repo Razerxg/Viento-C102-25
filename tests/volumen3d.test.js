@@ -5,7 +5,8 @@
 // un techo mal levantado se ve «casi bien» y nadie lo nota salvo comparando con el
 // formulario.
 import { describe, it, expect } from 'vitest';
-import { mallaEdificio, proyector, normal, carasVisibles } from '../src/lib/volumen3d.js';
+import { mallaEdificio, normal, carasVisibles } from '../src/lib/volumen3d.js';
+import { camara, encuadre } from '../src/lib/camara3d.js';
 
 const G = { a: 20, b: 30, hAlero: 6, hCumbre: 11, cumbrera: "X", pendienteHacia: "+Y" };
 const tipos = ["plana", "vertiente_unica", "dos_aguas", "cuatro_aguas"];
@@ -63,6 +64,29 @@ describe('geometría de la malla', () => {
     expect(timp.map(c => c.id).sort()).toEqual(["x0", "xa"]);
   });
 
+  // UN SÓLIDO CERRADO tiene cada arista compartida por EXACTAMENTE dos caras. Es el
+  // invariante que detecta una cara faltante —el piso, que no estaba y hacía que la vista
+  // desde abajo mostrara el interior— o una repetida, sin depender de mirar el dibujo.
+  it.each(tipos)('%s: el sólido está cerrado — cada arista en dos caras', (tipo) => {
+    const m = malla({ tipo, hCumbre: tipo === "plana" ? 6 : 11 });
+    const cuenta = new Map();
+    for (const c of m.caras) {
+      for (let i = 0; i < c.v.length; i++) {
+        const a = c.v[i], b = c.v[(i + 1) % c.v.length];
+        const k = a < b ? `${a}-${b}` : `${b}-${a}`;
+        cuenta.set(k, (cuenta.get(k) ?? 0) + 1);
+      }
+    }
+    for (const [arista, n] of cuenta) expect(`${arista}:${n}`).toBe(`${arista}:2`);
+  });
+
+  it.each(tipos)('%s: hay piso, y su normal mira hacia abajo', (tipo) => {
+    const m = malla({ tipo, hCumbre: tipo === "plana" ? 6 : 11 });
+    const piso = m.caras.filter(c => c.tipo === "piso");
+    expect(piso).toHaveLength(1);
+    expect(normal(piso[0].v.map(i => m.V[i]))[2]).toBeCloseTo(-1, 9);
+  });
+
   it.each(tipos)('%s: ninguna cara queda degenerada', (tipo) => {
     const m = malla({ tipo, hCumbre: tipo === "plana" ? 6 : 11 });
     for (const c of m.caras) {
@@ -74,9 +98,9 @@ describe('geometría de la malla', () => {
 });
 
 describe('proyección y visibilidad', () => {
-  const pr = (ac = 0.7, el = 0.5) => {
+  const pr = (yaw = 0.7, pitch = 0.5) => {
     const m = malla({ tipo: "dos_aguas" });
-    const p = proyector({ acimut: ac, elevacion: el, escala: 10, centro: [10, 15, 5] });
+    const p = camara(yaw, pitch);
     return { m, p, vis: carasVisibles(m, p) };
   };
 
@@ -91,7 +115,7 @@ describe('proyección y visibilidad', () => {
   it('nunca se ve más de la mitad de las caras a la vez', () => {
     const m = malla({ tipo: "dos_aguas" });
     for (const ac of [0, 0.8, 1.6, 2.4, 3.2, 4.0, 4.8, 5.6]) {
-      const p = proyector({ acimut: ac, elevacion: 0.5, escala: 10, centro: [10, 15, 5] });
+      const p = camara(ac, 0.5);
       const vis = carasVisibles(m, p);
       expect(vis.length).toBeLessThanOrEqual(Math.ceil(m.caras.length / 2) + 1);
       expect(vis.length).toBeGreaterThan(1);
@@ -102,31 +126,42 @@ describe('proyección y visibilidad', () => {
   // resuelve la oclusión sin z-buffer.
   it('las caras visibles vienen ordenadas de atrás hacia adelante', () => {
     const { vis } = pr();
-    for (let i = 1; i < vis.length; i++) expect(vis[i].z).toBeGreaterThanOrEqual(vis[i - 1].z);
+    for (let i = 1; i < vis.length; i++) expect(vis[i].cerca).toBeGreaterThanOrEqual(vis[i - 1].cerca);
   });
 
   // ⚠ EL TEST QUE FALTABA, y que habría atajado un edificio plegado sobre sí mismo.
-  // `v` es coordenada de SVG y crece hacia ABAJO, así que TODO lo que se aleja del
-  // observador hacia arriba en el espacio de la cámara tiene que dar `v` menor: tanto
-  // subir en z como alejarse en planta. Una versión anterior negaba sólo el término de z,
-  // de modo que el plano horizontal quedaba espejado respecto del vertical.
-  it('alejarse en planta y subir en altura dibujan los dos HACIA ARRIBA', () => {
-    const p = proyector({ acimut: 0, elevacion: 0.5, escala: 1, centro: [0, 0, 0] });
-    const v = (pt) => p.proy(pt)[1];
-    expect(v([0, 1, 0])).toBeLessThan(v([0, 0, 0]));      // más lejos ⇒ más arriba
-    expect(v([0, 0, 1])).toBeLessThan(v([0, 0, 0]));      // más alto ⇒ más arriba
-  });
+  //
+  // `proy` y `cerca` tienen que contar la MISMA historia: lo que está más cerca del
+  // observador se dibuja más abajo en pantalla, y lo que está más alto se dibuja más
+  // arriba. Una versión anterior de esta app negaba sólo el término de z, de modo que el
+  // plano horizontal quedaba espejado respecto del vertical y el edificio salía plegado
+  // sobre sí mismo.
+  //
+  // Se formula como invariante entre las DOS funciones y no suponiendo de qué lado está el
+  // observador: la primera versión de este test daba por sentado que estaba en −Y y
+  // fallaba contra una cámara correcta, que es la forma más fácil de «arreglar» lo bueno.
+  it.each([[0], [1.1], [2.5], [4.0], [5.4]])(
+    'yaw %s: lo más cercano se dibuja más abajo y lo más alto más arriba', (yaw) => {
+      const p = camara(yaw, 0.5);
+      const pts = [[3, 1, 0], [-2, 4, 0], [1, -3, 0], [0, 0, 0]];
+      for (const a of pts) for (const b of pts) {
+        if (p.cerca(...a) - p.cerca(...b) > 1e-9) {
+          expect(p.proy(...a)[1]).toBeGreaterThan(p.proy(...b)[1]);
+        }
+      }
+      expect(p.proy(0, 0, 1)[1]).toBeLessThan(p.proy(0, 0, 0)[1]);
+    });
 
   it('con elevación nula el plano horizontal se ve de canto', () => {
-    const p = proyector({ acimut: 0, elevacion: 0, escala: 1, centro: [0, 0, 0] });
-    expect(p.proy([0, 5, 0])[1]).toBeCloseTo(0, 9);       // la profundidad no sube ni baja
-    expect(p.proy([0, 0, 1])[1]).toBeCloseTo(-1, 9);      // la altura sí
+    const p = camara(0, 0);
+    expect(p.proy(0, 5, 0)[1]).toBeCloseTo(0, 9);         // la profundidad no sube ni baja
+    expect(p.proy(0, 0, 1)[1]).toBeCloseTo(-1, 9);        // la altura sí
   });
 
   it('la proyección conserva el paralelismo: es ortográfica, no perspectiva', () => {
     const { m, p } = pr();
     // dos aristas paralelas del zócalo tienen que proyectarse paralelas
-    const d = (i, j) => { const A = p.proy(m.V[i]), B = p.proy(m.V[j]); return [B[0]-A[0], B[1]-A[1]]; };
+    const d = (i, j) => { const A = p.proy(...m.V[i]), B = p.proy(...m.V[j]); return [B[0]-A[0], B[1]-A[1]]; };
     const u = d(0, 1), v = d(3, 2);
     expect(u[0] * v[1] - u[1] * v[0]).toBeCloseTo(0, 9);
   });

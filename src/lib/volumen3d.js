@@ -8,6 +8,8 @@
 // se la proyecta con un pintor por profundidad, de modo que la cubierta se vea como es
 // desde cualquier ángulo y sin tener que elegir a mano qué cara va adelante.
 
+import { caraVisible } from './camara3d.js';
+
 // Vértices y caras del edificio. Ejes del modelo: x, y en planta y z hacia arriba.
 export function mallaEdificio({ a, b, hAlero, hCumbre, tipo, cumbrera, pendienteHacia }) {
   const plano = !(hCumbre > hAlero + 1e-9);
@@ -21,6 +23,11 @@ export function mallaEdificio({ a, b, hAlero, hCumbre, tipo, cumbrera, pendiente
 
   const caras = [];
   const pared = (i, j, k, l, id) => caras.push({ v: [i, j, k, l], tipo: "pared", id });
+
+  // ⚠ EL SÓLIDO VA CERRADO, CON PISO. Sin la cara de abajo, la vista «desde abajo»
+  // muestra el interior del edificio y se ve rota. El piso nunca recibe presión de viento,
+  // así que se marca con su propio tipo y se pinta neutro.
+  caras.push({ v: [p0, p3, p2, p1], tipo: "piso", id: "z0" });
 
   if (plano) {
     pared(p0, p1, a1, a0, "y0"); pared(p1, p2, a2, a1, "xa");
@@ -73,38 +80,14 @@ export function mallaEdificio({ a, b, hAlero, hCumbre, tipo, cumbrera, pendiente
   return { V, caras, plano: false };
 }
 
-// ── PROYECCIÓN ──────────────────────────────────────────────────────────────────
+// ── CARAS VISIBLES ──────────────────────────────────────────────────────────────
 //
-// Orbital: dos ángulos, acimut y elevación. Se proyecta en ORTOGRÁFICA y no en
-// perspectiva a propósito: con perspectiva la cara del fondo se ve más chica y el croquis
-// sugiere una diferencia de tamaño que no existe. Acá las longitudes paralelas se
-// conservan y dos caras se pueden comparar mirando.
-export function proyector({ acimut, elevacion, escala, centro }) {
-  const ca = Math.cos(acimut), sa = Math.sin(acimut);
-  const ce = Math.cos(elevacion), se = Math.sin(elevacion);
-  // dirección de la cámara, para ordenar por profundidad y decidir visibilidad
-  const cam = [ce * sa, -ce * ca, se];
-  // ⚠ LOS DOS TÉRMINOS DE `v` LLEVAN EL MISMO SIGNO DE PANTALLA.
-  //
-  // `v` es la coordenada de SVG, que crece hacia ABAJO, mientras que el vector «arriba» de
-  // la cámara y el eje z del modelo crecen hacia arriba. Hay que negar la proyección
-  // entera, no sólo la parte de z. Una primera versión negaba únicamente el término de z:
-  // subir en altura dibujaba arriba, pero alejarse en planta dibujaba ABAJO. El plano
-  // horizontal quedaba espejado respecto del vertical y el edificio salía plegado sobre sí
-  // mismo, con las caras cruzándose. Se veía roto, pero no era obvio por qué.
-  const proy = ([x, y, z]) => {
-    const dx = x - centro[0], dy = y - centro[1], dz = z - centro[2];
-    const u = dx * ca + dy * sa;                        // eje «derecha» de la cámara
-    const arriba = (-dx * sa + dy * ca) * se + dz * ce; // eje «arriba» de la cámara
-    return [u * escala, -arriba * escala];              // SVG crece hacia abajo
-  };
-  const prof = ([x, y, z]) => x * cam[0] + y * cam[1] + z * cam[2];
-  return { proy, prof, cam };
-}
+// La cámara vive en `camara3d.js`, portada de la app de bases: mismo arrastre, mismo
+// encuadre y mismas vistas ortogonales que allá, para que las dos aplicaciones no se
+// sientan como dos programas distintos.
 
-// Normal saliente de una cara, por el método del área de Newell: funciona con polígonos de
-// cualquier número de vértices —los tímpanos tienen cinco— y no supone que sean planos
-// perfectos.
+// Normal saliente por el método del área de Newell: funciona con polígonos de cualquier
+// número de vértices —los tímpanos tienen cinco— y no supone que sean planos perfectos.
 export function normal(pts) {
   let nx = 0, ny = 0, nz = 0;
   for (let i = 0; i < pts.length; i++) {
@@ -117,17 +100,16 @@ export function normal(pts) {
   return [nx / n, ny / n, nz / n];
 }
 
-// Caras visibles, ordenadas de atrás hacia adelante. Pintar en ese orden resuelve la
-// oclusión sin z-buffer: el edificio es convexo, así que el orden por profundidad del
+// Caras que miran al observador, ordenadas de LEJOS A CERCA: pintar en ese orden resuelve
+// la oclusión sin z-buffer. El edificio es convexo, así que ordenar por la profundidad del
 // centroide es exacto.
-export function carasVisibles(malla, pr) {
-  const centro = (c) => {
-    const ps = c.v.map(i => malla.V[i]);
-    return [0, 1, 2].map(k => ps.reduce((s, p) => s + p[k], 0) / ps.length);
-  };
+export function carasVisibles(malla, cam) {
   return malla.caras
-    .map(c => ({ ...c, pts: c.v.map(i => malla.V[i]) }))
-    .map(c => ({ ...c, n: normal(c.pts), z: pr.prof(centro(c)) }))
-    .filter(c => c.n[0] * pr.cam[0] + c.n[1] * pr.cam[1] + c.n[2] * pr.cam[2] > 1e-9)
-    .sort((p, q) => p.z - q.z);
+    .map(c => {
+      const pts = c.v.map(i => malla.V[i]);
+      const cen = [0, 1, 2].map(k => pts.reduce((s, p) => s + p[k], 0) / pts.length);
+      return { ...c, pts, n: normal(pts), cerca: cam.cerca(cen[0], cen[1], cen[2]) };
+    })
+    .filter(c => caraVisible(cam, c.n))
+    .sort((a, b) => a.cerca - b.cerca);
 }
