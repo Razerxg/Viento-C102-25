@@ -57,7 +57,12 @@ export function PerfilQ({ analisis, fmt, tema = "claro", ancho = 620, alto = 380
           x2={v.x(-0.02) - v.l(t.q / qMax * anchoDiag) - 6} y2={y} color={azul} grosor={1.5} cabeza={5} />;
       })}
 
-      <Rotulo x={v.x(anchoDiag / 2)} y={v.y(geo.h) - 18} texto={`q(z) — exposición ${analisis.dir.label}`}
+      {/* ⚠ ACÁ IBA `dir.label` DONDE DEBÍA IR LA EXPOSICIÓN: el rótulo decía «q(z) —
+          exposición Viento según +X». Este croquis existe justamente para delatar una
+          exposición mal cargada —el escalonado es su firma— y era el único dato que no
+          mostraba. */}
+      <Rotulo x={v.x(anchoDiag / 2)} y={v.y(geo.h) - 18}
+        texto={`q(z) — exposición ${analisis.sitio?.exposicion ?? "—"} · ${analisis.dir.label}`}
         color={txt} tam={11} peso={600} />
       {/* la cota del tope deja ver que el perfil cierra EN h y no en la última altura tabulada */}
       <Rotulo x={v.x(0) - 8} y={v.y(geo.h)} texto={`q_h = ${fmt.q(analisis.qh)}`}

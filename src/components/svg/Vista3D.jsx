@@ -100,8 +100,11 @@ export function Vista3D({ analisis, maxAbs, fmt, tema = "claro", ancho = 620, al
     (alto - 70) / 2 + 18 + (v * enc.esc + enc.dy - (alto - 70) / 2) * orb.zoom];
   const poly = (pts) => pts.map(p => px(p).join(",")).join(" ");
 
+  // Mismo cuerpo que el resto de la interfaz: son controles, no anotaciones del dibujo,
+  // y a 11 px quedaban como un widget de otra aplicación pegado debajo del croquis.
   const boton = (activo) => ({
-    fontSize: 11, padding: "3px 8px", borderRadius: 4, cursor: "pointer",
+    fontSize: 13, fontWeight: activo ? 600 : 500, padding: "4px 10px", borderRadius: 6,
+    cursor: "pointer",
     border: `1px solid ${activo ? "var(--acento)" : "var(--borde)"}`,
     background: activo ? "var(--acento)" : "var(--fondo)",
     color: activo ? "#fff" : "var(--txt)",
@@ -152,7 +155,7 @@ export function Vista3D({ analisis, maxAbs, fmt, tema = "claro", ancho = 620, al
             {v.lab}
           </button>
         ))}
-        <span style={{ fontSize: 11, color: "var(--txt2)", marginLeft: 4 }}>
+        <span style={{ fontSize: 13, color: "var(--txt2)", marginLeft: 4 }}>
           arrastrá para girar · rueda para acercar
           {orb.zoom !== 1 && ` · ${orb.zoom.toFixed(2)}×`}
         </span>

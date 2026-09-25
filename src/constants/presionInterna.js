@@ -39,3 +39,11 @@ export function ri(volumenInterno, areaAberturas) {
 }
 
 export const gcpiDe = (id) => CERRAMIENTOS.find(c => c.id === id)?.gcpi ?? null;
+
+// ⚠ SE BUSCA POR ID, NUNCA POR GC_pi. «Cerrado» y «parcialmente abierto» comparten el
+// 0,18, así que un `find` por coeficiente devuelve el primero de los dos: la nota al pie
+// de la tabla de presiones de un edificio CERRADO decía «parcialmente abierto». No
+// rompía ningún número —el 0,18 era el que correspondía— y por eso podía quedarse ahí
+// indefinidamente, contradiciendo al campo del formulario que está tres pantallas antes.
+export const nombreCerramiento = (id) =>
+  CERRAMIENTOS.find(c => c.id === id)?.label.toLowerCase() ?? "—";

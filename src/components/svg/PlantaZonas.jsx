@@ -101,8 +101,12 @@ export function PlantaZonas({ analisis, maxAbs, fmt, tema = "claro", ancho = 620
           terminaba dibujada sobre la planta. */}
       <Dim x1={v.x(0)} y1={Y(0)} x2={v.x(a)} y2={Y(0)} texto={`a = ${fmt.m(a)}`}
         desplaz={SEP + 74} color={ink} />
+      {/* ⚠ LA COTA DE `b` VA MÁS AFUERA QUE EL RÓTULO DE LA CARA IZQUIERDA. Su etiqueta
+          lleva fondo opaco y se dibuja DESPUÉS de los rótulos, así que con la separación
+          anterior tapaba la primera letra de «Barlovento» —se leía «arlovento»—. El número
+          tiene que salir del ancho que ocupa el rótulo más largo, no de un valor a ojo. */}
       <Dim x1={v.x(0)} y1={Y(0)} x2={v.x(0)} y2={Y(b)} texto={`b = ${fmt.m(b)}`}
-        desplaz={-(SEP + 84)} color={ink} />
+        desplaz={-(SEP + 150)} color={ink} />
 
       <LeyendaPresion x={ancho / 2 - 110} y={alto - 32} ancho={220}
         tramos={tramosLeyenda(maxAbs, tema)} fmt={fmt.q} color={ink} />

@@ -99,16 +99,68 @@ El costado gráfico es prioridad declarada del autor, no un adorno. Los cuatro:
 4. **3D del edificio coloreado por presión** — el mejor para detectar un signo invertido
    de un golpe de vista.
 
-## Estructura prevista
+## Estructura
 
 | Ruta | Contenido |
 |---|---|
 | `src/engine/` | cálculo puro, sin React. Es donde vive la ingeniería. |
 | `src/constants/` | **las tablas de la norma**, cada una con su referencia y su test |
-| `src/components/` | pestañas y croquis SVG |
-| `src/context/` | estado global, autoguardado en `localStorage`, export/import JSON |
+| `src/components/tokens.js` | **la única fuente de color, medida y tipografía** |
+| `src/components/styles.js` · `ui.jsx` · `EstilosGlobales.jsx` | estilos derivados, primitivas y la hoja global |
+| `src/components/shell/` | barra superior, navegación lateral, ficha del caso, selector de dirección |
+| `src/components/tabs/` | una pantalla por área (Guía, Sitio, Edificio, Ráfaga, Presiones, Croquis, Resultantes, Resumen) |
+| `src/components/svg/` | croquis. `kit.jsx` tiene las primitivas (Dim, Flecha, Rotulo, Lienzo, LeyendaPresion) |
+| `src/context/` | `ProyectoContext` (datos + cálculo + autoguardado) · `UiContext` (tema y navegación) |
+| `src/lib/` | formato de números, registro de avisos, cámara 3D, escala de color |
 | `tests/` | vitest |
 | `docs/` | memoria de cálculo |
+
+## La interfaz — decisiones que no conviene revertir
+
+El sistema de diseño está **portado de la aplicación de bases**, y no por parecido: son
+dos herramientas del mismo autor que se abren una al lado de la otra y los números de una
+terminan en la memoria de la otra. Que cada una tenga su propia escala tipográfica y su
+propio azul las hace parecer de proveedores distintos.
+
+- **UNA SOLA FUENTE DE COLOR Y DE MEDIDA: `components/tokens.js`.** Los colores son
+  VARIABLES CSS, no literales, así que cambiar de tema es cambiar un atributo en la raíz y
+  no re-renderizar nada. Consecuencia a tener presente: **no se puede concatenar opacidad**
+  (`c.verde + "40"` no es nada con variables), por eso cada tinte tiene su propio token.
+  Hay test que exige que los dos temas declaren las mismas claves: si falta una, la
+  variable queda sin valor y en ese tema el elemento sale transparente.
+- **Los alias `--fondo`, `--sup`, `--borde`, `--txt`, `--txt2`, `--acento` siguen vivos**
+  y apuntan a los tokens nuevos. Los cinco croquis y el mapa se escribieron contra ellos;
+  reescribirlos todos de una vez es el cambio que rompe un dibujo sin que ningún test lo
+  note. Hay test que los exige presentes.
+- **TRES TAMAÑOS DE LETRA Y TRES NIVELES DE TEXTO.** Lo que antes se resolvía achicando la
+  letra —unidades, encabezados de tabla, notas— se resuelve con peso y color sobre el mismo
+  cuerpo de 13. Los encabezados de tabla **no** van en versalitas espaciadas: a 13 px las
+  mayúsculas más el `letter-spacing` ensanchaban cada columna lo suficiente como para
+  empujar la última fuera de la tarjeta, que es lo que le pasaba a la tabla de cargas.
+- **UNA PANTALLA POR ÁREA, con barra lateral vertical.** Antes era una sola columna con
+  nueve recuadros apilados. Toda esa información hace falta; el problema era que estaba
+  toda al mismo tiempo y sin forma de volver a nada: mirar un croquis y su tabla de cargas
+  obligaba a scrollear tres pantallas.
+- **EL ESTADO VIVE EN `ProyectoContext`, NO EN `App`.** No es sólo prolijidad: con una
+  docena de `useState` en el componente raíz, sacar un bloque a otra pantalla obligaba a
+  pasarle ocho props y sus ocho setters, y por eso la app *tenía* que ser una columna
+  infinita. De paso trajo **autoguardado en `localStorage` y export/import JSON**: antes,
+  recargar la página tiraba el edificio entero.
+- **`lib/avisos.js` es un registro, no texto suelto en las pantallas.** Una presión de
+  viento es un número plausible SIEMPRE: si la exposición está mal elegida o el edificio es
+  flexible y se usó `G = 0,85`, el resultado no se rompe, sale más chico. Ese es el modo de
+  falla real y no lo detecta ningún test. Cada aviso declara la PANTALLA donde se resuelve,
+  y de ahí salen a la vez el punto de la barra lateral y el contador de la barra superior.
+  **Hay test que exige que cada `tab` nombre una pantalla que existe**: un nombre mal
+  escrito no rompe nada visible —el botón cae en la Guía y el punto no aparece— y el aviso
+  deja de ser alcanzable.
+- **Los tres niveles de aviso no son intercambiables.** `error` = el motor no cubre lo que
+  se le pidió, o la hipótesis contradice al reglamento. `aviso` = el número sirve pero
+  descansa en algo a confirmar. `info` = una decisión que el reglamento ya tomó. **Los
+  informativos NO encienden el indicador de la barra**: si contaran, estaría siempre en
+  ámbar y dejaría de significar algo.
+- **Las cuatro direcciones se eligen en el shell** (`SelectorDireccion`), no dentro de una
+  pantalla: la pregunta «cuál estoy mirando» se hace en todas las de resultado a la vez.
 
 ## Estilo
 
@@ -156,6 +208,24 @@ límite `G → 0,925`. Los terrenos lisos tienen poca turbulencia.
 menos. El art. 1.9.4 permite las dos vías igual, pero suponer que el 0,85 siempre protege
 es un error. La app lo avisa cuando pasa. Conviene contrastarlo con la lectura del autor.
 
+## Tres defectos que encontró el rediseño
+
+Ninguno de los tres rompía un número, y por eso podían quedarse indefinidamente. Los tres
+salieron de MIRAR LA PANTALLA RENDERIZADA, no de un test.
+
+- **La nota de la tabla de presiones nombraba mal el cerramiento.** Buscaba la
+  clasificación por su `GC_pi`, y «cerrado» y «parcialmente abierto» comparten el 0,18: un
+  edificio CERRADO leía «parcialmente abierto» al pie de su tabla. El 0,18 era el correcto,
+  así que ningún resultado estaba mal; simplemente la nota contradecía al campo del
+  formulario que está tres pantallas antes. Ahora se busca por `id`, en
+  `constants/presionInterna.js → nombreCerramiento`. Hay test.
+- **El croquis de `q(z)` no mostraba la exposición.** Su rótulo decía «q(z) — exposición
+  Viento según +X»: imprimía la dirección del viento donde iba la categoría. Este croquis
+  existe justamente para delatar una exposición mal cargada —el escalonado es su firma— y
+  era el único dato que no mostraba.
+- **La cota de `b` en la planta tapaba el rótulo de la cara izquierda.** Su etiqueta lleva
+  fondo opaco y se dibuja después de los rótulos, así que se leía «arlovento».
+
 ## Pendientes conocidos
 
 - **La presión interna positiva usa `q_h` y no `q_z`.** El art. 2.4.1 permite evaluarla a
@@ -171,3 +241,8 @@ es un error. La app lo avisa cuando pasa. Conviene contrastarlo con la lectura d
   declarados en `engine/edificio.js` con sus factores y su momento torsor.
 - Cubiertas en **cúpula** (Figura 2.4-2) y **abovedadas** (2.4-3): las constantes están
   leídas pero no implementadas. La 2.4-2 es un gráfico y hay que digitalizarlo.
+- **El croquis de `q(z)` desperdicia el ancho de su tarjeta.** `mkView` ajusta la escala al
+  MENOR de los dos factores, y con un edificio bajo y ancho eso deja dos tercios del lienzo
+  vacíos. Arreglarlo bien toca el encuadre de los cuatro croquis.
+- **`K_zt` sigue fijo en 1,0 en la interfaz** aunque el motor lo calcula. Es el aviso más
+  importante de la app: es un multiplicador que puede llegar a 1,9.
