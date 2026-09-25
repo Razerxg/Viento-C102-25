@@ -122,12 +122,32 @@ El costado gráfico es prioridad declarada del autor, no un adorno. Los cuatro:
   Es distinto de un cero declarado, y el resto del programa tiene que saber leer la
   diferencia.
 
+## Escala de color de la presión
+
+La presión tiene **polaridad**, no sólo magnitud: empuja contra la superficie o tira de
+ella. Eso pide una escala **divergente** —azul succión · gris cero · rojo presión—, nunca
+una rampa de un solo tono, que borraría justamente la distinción que importa, y nunca un
+arcoíris ni un tono saturado en el punto medio.
+
+Los dos brazos están **verificados con el validador de paletas**: separación CVD del peor
+par adyacente ΔE 18,6 (protan) y 18,0 (tritan), contra un piso de 8 y un objetivo de 15.
+El extremo neutro queda por debajo de 3:1 contra el fondo —lo correcto en una escala
+continua, donde «cerca de cero» debe fundirse con la superficie— y eso obliga a un alivio:
+**cada cara lleva su valor escrito, hay leyenda y existe la tabla de superficies**. El
+color nunca es el único portador del dato.
+
 ## Pendientes conocidos
 
-- **Falta el PDF del CIRSOC 102-2025.** Sin él no se escribe el motor: ver la advertencia
-  del encabezado.
-- **Confirmar la lectura del alcance.** «Estructuras abiertas y parcialmente abiertas» se
-  interpretó como las **clasificaciones de cerramiento del edificio**, y no como
-  estructuras reticuladas abiertas, que irían por coeficiente de fuerza y son otro motor.
-  La interpretación se apoya en que los elementos aislados por `Cf` quedaron declarados
-  para más adelante. **Verificar con el autor antes de escribir el modelo de datos.**
+- **La presión interna positiva usa `q_h` y no `q_z`.** El art. 2.4.1 permite evaluarla a
+  la altura de la abertura más alta en edificios parcialmente cerrados o abiertos, lo que
+  en un edificio alto baja la presión interna de forma significativa. Falta declarar esa
+  abertura en la interfaz; mientras tanto se usa `q_h`, que es el criterio conservador que
+  el propio reglamento admite.
+- **Falta el factor `Ri`** de reducción por gran volumen: está implementado en
+  `constants/presionInterna.js` pero no cableado a la interfaz.
+- **`Kzt` está fijo en 1,0.** El motor completo está en `engine/presionDinamica.js` y en
+  `constants/topografia.js`, con sus tres condiciones de aplicación; falta la interfaz.
+- **Los casos de carga de la Figura 2.4-8 no se aplican todavía a la salida.** Están
+  declarados en `engine/edificio.js` con sus factores y su momento torsor.
+- Cubiertas en **cúpula** (Figura 2.4-2) y **abovedadas** (2.4-3): las constantes están
+  leídas pero no implementadas. La 2.4-2 es un gráfico y hay que digitalizarlo.
