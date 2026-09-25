@@ -56,10 +56,18 @@ categoría de riesgo, y qué cambió en las categorías de exposición.
 | Tipología | **Edificios**, en las cuatro clasificaciones de cerramiento: cerrado, parcialmente cerrado, parcialmente abierto y abierto |
 | Salida | **Presiones por zona y por superficie** (`p` en cada pared y cada zona de cubierta, con su `Cp` y su `GCpi`) |
 
+### Capítulo 4 — accesorios y otras estructuras (implementado)
+
+| | |
+|---|---|
+| Art. 4.4 | Paredes libres llenas y carteles llenos · Figura 4.4-1 casos A, B y C |
+| Art. 4.5 | Chimeneas y tanques (4.5-1) · carteles abiertos y entramados (4.5-2) · torres reticuladas (4.5-3) |
+| Art. 4.5.1 | Estructuras y equipamiento sobre cubiertas · `(GCr)` |
+| Art. 4.5.2 | Silos, tanques y recipientes cilíndricos, aislados y agrupados · Figuras 4.5-4 a 4.5-6 |
+| **Art. 4.5.3 a 4.5.5** | **Paneles solares — NO implementados.** Ver abajo. |
+
 ### Fuera de la versión 1, previsto para después
 
-- **Elementos aislados por coeficiente de fuerza** (`Cf`): carteles, superficies exentas,
-  estructuras reticuladas, recipientes cilíndricos.
 - **Componentes y revestimientos (C&R)**: es otro sistema, con otras áreas tributarias y
   otros coeficientes. No confundir con el SRFV.
 - **Fuerzas por nivel, cortante y momento en la base, reparto por pórtico.** No se
@@ -84,6 +92,46 @@ categoría de riesgo, y qué cambió en las categorías de exposición.
 - **La memoria de cálculo es un entregable, no un extra.** Mismo criterio que la de
   `bases-v-0.1`: estructura de capítulos, tablas `Concepto · Símbolo · Valor · Unidad`,
   figuras numeradas y las fórmulas en LaTeX.
+
+## Capítulo 4 — decisiones que no conviene revertir
+
+- **ES OTRO CAMINO DE CÁLCULO, NO «EL CAPÍTULO 2 CON OTROS COEFICIENTES».** El capítulo 2
+  reparte PRESIONES sobre las superficies de un edificio y la presión interna entra en cada
+  una. El capítulo 4 da una FUERZA resultante sobre un objeto que no tiene interior —una
+  pared libre, una torre, un cartel—, así que no hay `GCpi` que aplicar. Por eso vive en su
+  propio grupo de la barra lateral y no entre los resultados del edificio: mezclarlos haría
+  creer que el cartel se calcula «con los datos del edificio», y lo único que comparten es
+  el sitio.
+- **LA PARTICIÓN EN DOS PANTALLAS ES LA DEL PROPIO REGLAMENTO.** La Tabla 4.1-1 da los pasos
+  de accesorios y otras estructuras; la Tabla 4.1-2, los de recipientes cilíndricos. Son dos
+  procedimientos distintos —el silo está techado y vuelve a tener presión interna— y la
+  norma los separa antes que nosotros.
+- ⚠ **A QUÉ ALTURA SE EVALÚA `q` NO ES LO MISMO EN LAS TRES EXPRESIONES**, y el resultado no
+  lo delata: usar el centroide en un cartel da una fuerza apenas menor y perfectamente
+  plausible.
+  · `(4.4-1)` carteles y paredes libres → `q_h`, con `h` el **borde superior**.
+  · `(4.5-1)` otras estructuras → `q_z`, al **centroide del área proyectada**.
+  · `(4.5-2)` y `(4.5-3)` equipos de azotea → `q_h` **del edificio** que los soporta.
+  · Silo **aislado** → `q_z` al centroide del cilindro; **agrupado** → `q_h`. Hay test de
+  cada uno.
+- ⚠ **EL `(GCr)` NO SE MULTIPLICA POR `G`.** Es un producto tabulado y el art. 1.9.7 prohíbe
+  separarlo; volver a multiplicar por 0,85 baja un 15 % la carga sobre un equipo de azotea.
+  El motor pone `G = 1` en esa familia, y hay test.
+- ⚠ **EL `Kd` DEL CAPÍTULO 4 NO ES 0,85.** La Tabla 1.6-1 lo da por tipo de estructura: 0,90
+  en chimeneas cuadradas, 0,95 en hexagonales, **1,00 en redondas y octogonales**. Cada
+  pantalla del capítulo 4 tiene **su propio selector**, y el silo tiene uno separado del de
+  accesorios —antes heredaba el de allá y un tanque quedaba calculado con 0,85—.
+- **`D·√qz` ESTÁ EN UNIDADES SI, umbral 5,3** (D en m, qz en N/m²). Separa el régimen
+  subcrítico del supercrítico del cilindro y entre las dos filas el coeficiente cambia casi
+  al doble. La app AVISA cuando la fila elegida contradice al valor calculado.
+- **EL ÁREA NO ES LA MISMA EN CADA FAMILIA.** Cartel lleno → área total. Cartel abierto y
+  torre → **área SÓLIDA proyectada** (nota 3 de la Figura 4.5-2 y nota 1 de la 4.5-3). Usar
+  la envolvente en un reticulado con ε = 0,25 **cuadruplica** la fuerza. Hay test.
+- **EL CASO C NO SE INTERPOLA ENTRE `B/s = 10` Y `13`.** El número de regiones es un dato de
+  la columna —cuatro y siete— y mezclarlas no significa nada. El motor se niega y lo dice.
+- **NO SE INTERPOLA ENTRE LAS BANDAS DE ε DE LA FIGURA 4.5-2.** A diferencia de la 4.5-1,
+  que autoriza interpolar en su nota 2, ésta no lo dice: dentro de cada banda el valor es
+  constante, y por encima de `ε = 0,7` el motor devuelve `null` con el motivo.
 
 ## Croquis — los cuatro pedidos
 
@@ -227,6 +275,17 @@ salieron de MIRAR LA PANTALLA RENDERIZADA, no de un test.
   fondo opaco y se dibuja después de los rótulos, así que se leía «arlovento».
 
 ## Pendientes conocidos
+
+- ⛔ **PANELES SOLARES, ART. 4.5.3 A 4.5.5 — NO IMPLEMENTADOS, Y NO POR FALTA DE TIEMPO.**
+  Sus coeficientes no están tabulados: las Figuras 4.5-7, 4.5-10 y 4.5-11 son **once
+  gráficos de curvas** sobre ejes logarítmicos, con unos pocos valores rotulados de arranque
+  y de cola. Sacar un valor intermedio exige digitalizar la curva de un escaneo, y un
+  coeficiente leído a ojo da una presión plausible y un cálculo equivocado que ningún
+  control detecta. El art. 4.5.4 además necesita el `(GCp)` del Capítulo 5, que no está en el
+  repositorio. **Sí están en `constants/cap4.js → SOLAR`** los factores que el reglamento da
+  como expresión cerrada (`γp`, `γc`, `γE`, `An`, `Ns`) y **`γa` de la Figura 4.5-8**, que es
+  la única curva de la serie transcribible exacto porque sus quiebres caen sobre líneas de
+  grilla. Digitalizar las once curvas es el trabajo que falta.
 
 - **La presión interna positiva usa `q_h` y no `q_z`.** El art. 2.4.1 permite evaluarla a
   la altura de la abertura más alta en edificios parcialmente cerrados o abiertos, lo que

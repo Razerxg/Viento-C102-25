@@ -273,3 +273,27 @@ describe('nombre de la clasificación de cerramiento', () => {
     expect(nombreCerramiento('lo que sea')).toBe('—');
   });
 });
+
+describe('el capítulo 4 y su navegación', () => {
+  it('sus dos pantallas existen y son un grupo aparte', () => {
+    expect(TABS).toContain('Accesorios');
+    expect(TABS).toContain('Silos y tanques');
+    const grupo = NAV.find(g => (g.grupo ?? "").includes('cap. 4'));
+    expect(grupo).toBeDefined();
+    expect(grupo.items).toEqual(['Accesorios', 'Silos y tanques']);
+  });
+
+  it('no llevan selector de dirección', () => {
+    // Un coeficiente de fuerza ya contempla la dirección más desfavorable dentro del propio
+    // C_f y de sus casos A, B y C: ofrecer «estás mirando Wx+» sería mentir.
+    expect(SIN_DIRECCION.has('Accesorios')).toBe(true);
+    expect(SIN_DIRECCION.has('Silos y tanques')).toBe(true);
+  });
+
+  it('sí llevan ficha de estado', () => {
+    // Lo que muestra la ficha —V, exposición, K_zt, K_e— es justamente lo que el capítulo 4
+    // comparte con el edificio, y es lo que hay que poder mirar sin volver a Sitio.
+    expect(SIN_FICHA.has('Accesorios')).toBe(false);
+    expect(SIN_FICHA.has('Silos y tanques')).toBe(false);
+  });
+});

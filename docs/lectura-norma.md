@@ -153,3 +153,110 @@ Rivadavia (67,5). **Esto da un test sobre las 87 celdas**: una cifra transpuesta
 ningún `V50` que satisfaga las tres columnas a la vez. Es el mismo mecanismo que el test de
 los 228 espesores del catálogo de caños —una grilla que el error de tipeo no puede
 satisfacer—.
+
+---
+
+# CAPÍTULO 4 — RECIBIDO Y LEÍDO COMPLETO
+
+36 páginas, **escaneo sin capa de texto** igual que el resto (verificado con pypdf: las 36
+devuelven 0 caracteres). Se leyó de la imagen, rasterizando a 150 dpi.
+
+## Organización
+
+| Art. | Contenido | Estado |
+|---|---|---|
+| 4.1 | Alcance · **Tabla 4.1-1** (pasos de accesorios) y **Tabla 4.1-2** (pasos de recipientes cilíndricos) · condiciones, limitaciones y protección | implementado |
+| 4.2 · 4.3 | Parámetros del capítulo 1 y presión dinámica: remiten al art. 1.13 | implementado |
+| 4.4 | Paredes libres llenas y carteles llenos · **Figura 4.4-1** · expresión (4.4-1) | implementado |
+| 4.5 | Otras estructuras · **Figuras 4.5-1, 4.5-2, 4.5-3** · expresión (4.5-1) | implementado |
+| 4.5.1 | Equipos sobre cubierta · expresiones (4.5-2) y (4.5-3) | implementado |
+| 4.5.2 | Silos, tanques y recipientes cilíndricos · **Figuras 4.5-4, 4.5-5, 4.5-6** · expresión (4.5-4) | implementado |
+| 4.5.3 · 4.5.4 · 4.5.5 | Paneles solares · **Figuras 4.5-7 a 4.5-11** | **no implementado — ver abajo** |
+| 4.6 | Parapetos: remite al art. 2.4.5 | ya estaba |
+
+## LA FIGURA 4.4-1 TRAE SU PROPIO BANCO DE PRUEBA
+
+El comentario **C 4.4.1 (pág. 4-102)** da el ajuste de superficie de Fox and Levitan (2005)
+a los datos de túnel de viento:
+
+```
+Cf = {1,563 + 0,008542·ln(x) − 0,06148·y + 0,009011·[ln(x)]²
+      − 0,2603·y² − 0,08393·y·ln(x)} / 0,85        con x = B/s , y = s/h
+```
+
+y dice textualmente que «los coeficientes de fuerza para los casos A y B se generaron a
+partir de la expresión precedente y luego se redondearon a los **0,05** más próximos».
+
+**Comprobado: las 84 celdas cierran EXACTO, con cero discrepancias.** O sea que la tabla y
+la fórmula son dos transcripciones independientes del mismo dato, hechas por los autores de
+la norma, y una cifra mal leída del escaneo no puede pasar. Es el mismo mecanismo que la
+Tabla 1.13-1 contra la fórmula de `Kz`, y el más fuerte de todo el repositorio: no hay
+tolerancia que ajustar.
+
+El `0,85` del denominador tampoco es decorativo: el comentario explica que lleva los
+coeficientes medidos en túnel a un formato en el que se los puede usar junto al factor de
+efecto de ráfaga del art. 1.9, que es por qué la expresión (4.4-1) tiene `G` y `Cf`
+separados.
+
+## Verificación estructural del CASO C
+
+El comentario dice que «para carteles con relación B/s diferentes, el **número de regiones
+es igual al número de entradas del coeficiente de fuerza** ubicadas debajo de cada
+encabezamiento de columna B/s». Eso convierte a las celdas vacías de la figura en un DATO:
+
+- `B/s = 2` → 2 regiones · `3` → 3 · `4` a `10` → 4 · `13` y `≥45` → 7.
+- Las regiones **teselan el ancho B**: no se superponen ni dejan huecos, y la última llega
+  hasta `B`. Hay test.
+
+**Consecuencia que el código tiene que respetar:** entre `B/s = 10` (cuatro regiones) y
+`B/s = 13` (siete) **no se puede interpolar**, aunque la nota 4 autorice interpolar en
+`B/s`. El motor se niega y lo dice, en vez de devolver un reparto inventado.
+
+## Hallazgos del capítulo
+
+- **`D·√qz` está en unidades SI**, con el umbral en **5,3** (D en m, qz en N/m²). Separa el
+  régimen subcrítico del supercrítico del cilindro en las Figuras 4.5-1 y 4.5-2, y entre las
+  dos filas el coeficiente cambia **casi al doble**. Es el equivalente del `2,5` de las
+  ediciones en libras por pie cuadrado.
+- **La Figura 4.5-3 es la única de las tres que cambió** respecto del CIRSOC 102-2005. El
+  comentario lo dice: las Figuras 4.5-1 y 4.5-2 vienen sin cambios de ANSI A58.1-1972,
+  mientras que la de torres reticuladas se refinó y quedó consistente con **CIRSOC 306-2018**
+  y ANSI/TIA-222-G-2009. Además no es una tabla: son dos polinomios cerrados.
+- **El art. 4.5.1 no existía en el 102-2005.** Viene de ASCE 7-16, y allí se levantó el
+  límite de 18,3 m de altura de edificio que traía el 7-10: ahora aplica a **todas las
+  alturas**.
+- **El `(GCr)` es un producto y no se separa** (art. 1.9.7). Las expresiones (4.5-2) y
+  (4.5-3) no llevan `G` aparte, a diferencia de (4.4-1) y (4.5-1).
+- **A qué altura se evalúa `q` no es lo mismo en las dos expresiones.** (4.4-1) usa `q_h` con
+  `h` el **borde superior** del cartel; (4.5-1) usa `q_z` al **centroide** del área
+  proyectada; (4.5-2) y (4.5-3) usan `q_h` del **edificio** que soporta al equipo. Hay test.
+- **El silo aislado y el agrupado tampoco la evalúan igual:** el aislado usa `q_z` al
+  centroide del cilindro y el agrupado `q_h`. El comentario mide un arrastre **65 % mayor**
+  sobre el cilindro del medio de una fila de tres separados `1,25 D`.
+- **El `Kd` del capítulo 4 no es 0,85.** La Tabla 1.6-1 ya lo daba por tipo de estructura, y
+  recién acá hace falta: 0,90 en chimeneas cuadradas, 0,95 en hexagonales, **1,00 en redondas
+  y octogonales**. Arrastrar el del edificio a un tanque cilíndrico baja la carga un 15 %.
+
+## LO QUE NO SE IMPLEMENTÓ, Y POR QUÉ
+
+**Artículos 4.5.3, 4.5.4 y 4.5.5 — paneles solares.**
+
+Sus coeficientes **no están tabulados**. Las Figuras 4.5-7, 4.5-10 y 4.5-11 son **once
+gráficos de curvas** sobre ejes logarítmicos —`(GCrn)nom` contra el área normalizada `An`,
+`(GCgn)` y `(GCgm)` estáticos contra el área efectiva, y sus versiones dinámicas contra la
+frecuencia reducida `Ns`— y el reglamento sólo rotula unos pocos valores de arranque y de
+cola (0,50 / 0,45 / 0,35 · 0,15 / 0,10 · 0,80 / 0,65 / 0,56 · 2,5 · 1,5 · 0,8…).
+
+Sacar un valor intermedio exige **digitalizar la curva de un escaneo**. Un coeficiente leído
+a ojo de un gráfico da una presión plausible y un cálculo equivocado que ningún control de
+ingeniería detecta: es exactamente contra lo que se escribió el encabezado de `CLAUDE.md`.
+El art. 4.5.4 además necesita el `(GCp)` de componentes y revestimientos del **Capítulo 5**,
+que no está en el repositorio.
+
+**Sí está en el motor** lo que el reglamento da como expresión cerrada, para no tener que
+volver sobre el documento el día que se digitalicen las curvas:
+`γp = mín(1,2 ; 0,9 + hpt/h)` · `γc = máx(0,6 + 0,06·Lp ; 0,8)` · `γE = 1,5 / 1,0` ·
+`An = A·(1000/[máx(Lb ; 4,5)]²)` con `Lb = mín(0,4·√(h·WL) ; h ; WS)` ·
+`Ns = n·Lc/V` (4.5-12) · y **`γa` de la Figura 4.5-8**, que es la única curva de la serie
+transcribible exacto porque sus dos quiebres caen sobre líneas de grilla, en `A = 1 m²`
+(γa = 0,8) y `A = 10 m²` (γa = 0,4), con el tramo intermedio lineal **en log A**.

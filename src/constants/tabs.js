@@ -16,6 +16,15 @@ export const NAV = [
   // todas las presiones. Puesto entre los resultados parecería algo que la app informa.
   { grupo: "Definición", items: ["Sitio", "Edificio", "Ráfaga"] },
   { grupo: "Resultados", items: ["Presiones", "Croquis", "Resultantes", "Resumen"] },
+  // CAPÍTULO 4 APARTE, Y NO ENTRE LOS RESULTADOS DEL EDIFICIO. No es otra salida del mismo
+  // cálculo: es OTRO objeto. El capítulo 2 reparte presiones sobre las superficies de un
+  // edificio; el 4 da una fuerza resultante sobre una pared libre, una chimenea o una
+  // torre, que no tienen interior ni presión interna. Mezclarlos haría creer que el cartel
+  // se calcula «con los datos del edificio», y lo único que comparten es el sitio.
+  //
+  // La partición en dos pantallas es la del propio reglamento: la Tabla 4.1-1 da los pasos
+  // de accesorios y otras estructuras, y la Tabla 4.1-2 los de recipientes cilíndricos.
+  { grupo: "Otras estructuras — cap. 4", items: ["Accesorios", "Silos y tanques"] },
 ];
 
 export const TABS = NAV.flatMap(n => n.items);
@@ -25,12 +34,20 @@ export const idxTab = (nombre) => Math.max(0, TABS.indexOf(nombre));
 // edificio y la ráfaga son del edificio ENTERO —el viento todavía no eligió dirección— y
 // el resumen muestra las cuatro a la vez: en todas, ofrecer «estás mirando la dirección
 // X+» sería mentir sobre lo que hay en pantalla.
-export const SIN_DIRECCION = new Set(["Guía", "Sitio", "Edificio", "Ráfaga", "Resumen"]);
+// Las pantallas del capítulo 4 tampoco lo llevan: el procedimiento direccional del
+// capítulo 2 reparte Cp por dirección, pero un coeficiente de fuerza ya contempla la
+// dirección más desfavorable dentro del propio C_f y de sus casos A, B y C.
+export const SIN_DIRECCION = new Set(["Guía", "Sitio", "Edificio", "Ráfaga", "Resumen",
+  "Accesorios", "Silos y tanques"]);
 
 // Pantallas que NO llevan la ficha de estado al costado. Los croquis y el resumen usan
 // todo el ancho: en el resumen la ficha duplicaría columnas que la propia tabla ya lista,
 // y en los croquis le come lugar al dibujo, que es lo único que hay para ver.
 export const SIN_FICHA = new Set(["Guía", "Croquis", "Resumen"]);
+
+// Las pantallas del capítulo 4 SÍ llevan ficha: lo que muestra —V, exposición, K_zt, K_e—
+// es justamente lo que comparten con el edificio, y es lo que hay que poder mirar sin
+// volver a Sitio mientras se dimensiona un cartel.
 
 // Qué se hace en cada pantalla de definición. Lo lee la Guía, que es lo único que
 // responde «¿por dónde empiezo?» sin obligar a abrir las ocho.

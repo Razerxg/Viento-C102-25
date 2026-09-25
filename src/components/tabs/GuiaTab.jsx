@@ -88,12 +88,20 @@ export function GuiaTab() {
           tres vías del art. 1.9. Las resultantes en la base —corte, levantamiento y
           vuelco— con el piso de la nota 7.
           <br /><br />
+          <b style={{ color: c.txt }}>Del Capítulo 4</b> —accesorios y otras estructuras—
+          calcula paredes libres llenas y carteles llenos con sus casos A, B y C; carteles
+          abiertos y entramados planos; chimeneas, tanques y estructuras similares; torres
+          reticuladas; equipos sobre cubierta; y silos, tanques y recipientes cilíndricos
+          verticales, aislados y agrupados, con las presiones de su techo y de su fondo.
+          <br /><br />
           <b style={{ color: c.txt }}>No calcula.</b> El factor topográfico K_zt, que queda
-          fijo en 1,0. Los coeficientes de fuerza del Capítulo 4 para elementos aislados.
-          Los coeficientes de componentes y revestimientos del Capítulo 5. Las cubiertas
-          abovedadas y en mansarda. El tratamiento por C_N de edificios abiertos de las
-          Figuras 2.4-4 y siguientes. Los cuatro casos de carga de la Figura 2.4-8, que
-          están declarados pero todavía no se aplican al resultado.
+          fijo en 1,0. Los coeficientes de componentes y revestimientos del Capítulo 5. Las
+          cubiertas abovedadas y en mansarda. El tratamiento por C_N de edificios abiertos de
+          las Figuras 2.4-4 y siguientes. Los cuatro casos de carga de la Figura 2.4-8, que
+          están declarados pero todavía no se aplican al resultado. Y los paneles solares de
+          los artículos 4.5.3 a 4.5.5, cuyos coeficientes son once gráficos de curvas que
+          habría que digitalizar de un escaneo: un coeficiente leído a ojo de un gráfico da
+          una presión plausible y un cálculo equivocado.
         </div>
       </Acordeon>
 

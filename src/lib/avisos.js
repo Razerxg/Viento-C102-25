@@ -22,7 +22,8 @@
 //   info  → una decisión que el reglamento tomó y conviene saber que se tomó.
 const ORDEN = { error: 0, aviso: 1, info: 2 };
 
-export function avisosDe({ geoN, sitio, cerramiento, rafaga, modoG, n1, analisis, resultantes }) {
+export function avisosDe({ geoN, sitio, cerramiento, rafaga, modoG, n1, analisis, resultantes,
+  accesorio, silo }) {
   const av = [];
   const push = (o) => av.push(o);
 
@@ -126,6 +127,23 @@ export function avisosDe({ geoN, sitio, cerramiento, rafaga, modoG, n1, analisis
       titulo: "Cubierta zonificada en franjas pese a tener pendiente",
       detalle: "En esta dirección el viento es paralelo a la cumbrera, y para viento paralelo "
         + "la Figura 2.4-1 zonifica en franjas cualquiera sea θ." });
+  }
+
+  // ── CAPÍTULO 4 ───────────────────────────────────────────────────────────────
+  //
+  // Los avisos del capítulo 4 los produce el propio motor, porque dependen del cálculo:
+  // si la fila de régimen del cilindro contradice al D·√q_z, o si un cartel con B/s ≥ 2
+  // no se verificó con el caso C. Acá sólo se los reubica en la pantalla que los resuelve,
+  // para que salgan por el mismo canal que los del edificio: un aviso que vive únicamente
+  // dentro de su tarjeta no enciende el punto de la barra lateral y se pierde al cambiar
+  // de pantalla.
+  for (const a of accesorio?.avisos ?? []) {
+    push({ id: `acc-${a.texto.slice(0, 24)}`, tono: a.tono, tab: "Accesorios",
+      titulo: accesorio.fam?.label ?? "Accesorio", detalle: a.texto });
+  }
+  for (const a of silo?.avisos ?? []) {
+    push({ id: `silo-${a.texto.slice(0, 24)}`, tono: a.tono, tab: "Silos y tanques",
+      titulo: "Silo, tanque o recipiente cilíndrico", detalle: a.texto });
   }
 
   return av.sort((x, y) => ORDEN[x.tono] - ORDEN[y.tono]);

@@ -14,6 +14,8 @@
 // autoguardado en `localStorage` más exportación e importación a JSON.
 import { createContext, useContext, useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { analizarEdificio, analizarDireccion, normalizarGeo, DIRECCIONES } from '../engine/edificio.js';
+import { analizarAccesorio, analizarSilo, familiaDe } from '../engine/otrasEstructuras.js';
+import { gcpiDe } from '../constants/presionInterna.js';
 import { factorRafaga } from '../engine/factorRafaga.js';
 import { resultantes, barridoAlero, envolvente } from '../engine/resultantes.js';
 import { velocidadDe } from '../constants/velocidades.js';
@@ -45,6 +47,31 @@ export const INICIAL = {
   modoG: "defecto",
   tipoFrec: "",
   puntosPerfil: "10",
+
+  // ── CAPÍTULO 4 ──────────────────────────────────────────────────────────────
+  // Un caso cargado por defecto, igual que el edificio: abrir en blanco obliga a inventar
+  // un cartel antes de poder ver qué hace la pantalla.
+  cap4: {
+    familia: "cartel_lleno",
+    kd: "",              // "" = el que la Tabla 1.6-1 da para esta familia
+    // pared libre / cartel lleno
+    B: "6", s: "2", h: "5", eps: "", t: "", Lr: "", dobleCara: false,
+    // cartel abierto / entramado
+    epsAb: "0.25", miembro: "plano", Dmiembro: "0.05",
+    // chimenea / tanque
+    hChim: "20", Dchim: "3", filaChimenea: "circ_super_suave",
+    // torre reticulada
+    hTorre: "30", BTorre: "2", epsTorre: "0.25", seccionTorre: "cuadrada",
+    redondos: false, diagonal: false,
+    // equipo sobre cubierta
+    Bedif: "30", hedif: "12", Ledif: "40", Af: "6", Ar: "9",
+  },
+  // ⚠ EL SILO LLEVA SU PROPIO K_d. Antes tomaba el de la pantalla de Accesorios, así que
+  // elegir «cartel lleno» allá dejaba el tanque calculado con K_d = 0,85 en vez de 1,00:
+  // un 15 % menos de presión sobre otra estructura, sin que nada lo dijera. Por defecto va
+  // la fila de chimeneas y tanques redondos, que es lo que un silo cilíndrico es.
+  silo: { D: "10", H: "18", theta: "25", separacion: "5", elevado: false, C: "",
+    kd: "chim_redonda" },
 };
 
 const leer = () => {
@@ -54,7 +81,10 @@ const leer = () => {
     // campo tiene que seguir abriendo, con el valor por defecto del campo nuevo. Sin esto
     // agregar un campo rompe todos los proyectos guardados, y no hay forma de enterarse
     // hasta que alguien abre el suyo.
-    return v && typeof v === "object" ? { ...INICIAL, ...v, geo: { ...INICIAL.geo, ...(v.geo || {}) } } : null;
+    return v && typeof v === "object" ? { ...INICIAL, ...v,
+      geo: { ...INICIAL.geo, ...(v.geo || {}) },
+      cap4: { ...INICIAL.cap4, ...(v.cap4 || {}) },
+      silo: { ...INICIAL.silo, ...(v.silo || {}) } } : null;
   } catch { return null; }
 };
 
@@ -69,6 +99,10 @@ export function ProyectoProvider({ children }) {
   // mano: repetido en veinte lugares, es donde aparece el que pisa el objeto entero.
   const set = useCallback((k) => (v) => setD(x => ({ ...x, [k]: v })), []);
   const setGeo = useCallback((k) => (v) => setD(x => ({ ...x, geo: { ...x.geo, [k]: v } })), []);
+  // Un setter por sub-objeto. Con `set("cap4")` habría que reconstruir el objeto entero en
+  // cada pantalla, que es donde alguien pisa un campo sin querer.
+  const setCap4 = useCallback((k) => (v) => setD(x => ({ ...x, cap4: { ...x.cap4, [k]: v } })), []);
+  const setSilo = useCallback((k) => (v) => setD(x => ({ ...x, silo: { ...x.silo, [k]: v } })), []);
 
   // AUTOGUARDADO. Diferido medio segundo: sin la demora se escribe en `localStorage` en
   // cada tecla de cada campo numérico.
@@ -122,10 +156,38 @@ export function ProyectoProvider({ children }) {
     desde: 3, hasta: 30, pasos: 27,
   }))), [entrada]);
 
+  // ── CAPÍTULO 4 ─────────────────────────────────────────────────────────────
+  //
+  // ⚠ EL K_d NO ES EL DEL EDIFICIO. La Tabla 1.6-1 da un valor por TIPO DE ESTRUCTURA:
+  // 0,85 para carteles y torres reticuladas de sección usual, 0,90 en chimeneas cuadradas,
+  // 0,95 en hexagonales y 1,00 en redondas y octogonales. Arrastrar el 0,85 del edificio a
+  // una chimenea redonda baja la carga un 15 % sin ninguna justificación, y el resultado
+  // sigue siendo un número plausible.
+  const cap4Kd = d.cap4.kd || familiaDe(d.cap4.familia).kd;
+  const kdCap4 = kdDe(cap4Kd) ?? 0.85;
+
+  const accesorio = useMemo(() => {
+    const c = d.cap4;
+    const datos = {
+      cartel_lleno:   { B: c.B, s: c.s, h: c.h, eps: c.eps, t: c.t, Lr: c.Lr, dobleCara: c.dobleCara },
+      cartel_abierto: { B: c.B, s: c.s, h: c.h, eps: c.epsAb, miembro: c.miembro, Dmiembro: c.Dmiembro },
+      chimenea:       { h: c.hChim, D: c.Dchim, filaChimenea: c.filaChimenea },
+      torre:          { h: c.hTorre, B: c.BTorre, eps: c.epsTorre,
+                        seccionTorre: c.seccionTorre, redondos: c.redondos, diagonal: c.diagonal },
+      equipo:         { Bedif: c.Bedif, hedif: c.hedif, Ledif: c.Ledif, Af: c.Af, Ar: c.Ar },
+    }[c.familia];
+    return analizarAccesorio({ familia: c.familia, datos, sitio, kd: kdCap4, G });
+  }, [d.cap4, sitio, kdCap4, G]);
+
+  const kdSilo = kdDe(d.silo.kd || "chim_redonda") ?? 1.0;
+  const silo = useMemo(() => analizarSilo({
+    datos: d.silo, sitio, kd: kdSilo, G, gcpi: gcpiDe(d.cerramiento) ?? 0,
+  }), [d.silo, sitio, kdSilo, G, d.cerramiento]);
+
   const avisos = useMemo(() => avisosDe({
     geoN, sitio, cerramiento: d.cerramiento, rafaga, modoG: d.modoG, n1: d.n1,
-    analisis: act, resultantes: res,
-  }), [geoN, sitio, d.cerramiento, rafaga, d.modoG, d.n1, act, res]);
+    analisis: act, resultantes: res, accesorio, silo,
+  }), [geoN, sitio, d.cerramiento, rafaga, d.modoG, d.n1, act, res, accesorio, silo]);
 
   const irA = useCallback((nombre) => setTab(idxTab(nombre)), []);
 
@@ -162,7 +224,8 @@ export function ProyectoProvider({ children }) {
 
   return (
     <Ctx.Provider value={{
-      d, set, setGeo, setD,
+      d, set, setGeo, setD, setCap4, setSilo,
+      accesorio, silo, kdCap4, cap4Kd, kdSilo,
       proyecto: d.proyecto, setProyecto: set("proyecto"),
       tab, setTab, irA, nombreTab: TABS[tab] ?? TABS[0],
       iDir, setIDir, direcciones: DIRECCIONES,
