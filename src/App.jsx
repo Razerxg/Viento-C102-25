@@ -14,7 +14,11 @@ import { kdDe } from "./constants/direccionalidad.js";
 import { PerfilQ } from "./components/svg/PerfilQ.jsx";
 import { PlantaZonas } from "./components/svg/PlantaZonas.jsx";
 import { ElevacionCubierta } from "./components/svg/ElevacionCubierta.jsx";
-import { Iso3D } from "./components/svg/Iso3D.jsx";
+import { Vista3D } from "./components/svg/Vista3D.jsx";
+import { CurvasAltura } from "./components/svg/CurvasAltura.jsx";
+import { MapaVelocidad } from "./components/MapaVelocidad.jsx";
+import { resultantes, barridoAlero, envolvente } from "./engine/resultantes.js";
+import { analizarDireccion } from "./engine/edificio.js";
 
 // Separador decimal COMA para mostrar y punto para el dato. Es la convención del país y la
 // de las otras aplicaciones; mezclarlas es lo que produce un «1.234» que se lee como mil
@@ -83,6 +87,16 @@ export function App() {
       ? s.tramos.map(x => Math.abs(x.gobernante))
       : [Math.abs(s.gobernante ?? 0)]))), [todas]);
 
+  // Envolvente de las cuatro direcciones sobre el rango de alturas. Se recalcula sólo
+  // cuando cambia algo que la afecta: son ~120 análisis completos y no hace falta rehacerlos
+  // al girar el 3D.
+  const curvas = useMemo(() => envolvente(DIRECCIONES.map(d => barridoAlero({
+    analizar: analizarDireccion, entrada: { geo, sitio, cerramiento, G: 0.85 },
+    direccion: d, desde: 3, hasta: 30, pasos: 27,
+  }))), [geo.a, geo.b, geo.theta, geo.tipo, geo.cumbrera, geo.pendienteHacia,
+    V, exposicion, altitud, cerramiento]);
+  const res = useMemo(() => resultantes(act), [act]);
+
   const up = (k) => (e) => setGeo(g => ({ ...g, [k]: e.target.value }));
   const croquis = { ancho: 620, fmt, tema, maxAbs, analisis: act };
 
@@ -116,9 +130,12 @@ export function App() {
                 {["I", "II", "III", "IV"].map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </Campo>
-            <div style={{ fontSize: 12, color: "var(--txt2)", marginBottom: 10 }}>
+            <div style={{ fontSize: 12, color: "var(--txt2)", marginBottom: 8 }}>
               V = <b style={{ color: "var(--txt)" }}>{f(V, 1)} m/s</b> · ráfaga de 3 s a 10 m,
               exposición C
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <MapaVelocidad riesgo={riesgo} ciudad={ciudad} V={V} fmt={`${f(V, 1)} m/s`} />
             </div>
             <Campo label="Categoría de exposición (art. 1.7)">
               <select style={S.inp} value={exposicion} onChange={e => setExposicion(e.target.value)}>
@@ -203,12 +220,38 @@ export function App() {
             {[["Perfil de q(z) en altura", <PerfilQ key="a" {...croquis} />],
               ["Planta con zonas y presiones", <PlantaZonas key="b" {...croquis} />],
               ["Elevación con zonas de cubierta", <ElevacionCubierta key="c" {...croquis} />],
-              ["Isométrica coloreada por presión", <Iso3D key="d" {...croquis} />]].map(([t, el]) => (
+              ["Vista 3D coloreada por presión", <Vista3D key="d" {...croquis} />]].map(([t, el]) => (
               <div key={t} style={S.card}>
                 <h2 style={S.h2}>{t}</h2>
                 {el}
               </div>
             ))}
+          </div>
+
+          <div style={S.card}>
+            <h2 style={S.h2}>Resultantes en la base según la altura de alero</h2>
+            <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 14 }}>
+              {[["Corte total", res.cortante / 1000, "kN"],
+                ["Levantamiento", res.levantamiento / 1000, "kN"],
+                ["Vuelco", res.vuelco / 1000, "kN·m"]].map(([t, v, u]) => (
+                <div key={t}>
+                  <div style={{ fontSize: 11, color: "var(--txt2)" }}>{t} · {act.dir.id}</div>
+                  <div style={{ fontSize: 20, fontWeight: 700 }}>{f(Math.abs(v), 1)}
+                    <span style={{ fontSize: 12, fontWeight: 400, color: "var(--txt2)" }}> {u}</span></div>
+                </div>
+              ))}
+            </div>
+            <CurvasAltura datos={curvas.map(c => ({ ...c, cortante: c.cortante / 1000,
+              levantamiento: c.levantamiento / 1000, vuelco: c.vuelco / 1000 }))}
+              hActual={act.geo.hAlero} fmt={(n) => f(n, n >= 100 ? 0 : 1)} tema={tema} />
+            <div style={{ fontSize: 12, color: "var(--txt2)", marginTop: 10, lineHeight: 1.6 }}>
+              Las curvas son la <b>envolvente de las cuatro direcciones</b>; los tres números
+              de arriba son los de la dirección seleccionada. La presión interna se cancela en
+              el corte —actúa por igual sobre barlovento y sotavento— pero no en el
+              levantamiento, que es donde gobierna.
+              {res.gobiernaNota7 && <> En esta dirección gobierna el <b>piso de la nota 7</b>:
+                las componentes horizontales de la cubierta restaban.</>}
+            </div>
           </div>
 
           <div style={S.card}>
