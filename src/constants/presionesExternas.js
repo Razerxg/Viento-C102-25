@@ -29,19 +29,33 @@ export const CP_PARED = {
 // `0.01θ` en la última columna se evalúa; `MENOS_18` marca el −0,18 del segundo caso.
 export const ANG_BARLOVENTO = [10, 15, 20, 25, 30, 35, 45, 60];
 
+// ⚠ TODAS LAS CELDAS SE GUARDAN CON DOS VALORES, [negativo, positivo], aunque la figura
+// imprima uno solo en algunas. No es un agregado: es lo que manda la nota 2 —«donde no se
+// dan valores del mismo signo, se toma 0,0 a los fines de la interpolación»—. Los ceros
+// así introducidos van marcados en `CERO_INTERPOLACION`.
+//
+// Uniformar la forma importa porque la interpolación es ELEMENTO A ELEMENTO entre dos
+// filas. Con celdas de largo distinto —la de h/L ≤ 0,25 y θ = 45° trae un único «0,4»—
+// habría que decidir sobre la marcha qué se aparea con qué, y ese es el tipo de decisión
+// que sale distinta cada vez que se la toma.
 export const CP_CUBIERTA_BARLOVENTO = {
   // h/L ≤ 0,25
-  0.25: [[-0.7, -0.18], [-0.5, 0.0], [-0.3, 0.2], [-0.2, 0.3], [-0.2, 0.3], [0.0, 0.4], [0.4], ["0.01t"]],
+  0.25: [[-0.7, -0.18], [-0.5, 0.0], [-0.3, 0.2], [-0.2, 0.3], [-0.2, 0.3], [0.0, 0.4], [0.0, 0.4], ["0.01t"]],
   // h/L = 0,5
   0.5:  [[-0.9, -0.18], [-0.7, -0.18], [-0.4, 0.0], [-0.3, 0.2], [-0.2, 0.2], [-0.2, 0.3], [0.0, 0.4], ["0.01t"]],
   // h/L ≥ 1,0 — el −1,3 lleva reducción por área (ver FACTOR_AREA)
   1.0:  [[-1.3, -0.18], [-1.0, -0.18], [-0.7, -0.18], [-0.5, 0.0], [-0.3, 0.2], [-0.2, 0.2], [0.0, 0.3], ["0.01t"]],
 };
 
-// Los `0,0` marcados con * en la figura existen SÓLO para interpolar. La nota 2 lo dice:
-// donde no hay dos valores del mismo signo, se toma 0,0 a los fines de la interpolación.
-// Tomarlos como un coeficiente real daría presión nula donde la norma no la promete.
-export const CERO_INTERPOLACION = new Set(["0.25:15:1", "0.25:35:0", "0.5:20:1", "0.5:45:0", "1.0:25:1", "1.0:45:0"]);
+// Los `0,0` marcados con * en la figura existen SÓLO para interpolar. Clave `h/L:θ:índice`.
+// Un 0,0 de éstos NO es un coeficiente de diseño: significa que ese caso de carga se
+// extingue en ese ángulo. Interpolando hacia él se obtienen los valores pequeños
+// intermedios, que sí son reales.
+export const CERO_INTERPOLACION = new Set([
+  "0.25:15:1", "0.25:35:0", "0.25:45:0",
+  "0.5:20:1", "0.5:45:0",
+  "1.0:25:1", "1.0:45:0",
+]);
 
 // ── CUBIERTAS, SOTAVENTO ─────────────────────────────────────────────────────────
 // Columnas: θ = 10 · 15 · ≥20 grados.
