@@ -20,10 +20,14 @@ describe('corte total', () => {
   // LA COMPROBACIÓN QUE VALE. El corte de paredes tiene forma cerrada cuando el edificio
   // es bajo y el perfil de q_z tiene un solo tramo: (0,8 + |Cp_sot|)·G·q·B·h. Si el motor
   // sumara la presión interna, este número no cerraría.
-  it('con un solo tramo de q_z coincide con la expresión cerrada, sin presión interna', () => {
+  // Por debajo de 5 m el perfil de q_z está CONGELADO, así que todos los tramos comparten
+  // el mismo q y la integral tiene forma cerrada: (0,8 + |Cp_sot|)·G·q·B·h. No importa en
+  // cuántos tramos esté partido —y por eso este test sobrevive a que cambie el número de
+  // puntos—; lo que comprueba es que la integración no mete la presión interna.
+  it('en la zona de q congelado coincide con la expresión cerrada, sin presión interna', () => {
     const bajo = analizarDireccion(ent({ ...PLANA, hAlero: 4.5 }), D["Wx+"]);
     const { B, geo, qh, G, L } = bajo;
-    expect(bajo.perfil).toHaveLength(1);
+    expect(new Set(bajo.perfil.map(t => t.q.toFixed(9))).size).toBe(1);   // un solo q
     const esperado = (CP_PARED.barlovento.cp + Math.abs(cpSotavento(L, B))) * G * qh * B * geo.hAlero;
     expect(aporteParedes({ analisis: bajo }).F).toBeCloseTo(esperado, 6);
   });

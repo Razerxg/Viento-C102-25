@@ -195,13 +195,54 @@ export function cpCubiertaParalelo(hL) {
 // edificio usa `qh`, constante. El perfil se corta en las alturas tabuladas de la
 // Tabla 1.13-1 porque es como se lo dibuja y como se lo verifica a mano, y se cierra
 // siempre en `h`, que rara vez cae justo en una de ellas.
-export function perfilBarlovento({ h, sitio }) {
-  const cortes = [...ALTURAS_KZ.filter(z => z < h), h];
+// ── TABLA DE LA PARED A BARLOVENTO, FILA POR ALTURA ─────────────────────────────
+//
+// Es la ÚNICA superficie donde q varía: usa `q_z`, evaluada a cada altura. El resto del
+// edificio usa `q_h`, constante.
+//
+// La planilla de cálculo que sirvió de referencia tabula esta pared en N puntos
+// equiespaciados y agrega tres filas SEÑALADAS: z = altura de alero, z = altura de
+// cumbrera y z = altura media de cubierta. No son adorno: son las tres cotas que el
+// proyectista transcribe al modelo de barras, y buscarlas interpolando entre dos filas de
+// la tabla es justamente lo que hace que se cometan errores.
+//
+// El perfil se corta además en las alturas TABULADAS de la Tabla 1.13-1, porque es como se
+// lo verifica a mano contra la norma.
+export function perfilBarlovento({ h, sitio, hAlero, hCumbre, puntos = 10 }) {
+  const cortes = new Map();
+  // ⚠ LAS MARCAS SE ACUMULAN, no se pisan. En una cubierta plana el alero, la cumbrera y
+  // la altura media son LA MISMA cota, y quedarse con la última haría que la tabla dijera
+  // «altura media h» y callara que ahí también está el alero. Coincidir no es lo mismo que
+  // no existir.
+  const poner = (z, marca) => {
+    if (!(z >= 0) || z > h + 1e-9) return;
+    const k = Math.round(z * 1e6) / 1e6;
+    const previo = cortes.get(k);
+    const marcas = new Set(previo?.marcas ?? []);
+    if (marca) marcas.add(marca);
+    cortes.set(k, { z: k, marcas });
+  };
+
+  // N puntos equiespaciados de 0 a h, como en la planilla
+  const n = Math.max(2, Math.min(26, Math.round(puntos)));
+  for (let i = 0; i < n; i++) poner(h * i / (n - 1));
+  // los cortes de la Tabla 1.13-1 que caigan dentro
+  for (const z of ALTURAS_KZ) poner(z);
+  // y las tres cotas con nombre
+  poner(0, "base");
+  if (hAlero != null) poner(hAlero, "alero");
+  if (hCumbre != null) poner(Math.min(hCumbre, h), hCumbre <= h + 1e-9 ? "cumbrera" : null);
+  poner(h, "altura media h");
+
+  const lista = [...cortes.values()].sort((a, b) => a.z - b.z);
   let previo = 0;
-  return cortes.map(z => {
-    const tramo = { desde: previo, hasta: z, z, kz: kz(z, sitio.exposicion), q: qDinamica({ ...sitio, z }) };
+  return lista.map(({ z, marcas }) => {
+    const t = { desde: previo, hasta: z, z,
+      marca: marcas.size ? [...marcas].join(" = ") : null,
+      marcas: [...marcas],
+      kz: kz(z, sitio.exposicion), q: qDinamica({ ...sitio, z }) };
     previo = z;
-    return tramo;
+    return t;
   });
 }
 
@@ -265,7 +306,8 @@ export function analizarDireccion({ geo, sitio, cerramiento, G = 0.85 }, dir) {
   const sup = [];
   const agregar = (o) => sup.push({ ...o, ...presion({ q: o.q, qi, G, Cp: o.cp, GCpi }) });
 
-  const perfil = perfilBarlovento({ h: g.h, sitio });
+  const perfil = perfilBarlovento({ h: g.h, sitio, hAlero: g.hAlero, hCumbre: g.hCumbre,
+    puntos: sitio.puntosPerfil ?? 10 });
   sup.push({
     id: "pared_barlovento", nombre: "Pared a barlovento", tipo: "pared", usar: "qz",
     cp: CP_PARED.barlovento.cp, perfil,

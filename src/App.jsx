@@ -17,8 +17,11 @@ import { ElevacionCubierta } from "./components/svg/ElevacionCubierta.jsx";
 import { Vista3D } from "./components/svg/Vista3D.jsx";
 import { CurvasAltura } from "./components/svg/CurvasAltura.jsx";
 import { MapaVelocidad } from "./components/MapaVelocidad.jsx";
+import { TablaCargas } from "./components/tabs/TablaCargas.jsx";
+import { BloqueRafaga } from "./components/tabs/BloqueRafaga.jsx";
+import { factorRafaga } from "./engine/factorRafaga.js";
 import { resultantes, barridoAlero, envolvente } from "./engine/resultantes.js";
-import { analizarDireccion } from "./engine/edificio.js";
+import { analizarDireccion, normalizarGeo } from "./engine/edificio.js";
 
 // Separador decimal COMA para mostrar y punto para el dato. Es la convención del país y la
 // de las otras aplicaciones; mezclarlas es lo que produce un «1.234» que se lee como mil
@@ -63,6 +66,11 @@ export function App() {
   const [geo, setGeo] = useState({ a: "20", b: "30", hAlero: "6", theta: "0",
     cumbrera: "X", tipo: "plana", pendienteHacia: "+Y" });
   const [iDir, setIDir] = useState(0);
+  const [n1, setN1] = useState("");
+  const [beta, setBeta] = useState("0.02");
+  const [modoG, setModoG] = useState("defecto");
+  const [tipoFrec, setTipoFrec] = useState("");
+  const [puntosPerfil, setPuntosPerfil] = useState("10");
   const [tema, setTema] = useState("claro");
 
   // El atributo va en la RAÍZ del documento, no en un div de la app: las variables tienen
@@ -72,11 +80,21 @@ export function App() {
 
   const V = velocidadDe(ciudad, riesgo) ?? 0;
   const sitio = { V, exposicion, kd: kdDe("edificio_sprfv"), Kzt: 1.0,
-    altitud: parseFloat(altitud) || 0, usarKe: true };
+    altitud: parseFloat(altitud) || 0, usarKe: true,
+    puntosPerfil: parseInt(puntosPerfil, 10) || 10 };
+
+  // El factor de ráfaga se calcula ANTES del análisis y lo alimenta: las tres opciones del
+  // art. 1.9 dan valores distintos, y cuál se usa cambia todas las presiones.
+  const geoN = useMemo(() => normalizarGeo(geo), [geo]);
+  const rafaga = useMemo(() => factorRafaga({
+    h: geoN.h, B: Math.max(geoN.a, geoN.b), L: Math.min(geoN.a, geoN.b),
+    exposicion, V, n1: parseFloat(n1) || 0, beta: parseFloat(beta) || 0.02,
+  }), [geoN.h, geoN.a, geoN.b, exposicion, V, n1, beta]);
+  const G = rafaga.opciones.find(o => o.id === modoG)?.G ?? 0.85;
 
   const todas = useMemo(
-    () => analizarEdificio({ geo, sitio, cerramiento, G: 0.85 }),
-    [geo, V, exposicion, altitud, cerramiento]);
+    () => analizarEdificio({ geo, sitio, cerramiento, G }),
+    [geo, V, exposicion, altitud, cerramiento, G, puntosPerfil]);
   const act = todas[iDir];
 
   // El máximo se toma sobre TODO el edificio y todas las direcciones: si se normalizara por
@@ -91,10 +109,10 @@ export function App() {
   // cuando cambia algo que la afecta: son ~120 análisis completos y no hace falta rehacerlos
   // al girar el 3D.
   const curvas = useMemo(() => envolvente(DIRECCIONES.map(d => barridoAlero({
-    analizar: analizarDireccion, entrada: { geo, sitio, cerramiento, G: 0.85 },
+    analizar: analizarDireccion, entrada: { geo, sitio, cerramiento, G },
     direccion: d, desde: 3, hasta: 30, pasos: 27,
   }))), [geo.a, geo.b, geo.theta, geo.tipo, geo.cumbrera, geo.pendienteHacia,
-    V, exposicion, altitud, cerramiento]);
+    V, exposicion, altitud, cerramiento, G]);
   const res = useMemo(() => resultantes(act), [act]);
 
   const up = (k) => (e) => setGeo(g => ({ ...g, [k]: e.target.value }));
@@ -288,37 +306,77 @@ export function App() {
           </div>
 
           <div style={S.card}>
-            <h2 style={S.h2}>Superficies — {act.dir.label}</h2>
+            <h2 style={S.h2}>Tabla de carga de viento — {act.dir.label}</h2>
+            <div style={{ display: "flex", gap: 10, alignItems: "flex-end", marginBottom: 12 }}>
+              <label style={{ display: "grid", gap: 2 }}>
+                <span style={{ fontSize: 12, color: "var(--txt2)" }}>
+                  Puntos de cálculo en altura
+                </span>
+                <input style={{ ...S.inp, width: 110 }} type="number" min="2" max="26"
+                  value={puntosPerfil} onChange={e => setPuntosPerfil(e.target.value)} />
+              </label>
+              <span style={{ fontSize: 11, color: "var(--txt2)", paddingBottom: 6 }}>
+                entre 2 y 26 · se agregan siempre las alturas de la Tabla 1.13-1 y las
+                cotas de alero, cumbrera y altura media
+              </span>
+            </div>
+            <TablaCargas analisis={act} S={S} fmt={fmt} />
+          </div>
+
+          <div style={S.card}>
+            <h2 style={S.h2}>Factor de efecto de ráfaga — art. 1.9</h2>
+            <BloqueRafaga rafaga={rafaga} S={S} geo={geoN} sitio={sitio}
+              n1={n1} setN1={setN1} beta={beta} setBeta={setBeta}
+              modoG={modoG} setModoG={setModoG}
+              tipoFrec={tipoFrec} setTipoFrec={setTipoFrec} />
+          </div>
+
+          <div style={S.card}>
+            <h2 style={S.h2}>Resumen de las cuatro direcciones</h2>
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 620 }}>
                 <thead><tr>
-                  {["Superficie", "Cp", "q (N/m²)", "p con GCpi + ", "p con GCpi − ",
-                    "Fila de la figura"].map(h => <th key={h} style={S.th}>{h}</th>)}
+                  <th style={S.th}>Magnitud</th>
+                  {todas.map(t => <th key={t.dir.id} style={{ ...S.th, textAlign: "right" }}>
+                    {t.dir.id}</th>)}
                 </tr></thead>
                 <tbody>
-                  {act.superficies.map(s => {
-                    const t = s.tramos?.at(-1);
-                    return (
-                      <tr key={s.id}>
-                        <td style={S.td}>{s.nombre}{s.relacion ? ` · ${s.relacion}` : ""}</td>
-                        <td style={S.tdN}>{f(s.cp, 2)}</td>
-                        <td style={S.tdN}>{f(s.q ?? t?.q, 0)}{s.usar === "qz" ? " (en h)" : ""}</td>
-                        <td style={S.tdN}>{f(s.conInternaPos ?? t?.conInternaPos, 0)}</td>
-                        <td style={S.tdN}>{f(s.conInternaNeg ?? t?.conInternaNeg, 0)}</td>
-                        <td style={{ ...S.td, fontSize: 11, color: "var(--txt2)", minWidth: 200 }}>
-                          {s.cpRef}</td>
-                      </tr>
-                    );
-                  })}
+                  {[
+                    ["q_h (N/m²)", t => f(t.qh, 0)],
+                    ["L/B", t => f(t.L / t.B, 2)],
+                    ["h/L", t => f(t.hL, 2)],
+                    ["Cubierta", t => t.modo === "faldones" ? "faldones"
+                      : t.modo === "unica" ? `única · ${t.caraUnica}` : "franjas"],
+                    ["Cp sotavento", t => f(t.superficies.find(s => s.id === "pared_sotavento").cp, 2)],
+                    ["p barlovento en h (N/m²)",
+                      t => f(t.superficies.find(s => s.id === "pared_barlovento").tramos.at(-1).gobernante, 0)],
+                    ["p sotavento (N/m²)",
+                      t => f(t.superficies.find(s => s.id === "pared_sotavento").gobernante, 0)],
+                    ["Corte en la base (kN)", t => f(resultantes(t).cortante / 1000, 1)],
+                    ["Levantamiento (kN)", t => f(resultantes(t).levantamiento / 1000, 1)],
+                    ["Vuelco (kN·m)", t => f(resultantes(t).vuelco / 1000, 1)],
+                  ].map(([nom, fn]) => (
+                    <tr key={nom}>
+                      <td style={S.td}>{nom}</td>
+                      {todas.map(t => (
+                        <td key={t.dir.id} style={{ ...S.tdN,
+                          fontWeight: t.dir.id === act.dir.id ? 700 : 400,
+                          background: t.dir.id === act.dir.id ? "var(--avisoBg)" : undefined }}>
+                          {fn(t)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
             <div style={{ fontSize: 12, color: "var(--txt2)", marginTop: 10, lineHeight: 1.6 }}>
-              Las dos últimas columnas son los <b>dos casos de presión interna</b> que exige la
-              nota 3 de la Tabla 1.11-1. No es elegir el peor: uno gobierna el levantamiento de
-              la cubierta y el otro la compresión de las paredes, en combinaciones distintas.
+              Las cuatro direcciones del art. 2.4.1. La columna resaltada es la que se está
+              mirando arriba. Los dos sentidos de un mismo eje sólo coinciden si el edificio
+              es simétrico en ese eje: con cubierta a un agua o cumbrera descentrada, no.
             </div>
           </div>
+
         </main>
       </div>
     </div>

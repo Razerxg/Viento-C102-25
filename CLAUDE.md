@@ -136,6 +136,26 @@ continua, donde «cerca de cero» debe fundirse con la superficie— y eso oblig
 **cada cara lleva su valor escrito, hay leyenda y existe la tabla de superficies**. El
 color nunca es el único portador del dato.
 
+## Hallazgo: el G calculado no siempre es menor que 0,85
+
+El comentario C 1.9 dice que «el factor obtenido con el cálculo alternativo es 5-10 % más
+bajo que el valor de 0,85». **Con la expresión (1.9-6) y las constantes de la Tabla 1.9-1
+eso sólo se cumple en exposición B.** Medido:
+
+| Exposición | `G` calculado |
+|---|---|
+| B | 0,826 – 0,836 — por debajo de 0,85 |
+| C | 0,852 – 0,864 — por encima |
+| D | 0,867 – 0,879 — por encima |
+
+La razón está en la propia fórmula: como `Q < 1`, el cociente
+`(1 + 1,7·g_Q·I_z̄·Q)/(1 + 1,7·g_v·I_z̄)` crece hacia 1 cuando la turbulencia baja, y en el
+límite `G → 0,925`. Los terrenos lisos tienen poca turbulencia.
+
+**Consecuencia práctica:** en exposición C o D adoptar 0,85 no es más conservador sino
+menos. El art. 1.9.4 permite las dos vías igual, pero suponer que el 0,85 siempre protege
+es un error. La app lo avisa cuando pasa. Conviene contrastarlo con la lectura del autor.
+
 ## Pendientes conocidos
 
 - **La presión interna positiva usa `q_h` y no `q_z`.** El art. 2.4.1 permite evaluarla a

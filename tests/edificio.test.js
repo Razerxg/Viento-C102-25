@@ -103,24 +103,72 @@ describe('coeficientes de cubierta', () => {
 });
 
 describe('perfil de la pared a barlovento', () => {
-  // Es la ÚNICA superficie con q variable. Si usara qh como el resto, el diagrama de
+  // Es la ÚNICA superficie con q variable. Si usara q_h como el resto, el diagrama de
   // presiones del edificio se aplana y el momento en la base sale mal.
-  it('se corta en las alturas tabuladas y cierra en h', () => {
-    const p = perfilBarlovento({ h: 27, sitio: SITIO });
-    expect(p.map(t => t.z)).toEqual([5, 10, 15, 20, 25, 27]);
+  //
+  // ⚠ LOS TESTS DE ESTE BLOQUE SE REESCRIBIERON. La primera versión fijaba la FORMA del
+  // perfil —«son exactamente estos seis cortes», «un edificio bajo da un solo tramo»—, y
+  // al agregar los N puntos equiespaciados y las cotas con nombre fallaron los cuatro
+  // contra un motor correcto. Fijar la forma de una lista es fijar una decisión de
+  // presentación; lo que hay que fijar es que la lista CUBRA la altura sin huecos, que es
+  // de lo que depende la integración.
+  it.each([[4], [12], [27], [60]])('h = %s m: los tramos cubren 0 a h sin huecos ni solapes', (h) => {
+    const p = perfilBarlovento({ h, sitio: SITIO, hAlero: h, hCumbre: h });
     expect(p[0].desde).toBe(0);
+    expect(p.at(-1).hasta).toBeCloseTo(h, 9);
     for (let i = 1; i < p.length; i++) expect(p[i].desde).toBe(p[i - 1].hasta);
+    expect(p.reduce((s, t) => s + (t.hasta - t.desde), 0)).toBeCloseTo(h, 9);
   });
 
-  it('la presión dinámica crece con la altura', () => {
+  // Las tres cotas con nombre son las que el proyectista transcribe al modelo. Buscarlas
+  // interpolando entre dos filas de la tabla es justo lo que produce errores.
+  it('trae señaladas la base, el alero y la altura media', () => {
+    const p = perfilBarlovento({ h: 11.46, sitio: SITIO, hAlero: 6, hCumbre: 16.92 });
+    const todas = p.flatMap(t => t.marcas ?? []);
+    expect(todas).toContain("alero");
+    expect(todas).toContain("altura media h");
+    expect(p.find(t => t.marcas?.includes("alero")).z).toBeCloseTo(6, 9);
+  });
+
+  // COINCIDIR NO ES LO MISMO QUE NO EXISTIR. En cubierta plana el alero, la cumbrera y la
+  // altura media son la misma cota; quedarse con la última haría que la tabla dijera sólo
+  // «altura media h» y callara que ahí también está el alero.
+  it('con cubierta plana las tres cotas coinciden y se informan JUNTAS', () => {
+    const p = perfilBarlovento({ h: 8, sitio: SITIO, hAlero: 8, hCumbre: 8 });
+    const t = p.find(x => x.z === 8);
+    expect(t.marcas).toEqual(expect.arrayContaining(["alero", "cumbrera", "altura media h"]));
+    expect(t.marca).toMatch(/alero.*=.*altura media h/);
+  });
+
+  it('una cumbrera por encima de la altura media no entra en la tabla de la pared', () => {
+    const p = perfilBarlovento({ h: 11.46, sitio: SITIO, hAlero: 6, hCumbre: 16.92 });
+    expect(p.every(t => t.z <= 11.46 + 1e-9)).toBe(true);
+    expect(p.some(t => t.marca === "cumbrera")).toBe(false);
+  });
+
+  it('el número de puntos se puede pedir, y queda acotado como en la planilla', () => {
+    const pocos = perfilBarlovento({ h: 40, sitio: SITIO, puntos: 2 });
+    const muchos = perfilBarlovento({ h: 40, sitio: SITIO, puntos: 26 });
+    expect(muchos.length).toBeGreaterThan(pocos.length);
+    // fuera de rango se acota en vez de romper
+    expect(perfilBarlovento({ h: 40, sitio: SITIO, puntos: 500 }).length)
+      .toBe(perfilBarlovento({ h: 40, sitio: SITIO, puntos: 26 }).length);
+  });
+
+  // q NO decrece nunca, pero sí se repite: por debajo de 5 m el perfil está congelado, así
+  // que dos tramos consecutivos ahí tienen exactamente el mismo q.
+  it('la presión dinámica no decrece, y se repite en la zona congelada', () => {
     const p = perfilBarlovento({ h: 40, sitio: SITIO });
-    for (let i = 1; i < p.length; i++) expect(p[i].q).toBeGreaterThan(p[i - 1].q);
+    for (let i = 1; i < p.length; i++) expect(p[i].q).toBeGreaterThanOrEqual(p[i - 1].q);
+    const bajos = p.filter(t => t.z <= 5);
+    expect(new Set(bajos.map(t => t.q.toFixed(9))).size).toBe(1);
   });
 
-  it('un edificio más bajo que 5 m da un solo tramo', () => {
-    const p = perfilBarlovento({ h: 4, sitio: SITIO });
-    expect(p).toHaveLength(1);
-    expect(p[0].hasta).toBe(4);
+  it('cada tramo trae su Kz y su q, que es lo que la tabla tiene que mostrar', () => {
+    for (const t of perfilBarlovento({ h: 25, sitio: SITIO })) {
+      expect(t.kz).toBeGreaterThan(0);
+      expect(t.q).toBeGreaterThan(0);
+    }
   });
 });
 
