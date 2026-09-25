@@ -9,6 +9,7 @@ import { analizarEdificio, DIRECCIONES } from "./engine/edificio.js";
 import { CIUDADES, velocidadDe } from "./constants/velocidades.js";
 import { CERRAMIENTOS } from "./constants/presionInterna.js";
 import { EXPOSICIONES } from "./constants/exposicion.js";
+import { TIPOS_CUBIERTA, DIRECCIONES_PENDIENTE, tipoDe } from "./constants/cubiertas.js";
 import { kdDe } from "./constants/direccionalidad.js";
 import { PerfilQ } from "./components/svg/PerfilQ.jsx";
 import { PlantaZonas } from "./components/svg/PlantaZonas.jsx";
@@ -55,7 +56,8 @@ export function App() {
   const [exposicion, setExposicion] = useState("B");
   const [altitud, setAltitud] = useState("0");
   const [cerramiento, setCerramiento] = useState("cerrado");
-  const [geo, setGeo] = useState({ a: "20", b: "30", hAlero: "6", theta: "0", cumbrera: "X" });
+  const [geo, setGeo] = useState({ a: "20", b: "30", hAlero: "6", theta: "0",
+    cumbrera: "X", tipo: "plana", pendienteHacia: "+Y" });
   const [iDir, setIDir] = useState(0);
   const [tema, setTema] = useState("claro");
 
@@ -141,16 +143,41 @@ export function App() {
               <input style={S.inp} type="number" value={geo.b} onChange={up("b")} /></Campo>
             <Campo label="Altura de alero (m)">
               <input style={S.inp} type="number" value={geo.hAlero} onChange={up("hAlero")} /></Campo>
-            <Campo label="Ángulo de cubierta θ (°)">
-              <input style={S.inp} type="number" value={geo.theta} onChange={up("theta")} /></Campo>
-            <Campo label="Dirección de la cumbrera">
-              <select style={S.inp} value={geo.cumbrera} onChange={up("cumbrera")}>
-                <option value="X">Según X</option><option value="Y">Según Y</option>
+            <Campo label="Tipo de cubierta (Figura 2.4-1)">
+              <select style={S.inp} value={geo.tipo} onChange={up("tipo")}>
+                {TIPOS_CUBIERTA.map(t => (
+                  <option key={t.id} value={t.id} disabled={t.noImplementada}>
+                    {t.label}{t.noImplementada ? " — no implementada" : ""}
+                  </option>
+                ))}
               </select>
             </Campo>
-            <div style={{ fontSize: 12, color: "var(--txt2)" }}>
-              Altura media de cubierta <b style={{ color: "var(--txt)" }}>{fmt.m(act.geo.h)}</b>
-              {act.geo.theta <= 10 ? " — igual al alero, por θ ≤ 10° (art. 1.2)" : ""}
+            <div style={{ fontSize: 11, color: "var(--txt2)", marginBottom: 10, lineHeight: 1.5 }}>
+              {tipoDe(geo.tipo).ayuda}
+            </div>
+            {geo.tipo !== "plana" && (
+              <Campo label="Ángulo de cubierta θ (°)">
+                <input style={S.inp} type="number" value={geo.theta} onChange={up("theta")} /></Campo>
+            )}
+            {geo.tipo !== "plana" && (
+              <Campo label="Dirección de la cumbrera">
+                <select style={S.inp} value={geo.cumbrera} onChange={up("cumbrera")}>
+                  <option value="X">Según X</option><option value="Y">Según Y</option>
+                </select>
+              </Campo>
+            )}
+            {geo.tipo === "vertiente_unica" && (
+              <Campo label="Hacia dónde desciende la pendiente">
+                <select style={S.inp} value={geo.pendienteHacia} onChange={up("pendienteHacia")}>
+                  {DIRECCIONES_PENDIENTE.map(d =>
+                    <option key={d.id} value={d.id}>{d.label}</option>)}
+                </select>
+              </Campo>
+            )}
+            <div style={{ fontSize: 12, color: "var(--txt2)", lineHeight: 1.6 }}>
+              Altura media <b style={{ color: "var(--txt)" }}>{fmt.m(act.geo.h)}</b>
+              {act.geo.theta <= 10 ? " — igual al alero, por θ ≤ 10° (art. 1.2)"
+                : ` · cumbrera a ${fmt.m(act.geo.hCumbre)}`}
             </div>
           </div>
 
@@ -185,12 +212,45 @@ export function App() {
           </div>
 
           <div style={S.card}>
+            <h2 style={S.h2}>Cómo se llegó a estos números — {act.dir.label}</h2>
+            <div style={{ padding: "10px 12px", background: "var(--avisoBg)",
+              border: "1px solid var(--avisoBd)", borderRadius: 6, marginBottom: 14,
+              fontSize: 13, lineHeight: 1.6 }}>
+              <b>Tratamiento de la cubierta: {act.modo === "faldones" ? "dos faldones"
+                : act.modo === "unica" ? `superficie completa a ${act.caraUnica}` : "por franjas"}.</b>
+              <div style={{ color: "var(--txt2)", marginTop: 4 }}>{act.motivoModo}</div>
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead><tr>{["Paso", "Símbolo", "Valor", "De dónde sale"].map(h =>
+                  <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {act.traza.map((t, i) => (
+                    <tr key={i}>
+                      <td style={S.td}>{t.paso}</td>
+                      <td style={{ ...S.td, fontFamily: "ui-monospace, monospace" }}>{t.simbolo}</td>
+                      {/* Los decimales los declara cada paso: deducirlos de la magnitud
+                          imprimía «55,100 m/s» para una velocidad y «0,850» para un factor,
+                          con la misma regla y ninguna de las dos bien. */}
+                      <td style={S.tdN}>{t.texto ?? (t.valor === null ? "—"
+                        : `${f(t.valor, t.dec ?? 2)}${t.unidad ? " " + t.unidad : ""}`)}</td>
+                      <td style={{ ...S.td, fontSize: 12, color: "var(--txt2)" }}>
+                        <b style={{ color: "var(--txt)" }}>{t.ref}</b> — {t.detalle}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style={S.card}>
             <h2 style={S.h2}>Superficies — {act.dir.label}</h2>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead><tr>
-                  {["Superficie", "Cp", "q (N/m²)", "p con GCpi + ", "p con GCpi − "].map(h =>
-                    <th key={h} style={S.th}>{h}</th>)}
+                  {["Superficie", "Cp", "q (N/m²)", "p con GCpi + ", "p con GCpi − ",
+                    "Fila de la figura"].map(h => <th key={h} style={S.th}>{h}</th>)}
                 </tr></thead>
                 <tbody>
                   {act.superficies.map(s => {
@@ -202,6 +262,8 @@ export function App() {
                         <td style={S.tdN}>{f(s.q ?? t?.q, 0)}{s.usar === "qz" ? " (en h)" : ""}</td>
                         <td style={S.tdN}>{f(s.conInternaPos ?? t?.conInternaPos, 0)}</td>
                         <td style={S.tdN}>{f(s.conInternaNeg ?? t?.conInternaNeg, 0)}</td>
+                        <td style={{ ...S.td, fontSize: 11, color: "var(--txt2)", minWidth: 200 }}>
+                          {s.cpRef}</td>
                       </tr>
                     );
                   })}
