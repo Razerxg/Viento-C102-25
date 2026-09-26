@@ -378,8 +378,19 @@ export function analizarDireccion({ geo, sitio, cerramiento, G = 0.85, modoG = "
   // herramienta de cálculo tiene que pedir.
   const traza = [
     { paso: "Velocidad básica", simbolo: "V", dec: 1, valor: sitio.V, unidad: "m/s",
-      ref: "Art. 1.5 · Figuras 1.5-1 A-D",
-      detalle: "Ráfaga de 3 s a 10 m sobre el terreno, en exposición C." },
+      ref: sitio.vel?.fundamento?.ref ?? "Art. 1.5 · Figuras 1.5-1 A-D",
+      // El ORIGEN de V va en la traza: una velocidad sin origen declarado no se puede
+      // revisar, y es el dato del que depende todo el cálculo —la presión va con V²—.
+      detalle: "Ráfaga de 3 s a 10 m sobre el terreno, en exposición C."
+        + (sitio.vel?.detalleOrigen ? ` ${sitio.vel.detalleOrigen}` : "")
+        + (sitio.vel?.fundamento ? ` Fundamento: ${sitio.vel.fundamento.label}.` : "")
+        + (sitio.vel?.documento ? ` Documento: ${sitio.vel.documento}.` : "")
+        + (sitio.vel?.referencia != null
+          ? ` V de referencia del mapa: ${fc(sitio.vel.referencia, 1)} m/s`
+            + (sitio.vel.dif != null && Math.abs(sitio.vel.dif) > 1e-6
+              ? ` (${sitio.vel.dif > 0 ? "+" : ""}${fc(sitio.vel.dif, 1)} %).` : ".")
+          : " El sitio no está en la tabla de ciudades, así que no hay V de referencia "
+            + "contra la que comparar.") },
     { paso: "Factor de direccionalidad", simbolo: "K_d", dec: 2, valor: sitio.kd, unidad: "",
       ref: "Tabla 1.6-1",
       detalle: "Edificios — SPRFV. Sólo válido con las combinaciones del Apéndice B." },

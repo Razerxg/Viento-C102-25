@@ -23,9 +23,19 @@
 const ORDEN = { error: 0, aviso: 1, info: 2 };
 
 export function avisosDe({ geoN, sitio, cerramiento, rafaga, modoG, n1, analisis, resultantes,
-  accesorio, silo, anexo, topo }) {
+  accesorio, silo, anexo, topo, vel }) {
   const av = [];
   const push = (o) => av.push(o);
+
+  // ── VELOCIDAD BÁSICA ─────────────────────────────────────────────────────────
+  // Los avisos de V los arma `engine/velocidad.js`, que es donde están las reglas de los
+  // arts. 1.5.1 a 1.5.3. Acá sólo se reenvían a la lista global, para que un error de
+  // velocidad —que invalida TODO el cálculo— no quede escondido en una tarjeta.
+  for (const a of vel?.avisos ?? []) {
+    if (a.tono === "info") continue;
+    push({ id: `vel-${a.ref}-${a.texto.slice(0, 20)}`, tono: a.tono, tab: "Sitio",
+      titulo: `Velocidad básica — ${a.ref}`, detalle: a.texto });
+  }
 
   // ── SITIO ────────────────────────────────────────────────────────────────────
   // K_zt es el multiplicador que más puede cambiar el resultado: llega a 3,15. Ahora que

@@ -97,6 +97,31 @@ construye sobre ellas.
 
 El punto 8 se integra a la envolvente de la Fase 2, por decisión del proyectista.
 
+## Sitio — origen de V y cerramiento calculado 🔄
+
+Adelantado al resto de la Fase 2, por pedido del proyectista.
+
+| Estado | Ítem | Dónde |
+|---|---|---|
+| ✅ | **(0)** Parseo de inputs | `bc4f593` · `lib/parseo.js` |
+| ✅ | **(1)** Origen de V: tabla, interpolación entre isotacas, valor adoptado con fundamento, conversión desde V₅₀ | ↓ · `engine/velocidad.js` |
+| ⏳ | **(2)** Cerramiento calculado a partir de aberturas | pantalla propia «Cerramiento», en Definición y después de Edificio |
+
+Decisiones tomadas para (2), a implementar:
+- **`A_g` de la cubierta = `a·b/cosθ`** en dos aguas, cuatro aguas y vertiente única, y
+  `a·b` en plana. Con una sola pendiente, las proyecciones de los faldones cubren la
+  planta exactamente, así que no hace falta sumar faldón por faldón. Hay que verificarlo
+  con un test que sume los dos trapecios y los dos triángulos de un limatesa.
+- La cubierta es **una sola superficie** para cargar aberturas —lucernarios, ventilación
+  de cumbrera— y nunca se evalúa como pared a barlovento, así que no se separa por faldón.
+- **`V_i` se precarga con el volumen geométrico exacto**, no con planta × altura media:
+  en cuatro aguas eso sobreestima el volumen, y un `V_i` mayor da un `R_i` MENOR, o sea
+  del lado inseguro. Plana `a·b·h_e` · dos aguas y vertiente única `a·b·(h_e + r/2)` ·
+  cuatro aguas `a·b·h_e + r·(a·b/2 − s²/6)` con `s` el lado corto, que con `a = b` da la
+  pirámide `a²·r/3`.
+- Los voladizos, cuando se implementen, **no suman a la envolvente**: no cierran el
+  volumen interior.
+
 ## Fase 2 — Robustez del cálculo 🔄
 
 | Estado | Ítem | Nota |

@@ -5,7 +5,8 @@
 // cerramiento. Antes estaban en una columna de 300 px junto al edificio, con los selects
 // apretados a ancho completo y el mapa metido entre dos campos.
 import { useProyecto } from '../../context/ProyectoContext.jsx';
-import { CIUDADES } from '../../constants/velocidades.js';
+import { CIUDADES, factorV } from '../../constants/velocidades.js';
+import { ORIGENES_V, FUNDAMENTOS_V } from '../../engine/velocidad.js';
 import { CERRAMIENTOS, PRIORIDAD_ABIERTO } from '../../constants/presionInterna.js';
 import { EXPOSICIONES, TERRENO } from '../../constants/exposicion.js';
 import { MapaVelocidad } from '../MapaVelocidad.jsx';
@@ -31,8 +32,12 @@ const EXPLICA_EXPOSICION = {
     + "Aplica también tierra adentro cuando el sector de barlovento es agua o llanura lisa.",
 };
 
+// El campo de documento es texto libre, no un número: usa el mismo estilo de input que
+// el resto para que no se vea como un elemento ajeno.
+const estiloTexto = { padding: "6px 8px", borderRadius: 6 };
+
 export function SitioTab() {
-  const { d, set, setTopo, V, sitio, geoN, act, topo, topoBase } = useProyecto();
+  const { d, set, setTopo, setSub, V, vel, sitio, geoN, act, topo, topoBase } = useProyecto();
   const { tema } = useUi();
   const t_ = d.topo;
   const terr = TERRENO[d.exposicion];
@@ -49,15 +54,110 @@ export function SitioTab() {
           mapas, uno por período de retorno, así que la categoría de riesgo cambia V
           directamente en vez de multiplicarla después.">
         <Campo label="Localidad"
-          ayuda="Las 29 ciudades de la tabla de la Figura 1.5-1D. Para un sitio que no esté en la lista, hay que leer el valor de las isolíneas del mapa.">
-          <Sel v={d.ciudad} set={set("ciudad")} opciones={CIUDADES.map(([n]) => n)} w={240} />
+          ayuda="Las 29 ciudades de la tabla de la Figura 1.5-1D. Si el sitio no está, se elige «fuera de la tabla» y V sale de una de las otras tres vías.">
+          <Sel v={d.ciudad} set={set("ciudad")} w={260}
+            opciones={[["", "— Sitio fuera de la tabla —"], ...CIUDADES.map(([n]) => [n, n])]} />
         </Campo>
         <Campo label="Categoría de riesgo"
           ayuda="Tabla 1.14-1. I son construcciones de bajo riesgo para la vida humana; II es el caso general; III y IV son las de gran ocupación y las esenciales, y comparten el mapa de 1.700 años.">
           <Sel v={d.riesgo} set={set("riesgo")} opciones={["I", "II", "III", "IV"]} w={100} />
         </Campo>
-        <Salida label="Velocidad básica" v={f(V, 1)} unit="m/s"
+
+        {/* ── DE DÓNDE SALE V ──────────────────────────────────────────────────
+            V es el dato de entrada de todo el cálculo —la presión va con V²— y antes la
+            única vía era la tabla. Quien tenía una especificación del comitente, un sitio
+            fuera de la tabla o un estudio regional no tenía dónde ponerlo, así que lo
+            forzaba eligiendo la ciudad «más parecida». */}
+        <Campo label="Origen de V" ayuda="Art. 1.5. Las cuatro vías que el reglamento admite. En todas se muestra la V de referencia del mapa para la categoría elegida, y la diferencia.">
+          <Sel v={d.origenV} set={set("origenV")} w={340}
+            opciones={ORIGENES_V.map(o => [o.id, o.label])} />
+        </Campo>
+        <Nota>{ORIGENES_V.find(o => o.id === d.origenV)?.detalle}</Nota>
+
+        {d.origenV === "interpolado" && <>
+          <Divisor>Isotacas adyacentes</Divisor>
+          <Nota>
+            Nota 2 de las Figuras 1.5-1 A-C. Sólo importa la PROPORCIÓN entre las dos
+            distancias, así que pueden ir en kilómetros o en milímetros medidos sobre el
+            mapa impreso.
+          </Nota>
+          <Campo label="Isotaca 1 — velocidad V₁" unit="m/s">
+            <Num v={d.vInterp.V1} set={setSub("vInterp")("V1")} />
+          </Campo>
+          <Campo label="Distancia del sitio a la isotaca 1 — d₁">
+            <Num v={d.vInterp.d1} set={setSub("vInterp")("d1")} />
+          </Campo>
+          <Campo label="Isotaca 2 — velocidad V₂" unit="m/s">
+            <Num v={d.vInterp.V2} set={setSub("vInterp")("V2")} />
+          </Campo>
+          <Campo label="Distancia del sitio a la isotaca 2 — d₂">
+            <Num v={d.vInterp.d2} set={setSub("vInterp")("d2")} />
+          </Campo>
+        </>}
+
+        {d.origenV === "manual" && <>
+          <Divisor>Valor adoptado</Divisor>
+          <Campo label="Velocidad adoptada V" unit="m/s">
+            <Num v={d.vManual.V} set={setSub("vManual")("V")} />
+          </Campo>
+          <Campo label="Fundamento"
+            ayuda="Obligatorio. Es lo que decide si adoptar una V menor que la del mapa está permitido: sólo el art. 1.5.3 lo habilita.">
+            <Sel v={d.vManual.fundamento} set={setSub("vManual")("fundamento")} w={420}
+              opciones={[["", "— Elegir —"], ...FUNDAMENTOS_V.map(x => [x.id, x.label])]} />
+          </Campo>
+          {d.vManual.fundamento && (
+            <Nota>{FUNDAMENTOS_V.find(x => x.id === d.vManual.fundamento)?.detalle}</Nota>
+          )}
+          {FUNDAMENTOS_V.find(x => x.id === d.vManual.fundamento)?.pideDocumento && (
+            <Campo label="Documento y revisión"
+              ayuda="Una V es trazable sólo si se sabe de qué documento salió y en qué revisión.">
+              <input className="vw-in" type="text" style={{ width: 300, ...estiloTexto }}
+                value={d.vManual.documento}
+                placeholder="p. ej. ESP-CIV-001 rev. B"
+                onChange={e => setSub("vManual")("documento")(e.target.value)} />
+            </Campo>
+          )}
+        </>}
+
+        {d.origenV === "v50" && <>
+          <Divisor>Conversión desde el CIRSOC 102-2005</Divisor>
+          <Nota>
+            Expresión (C 1.5-6.1): <b style={{ color: c.txt }}>V = V₅₀·√(1,5·I)</b>, con
+            I = 0,87 · 1,00 · 1,15 para categorías I · II · III-IV. Es la misma expresión
+            con la que se construyó la Figura 1.5-1D, así que convertir el V₅₀ de una
+            ciudad tabulada devuelve exactamente su fila.
+          </Nota>
+          <Campo label="V₅₀ de la especificación" unit="m/s"
+            ayuda="Velocidad del CIRSOC 102-2005, para 50 años de recurrencia. NO es la V del 2025.">
+            <Num v={d.vConv.V50} set={setSub("vConv")("V50")} />
+          </Campo>
+          <Salida label="Factor √(1,5·I)" v={f(factorV(d.riesgo), 4)} />
+        </>}
+
+        <Divisor>Velocidad adoptada</Divisor>
+        <Salida label="Velocidad básica V" v={f(V, 1)} unit="m/s"
           ayuda="Ráfaga de 3 segundos a 10 m sobre el terreno, en exposición C, asociada al período de retorno de la categoría de riesgo." />
+        <Salida label="V de referencia del mapa" unit="m/s"
+          v={vel.referencia == null ? "— (sitio fuera de la tabla)" : f(vel.referencia, 1)}
+          ayuda="Figura 1.5-1D para la categoría elegida. Es contra esto que se compara la V adoptada: el art. 1.5.1 permite adoptar una mayor siempre, y una menor sólo por el art. 1.5.3." />
+        {vel.dif != null && Math.abs(vel.dif) > 1e-6 && (
+          <Salida label="Diferencia contra el mapa"
+            v={`${vel.dif > 0 ? "+" : ""}${f(vel.dif, 1)} %`} />
+        )}
+        {vel.cuenta && <Nota>{vel.cuenta} = <b style={{ color: c.txt }}>{f(V, 2)} m/s</b></Nota>}
+
+        {vel.avisos.map((a, i) => (
+          <div key={i} style={{ marginTop: SP.sm }}>
+            <Aviso tono={a.tono} titulo={a.ref}>
+              {a.texto}
+              {a.lista && (
+                <ul style={{ margin: `${SP.sm}px 0 0`, paddingLeft: 18 }}>
+                  {a.lista.map((x, k) => <li key={k} style={{ marginBottom: 4 }}>{x}</li>)}
+                </ul>
+              )}
+            </Aviso>
+          </div>
+        ))}
 
         <div style={{ marginTop: SP.md }}>
           <MapaVelocidad riesgo={d.riesgo} ciudad={d.ciudad} V={V} fmt={`${f(V, 1)} m/s`} />

@@ -18,6 +18,7 @@ import { analizarAccesorio, analizarSilo, familiaDe } from '../engine/otrasEstru
 import { analizarAnexo } from '../engine/anexo1.js';
 import { kzt as calcularKzt } from '../engine/topografia.js';
 import { num, opt } from '../lib/parseo.js';
+import { resolverV } from '../engine/velocidad.js';
 import { gcpiDe } from '../constants/presionInterna.js';
 import { factorRafaga } from '../engine/factorRafaga.js';
 import { resultantes, barridoAlero, envolvente } from '../engine/resultantes.js';
@@ -39,6 +40,14 @@ export const INICIAL = {
   proyecto: "Edificio sin nombre",
   ciudad: "Buenos Aires",
   riesgo: "II",
+  // ── ORIGEN DE V, art. 1.5 ───────────────────────────────────────────────────
+  // Por defecto la tabla de ciudades, que es lo que la app hacía antes. Los proyectos
+  // guardados NO traen este campo, así que la fusión contra `INICIAL` los deja en
+  // «tabla», que es exactamente lo que estaban usando.
+  origenV: "tabla",
+  vInterp: { V1: "", V2: "", d1: "", d2: "" },
+  vManual: { V: "", fundamento: "", documento: "" },
+  vConv: { V50: "" },
   exposicion: "B",
   altitud: "0",
   usarKe: true,
@@ -111,6 +120,9 @@ const leer = () => {
     return v && typeof v === "object" ? { ...INICIAL, ...v,
       geo: { ...INICIAL.geo, ...(v.geo || {}) },
       topo: { ...INICIAL.topo, ...(v.topo || {}) },
+      vInterp: { ...INICIAL.vInterp, ...(v.vInterp || {}) },
+      vManual: { ...INICIAL.vManual, ...(v.vManual || {}) },
+      vConv: { ...INICIAL.vConv, ...(v.vConv || {}) },
       cap4: { ...INICIAL.cap4, ...(v.cap4 || {}) },
       silo: { ...INICIAL.silo, ...(v.silo || {}) },
       anexo: { ...INICIAL.anexo, ...(v.anexo || {}) } } : null;
@@ -127,6 +139,9 @@ export function ProyectoProvider({ children }) {
   // Un setter por campo evita que cada pantalla escriba `setD(x => ({...x, k: v}))` a
   // mano: repetido en veinte lugares, es donde aparece el que pisa el objeto entero.
   const set = useCallback((k) => (v) => setD(x => ({ ...x, [k]: v })), []);
+  /** Setter para un sub-objeto cualquiera del estado, por nombre. */
+  const setSub = useCallback((obj) => (k) => (v) =>
+    setD(x => ({ ...x, [obj]: { ...x[obj], [k]: v } })), []);
   const setGeo = useCallback((k) => (v) => setD(x => ({ ...x, geo: { ...x.geo, [k]: v } })), []);
   const setTopo = useCallback((k) => (v) => setD(x => ({ ...x, topo: { ...x.topo, [k]: v } })), []);
   // Un setter por sub-objeto. Con `set("cap4")` habría que reconstruir el objeto entero en
@@ -144,7 +159,15 @@ export function ProyectoProvider({ children }) {
     return () => clearTimeout(id);
   }, [d]);
 
-  const V = velocidadDe(d.ciudad, d.riesgo) ?? 0;
+  // ── VELOCIDAD BÁSICA ────────────────────────────────────────────────────────
+  // `resolverV` devuelve V junto con la referencia del mapa, la diferencia y los avisos:
+  // la velocidad y su justificación viajan juntas, porque una V sin origen declarado no
+  // se puede revisar.
+  const vel = useMemo(() => resolverV({
+    origen: d.origenV ?? "tabla", ciudad: d.ciudad, riesgo: d.riesgo,
+    interp: d.vInterp, manual: d.vManual, v50: d.vConv,
+  }), [d.origenV, d.ciudad, d.riesgo, d.vInterp, d.vManual, d.vConv]);
+  const V = vel.V ?? 0;
 
   const geoN = useMemo(() => normalizarGeo(d.geo), [d.geo]);
 
@@ -175,13 +198,13 @@ export function ProyectoProvider({ children }) {
   const topoBase = useMemo(() => calcularKzt({ ...entradaTopo, z_m: 0 }), [entradaTopo]);
 
   const sitio = useMemo(() => ({
-    V, exposicion: d.exposicion, kd: kdDe("edificio_sprfv"),
+    V, vel, exposicion: d.exposicion, kd: kdDe("edificio_sprfv"),
     // El escalar sigue siendo el de la cubierta: es el que usan q_h y las trazas. Lo que
     // hace variar K_zt con la altura es `topo`, y sólo está cuando el cálculo APLICA.
     Kzt: topo.kzt, topo: topo.aplica ? entradaTopo : null,
     altitud: num(d.altitud), usarKe: d.usarKe !== false,
     puntosPerfil: num(d.puntosPerfil, 10),
-  }), [V, d.exposicion, d.altitud, d.usarKe, d.puntosPerfil, topo.kzt, topo.aplica, entradaTopo]);
+  }), [V, vel, d.exposicion, d.altitud, d.usarKe, d.puntosPerfil, topo.kzt, topo.aplica, entradaTopo]);
 
   /**
    * El `sitio` que le toca a UNA dirección.
@@ -327,7 +350,7 @@ export function ProyectoProvider({ children }) {
       proyecto: d.proyecto, setProyecto: set("proyecto"),
       tab, setTab, irA, nombreTab: TABS[tab] ?? TABS[0],
       iDir, setIDir, direcciones: DIRECCIONES,
-      V, sitio, geoN, rafaga, G, todas, act, res, resDe, maxAbs, curvas,
+      V, vel, setSub, sitio, geoN, rafaga, G, todas, act, res, resDe, maxAbs, curvas,
       avisos, avisosPorTab: porTab(avisos), conteo: contar(avisos),
       guardadoEn, nuevo, exportar, importar, fileRef,
     }}>{children}</Ctx.Provider>
