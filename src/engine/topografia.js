@@ -19,6 +19,10 @@
 // K_zt = 1,0 con el motivo dicho. Un 1,0 por omisión es indistinguible de un 1,0 por
 // descuido, y esa es justamente la diferencia que importa.
 
+// `interpolarTabla` es el interpolador común. Se reexporta con este nombre porque es
+// como lo nombra la trazabilidad de K_zt y como lo buscan sus tests.
+import { interpolar as interpolarTabla } from './interpolacion.js';
+export { interpolarTabla };
 import { FORMAS_TOPO, CONDICIONES_KZT, HLH_TOPE } from '../constants/topografia.js';
 
 /** @typedef {"loma_2D"|"escarpa_2D"|"colina_3D"} FormaTopo */
@@ -81,43 +85,6 @@ const TABLA_K3 = {
 };
 
 export { TABLA_K1, TABLA_K2, TABLA_K3 };
-
-/**
- * Interpolación lineal en una tabla, DEVOLVIENDO LOS PUNTOS USADOS.
- *
- * Que devuelva los puntos no es decoración: un K_zt de 1,53 no se puede controlar contra
- * el papel si no se sabe entre qué dos filas salió. La nota 1 de la figura autoriza la
- * interpolación lineal, así que los puntos son parte de la justificación del número.
- *
- * Fuera del rango tabulado devuelve el extremo, sin extrapolar.
- * @param {number} x
- * @param {number[]} xs  abscisas crecientes
- * @param {number[]} ys
- * @returns {ValorTrazado}
- */
-export function interpolarTabla(x, xs, ys) {
-  const n = xs.length;
-  if (x <= xs[0]) {
-    return { valor: ys[0], interpolado: false, puntos: [{ x: xs[0], y: ys[0] }],
-      nota: x < xs[0] ? "por debajo del primer punto de la tabla: se adopta ese valor" : undefined };
-  }
-  if (x >= xs[n - 1]) {
-    return { valor: ys[n - 1], interpolado: false, puntos: [{ x: xs[n - 1], y: ys[n - 1] }],
-      nota: x > xs[n - 1] ? "por encima del último punto de la tabla: se adopta ese valor" : undefined };
-  }
-  for (let i = 0; i < n - 1; i++) {
-    if (x === xs[i]) return { valor: ys[i], interpolado: false, puntos: [{ x: xs[i], y: ys[i] }] };
-    if (x < xs[i + 1]) {
-      const t = (x - xs[i]) / (xs[i + 1] - xs[i]);
-      return {
-        valor: ys[i] + t * (ys[i + 1] - ys[i]),
-        interpolado: true,
-        puntos: [{ x: xs[i], y: ys[i] }, { x: xs[i + 1], y: ys[i + 1] }],
-      };
-    }
-  }
-  return { valor: ys[n - 1], interpolado: false, puntos: [{ x: xs[n - 1], y: ys[n - 1] }] };
-}
 
 // Las notas de trazabilidad se leen en la app y salen en la memoria: van con coma
 // decimal como el resto de la salida, no con el punto que imprime JS.

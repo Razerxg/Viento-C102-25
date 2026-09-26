@@ -14,6 +14,7 @@
 // mismo sentido en el que nadie lo revisa: hacia abajo, y poco.
 
 import { q as qDinamica, kz, kztEn } from './presionDinamica.js';
+import { valorEn } from './interpolacion.js';
 import {
   BS_CARTEL, SH_CARTEL, CF_CARTEL_AB, cfCartelAjuste,
   BS_CASO_C_A, CF_CASO_C_A, BS_CASO_C_B, CF_CASO_C_B, CASO_C_REGIONES, CASO_C_ESQUINA,
@@ -31,20 +32,9 @@ const num = (v, d = 0) => {
 const fc = (n, d = 2) => (Number.isFinite(n) ? n.toFixed(d).replace(".", ",") : "—");
 
 // Interpolación lineal en una grilla ORDENADA, con extremos CONGELADOS y no extrapolados.
-// Congelar no es una comodidad: las filas extremas de estas tablas son «≤ 0,05» y «≥ 45»,
-// o sea que el propio reglamento dice que más allá vale el mismo número. Extrapolar la
-// pendiente daría un coeficiente que la norma no da.
-export function interpGrilla(x, xs, ys) {
-  if (x <= xs[0]) return ys[0];
-  if (x >= xs[xs.length - 1]) return ys[ys.length - 1];
-  for (let i = 0; i < xs.length - 1; i++) {
-    if (x <= xs[i + 1]) {
-      const t = (x - xs[i]) / (xs[i + 1] - xs[i]);
-      return ys[i] + t * (ys[i + 1] - ys[i]);
-    }
-  }
-  return ys[ys.length - 1];
-}
+// La implementación vive en `interpolacion.js`, compartida con K_zt, el Anexo I y los Cp
+// del capítulo 2; acá queda el nombre con el que la usa todo este archivo.
+export const interpGrilla = valorEn;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 4.4 — PAREDES LIBRES LLENAS Y CARTELES LLENOS

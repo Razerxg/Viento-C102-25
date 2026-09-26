@@ -17,17 +17,19 @@
 // presión interna un 59 % sin ningún fundamento físico.
 import { CP_PARED, CP_CUBIERTA_BARLOVENTO, CP_CUBIERTA_SOTAVENTO, CP_CUBIERTA_PARALELO,
   ANG_BARLOVENTO, ANG_SOTAVENTO, FACTOR_AREA } from '../constants/presionesExternas.js';
+import { valorEnPares } from './interpolacion.js';
 
 // Interpolación lineal sobre una lista de pares [x, y], con los extremos planos.
 // Se usa para L/B, h/L, θ y el factor de área, que es donde la norma la autoriza (nota 2).
-export function interp(puntos, x) {
-  const p = [...puntos].sort((a, b) => a[0] - b[0]);
-  if (x <= p[0][0]) return p[0][1];
-  if (x >= p.at(-1)[0]) return p.at(-1)[1];
-  const i = p.findIndex(([px]) => px >= x);
-  const [x0, y0] = p[i - 1], [x1, y1] = p[i];
-  return y0 + (y1 - y0) * (x - x0) / (x1 - x0);
-}
+//
+// ⚠ ESTA VERSIÓN ORDENABA LOS PARES ANTES DE INTERPOLAR. Se le sacó: ordenar hace que una
+// tabla cargada al revés dé un número plausible en vez de fallar, y ése es justo el error
+// que ningún control de ingeniería detecta. `interpolar` ahora exige abscisas crecientes
+// y lo dice. Las dos tablas que pasan por acá —L/B de sotavento y el factor de área— ya
+// están escritas en orden.
+//
+// El argumento va primero por compatibilidad con los llamadores de este archivo.
+export const interp = (puntos, x) => valorEnPares(x, puntos);
 
 export const cpBarlovento = () => CP_PARED.barlovento.cp;
 export const cpLateral = () => CP_PARED.lateral.cp;

@@ -4,6 +4,7 @@
 // falta cuando lo que hay que calcular no es un edificio ni una de las familias del
 // capítulo 4, sino un elemento: un venteo, un tirante, un montante de un pórtico.
 import { q as qDinamica, kz, kztEn } from './presionDinamica.js';
+import { valorEnPares } from './interpolacion.js';
 import { TERRENO } from '../constants/exposicion.js';
 import {
   VB_I1, TABLA_I1, TABLA_I2, TABLA_I3A, TABLA_I3B, I3B_THETA_MAX, factorInclinacion,
@@ -18,18 +19,8 @@ const fc = (n, d = 2) => (Number.isFinite(n) ? n.toFixed(d).replace(".", ",") : 
 
 // Interpolación con extremos congelados: las filas de tope de estas tablas son «≥ 10»,
 // «≥ 20» y «40 o más», o sea que el propio reglamento dice que más allá vale lo mismo.
-export function interp(x, pares) {
-  const xs = pares.map(p => p[0]), ys = pares.map(p => p[1]);
-  if (x <= xs[0]) return ys[0];
-  if (x >= xs[xs.length - 1]) return ys[ys.length - 1];
-  for (let i = 0; i < xs.length - 1; i++) {
-    if (x <= xs[i + 1]) {
-      const t = (x - xs[i]) / (xs[i + 1] - xs[i]);
-      return ys[i] + t * (ys[i + 1] - ys[i]);
-    }
-  }
-  return ys[ys.length - 1];
-}
+// La implementación es la común de `interpolacion.js`.
+export const interp = valorEnPares;
 
 // ── VELOCIDAD DE RÁFAGA A LA ALTURA z ──────────────────────────────────────────
 //
