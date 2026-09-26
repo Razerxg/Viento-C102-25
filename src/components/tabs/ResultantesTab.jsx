@@ -10,7 +10,15 @@ import { CurvasAltura } from '../svg/CurvasAltura.jsx';
 import { Encabezado, Card, Stat, Stats, Aviso, Nota, Tabla, Divisor, Salida,
   Acordeon, Th, Td, TdN } from '../ui.jsx';
 import { c, SP, t } from '../tokens.js';
+import { U, unidades, PERFILES } from '../../lib/unidades.js';
 import { f, fmt } from '../../lib/formato.js';
+
+// ⚠ EL ART. 2.1.5 ESCRIBE SUS MÍNIMOS EN kN/m², y la pantalla usa N/m² en el resto. Un
+// formateador propio para esa tabla, con el ENCABEZADO SALIENDO DEL MISMO OBJETO que el
+// número: al migrar a `unidades.js` la columna quedó mostrando «750,00» bajo un
+// encabezado que decía «kN/m²», porque el encabezado estaba escrito a mano. Es
+// exactamente el error que el módulo existe para hacer imposible.
+const Umin = unidades({ ...PERFILES.pantalla, presion: "kN/m²" });
 
 export function ResultantesTab() {
   const { act, res, resDe, curvas, todas, geoN, d, set } = useProyecto();
@@ -25,11 +33,11 @@ export function ResultantesTab() {
 
       <Card titulo={`Dirección ${act.dir.id}`}>
         <Stats min={160}>
-          <Stat label="Corte total" valor={f(Math.abs(res.cortante / 1000), 1)} unidad="kN"
+          <Stat label="Corte total" valor={U.n.fuerza(Math.abs(res.cortante), 1)} unidad={U.u.fuerza}
             ayuda="Suma de las componentes horizontales sobre paredes y cubierta. La presión interna se cancela: actúa por igual sobre barlovento y sotavento." />
-          <Stat label="Levantamiento" valor={f(Math.abs(res.levantamiento / 1000), 1)} unidad="kN"
+          <Stat label="Levantamiento" valor={U.n.fuerza(Math.abs(res.levantamiento), 1)} unidad={U.u.fuerza}
             ayuda="Resultante vertical hacia arriba. Acá la presión interna NO se cancela, y es donde gobierna: con GC_pi positivo empuja la cubierta desde adentro." />
-          <Stat label="Vuelco" valor={f(Math.abs(res.vuelco / 1000), 1)} unidad="kN·m"
+          <Stat label="Vuelco" valor={U.n.momento(Math.abs(res.vuelco), 1)} unidad={U.u.momento}
             sub="respecto del centro de la base"
             ayuda="Momento al nivel de fundación: las fuerzas horizontales por su altura, más el levantamiento de cubierta por su brazo EN PLANTA. Positivo = tiende a levantar el borde de barlovento." />
           <Stat label="Altura de alero" valor={f(geoN.hAlero, 2)} unidad="m"
@@ -53,7 +61,7 @@ export function ResultantesTab() {
         </Nota>
 
         <Divisor>Resultante vertical de cubierta</Divisor>
-        <Salida label="Levantamiento V" v={fmt.kN(res.verticalCubierta.V / 1000)}
+        <Salida label="Levantamiento V" v={U.fuerza(res.verticalCubierta.V)}
           ayuda="Envolvente de los dos casos que exige la nota 3 de la Figura 2.4-1 para el faldón a barlovento." />
         <Salida label="Punto de aplicación x_V" unit="m"
           v={res.verticalCubierta.xV == null ? "—" : f(res.verticalCubierta.xV, 2)}
@@ -75,9 +83,9 @@ export function ResultantesTab() {
               <tr key={k}>
                 <Td nowrap>{nom}</Td>
                 {res.casos.map(cs => (
-                  <TdN key={cs.casoNota3} tono={c.txt3}>{f(cs.momentos[k] / 1000, 1)}</TdN>
+                  <TdN key={cs.casoNota3} tono={c.txt3}>{U.n.momento(cs.momentos[k], 1)}</TdN>
                 ))}
-                <TdN peso={600}>{f(res.momentos[k] / 1000, 1)}</TdN>
+                <TdN peso={600}>{U.n.momento(res.momentos[k], 1)}</TdN>
                 <Td tono={c.txt3} nowrap>{res.gobernante[k] ?? res.gobernante.vuelco}</Td>
               </tr>
             ))}
@@ -124,30 +132,32 @@ export function ResultantesTab() {
             v={f(res.cargaMinima.areaCubierta, 1)}
             ayuda="Lo que la silueta agrega POR ENCIMA de la pared a barlovento. Con viento paralelo a la cumbrera el borde del hastial ya ES la línea del techo, así que da cero: la partición no se solapa." />
         )}
-        <Salida label="Fuerza mínima" v={fmt.kN(res.cargaMinima.fuerza / 1000)}
+        <Salida label="Fuerza mínima" v={U.fuerza(res.cargaMinima.fuerza)}
           ayuda={res.cargaMinima.ref} />
         {/* Sin punto de aplicación, un caso de carga no se puede combinar con nada: no da
             momento en la base y no entra en una envolvente de reacciones. */}
         <Salida label="Punto de aplicación" unit="m"
           v={res.cargaMinima.zBar == null ? "—" : f(res.cargaMinima.zBar, 2)}
           ayuda="Baricentro de las áreas proyectadas, pesado por su presión: la de cubierta está más arriba pero paga 0,40 kN/m² contra 0,75." />
-        <Salida label="Momento en la base" v={fmt.kNm(res.cargaMinima.momento / 1000)} />
-        <Salida label="Corte calculado" v={fmt.kN(Math.abs(res.cortante) / 1000)} />
+        <Salida label="Momento en la base" v={U.momento(res.cargaMinima.momento)} />
+        <Salida label="Corte calculado" v={U.fuerza(Math.abs(res.cortante))} />
         <Tabla minWidth={480}>
           <thead><tr>
-            <Th>Área proyectada</Th><Th alinear="right">m²</Th>
-            <Th alinear="right">kN/m²</Th><Th alinear="right">z̄ (m)</Th>
-            <Th alinear="right">Fuerza (kN)</Th><Th alinear="right">Momento (kN·m)</Th>
+            <Th>Área proyectada</Th><Th alinear="right">{Umin.u.area}</Th>
+            <Th alinear="right">{Umin.u.presion}</Th>
+            <Th alinear="right">z̄ ({Umin.u.longitud})</Th>
+            <Th alinear="right">Fuerza ({Umin.u.fuerza})</Th>
+            <Th alinear="right">Momento ({Umin.u.momento})</Th>
           </tr></thead>
           <tbody>
             {res.cargaMinima.partes.map(x => (
               <tr key={x.id}>
                 <Td>{x.label}</Td>
-                <TdN>{f(x.area, 1)}</TdN>
-                <TdN tono={c.txt3}>{f(x.presion / 1000, 2)}</TdN>
-                <TdN tono={c.txt3}>{x.area > 0 ? f(x.zBar, 2) : "—"}</TdN>
-                <TdN>{f(x.fuerza / 1000, 1)}</TdN>
-                <TdN>{f(x.momento / 1000, 1)}</TdN>
+                <TdN>{Umin.n.area(x.area, 1)}</TdN>
+                <TdN tono={c.txt3}>{Umin.n.presion(x.presion, 2)}</TdN>
+                <TdN tono={c.txt3}>{x.area > 0 ? Umin.n.longitud(x.zBar) : "—"}</TdN>
+                <TdN>{Umin.n.fuerza(x.fuerza, 1)}</TdN>
+                <TdN>{Umin.n.momento(x.momento, 1)}</TdN>
               </tr>
             ))}
           </tbody>
@@ -240,8 +250,8 @@ export function ResultantesTab() {
         desc="Envolvente de las cuatro direcciones, recalculando el edificio completo en cada
           punto. La línea vertical marca el alero actual.">
         <CurvasAltura tema={tema} hActual={geoN.hAlero}
-          datos={curvas.map(x => ({ ...x, cortante: x.cortante / 1000,
-            levantamiento: x.levantamiento / 1000, vuelco: x.vuelco / 1000 }))}
+          datos={curvas.map(x => ({ ...x, cortante: U.val.fuerza(x.cortante),
+            levantamiento: U.val.fuerza(x.levantamiento), vuelco: U.val.momento(x.vuelco) }))}
           fmt={(n) => f(n, n >= 100 ? 0 : 1)} />
         <Nota>
           No son tres rectas: al subir el alero cambian a la vez el área expuesta, la altura
@@ -259,9 +269,9 @@ export function ResultantesTab() {
             {todas.map(t => <Th key={t.dir.id} alinear="right">{t.dir.id}</Th>)}
           </tr></thead>
           <tbody>
-            {[["Corte (kN)", t => Math.abs(resDe(t).cortante / 1000)],
-              ["Levantamiento (kN)", t => Math.abs(resDe(t).levantamiento / 1000)],
-              ["Vuelco (kN·m)", t => Math.abs(resDe(t).vuelco / 1000)]].map(([nom, fn]) => {
+            {[[`Corte (${U.u.fuerza})`, t => Math.abs(U.val.fuerza(resDe(t).cortante))],
+              [`Levantamiento (${U.u.fuerza})`, t => Math.abs(U.val.fuerza(resDe(t).levantamiento))],
+              [`Vuelco (${U.u.momento})`, t => Math.abs(U.val.momento(resDe(t).vuelco))]].map(([nom, fn]) => {
               // El máximo de la fila se marca: es la dirección que gobierna esa magnitud, y
               // es justamente el dato que se busca en una tabla de cuatro columnas.
               const vals = todas.map(fn);

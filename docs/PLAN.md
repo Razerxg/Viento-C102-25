@@ -97,11 +97,11 @@ construye sobre ellas.
 
 El punto 8 se integra a la envolvente de la Fase 2, por decisión del proyectista.
 
-## Fase 2 — Robustez del cálculo ⏳
+## Fase 2 — Robustez del cálculo 🔄
 
 | Estado | Ítem | Nota |
 |---|---|---|
-| ⏳ | `unidades.js`: conversión **en el borde**, motor en N, m, N/m² | Salida por defecto: kN, kN/m², kNm; longitud configurable (mm en memoria, m en CSV/JSON) |
+| ✅ | `unidades.js`: conversión **en el borde**, motor en N, m, N/m² | `lib/unidades.js`. Tres perfiles: pantalla, memoria (longitudes en mm, presiones en kN/m²) y datos (longitudes en m). El número y su unidad salen del MISMO objeto, y hay un test que recorre `src/components` y falla si reaparece una conversión a mano |
 | ⏳ | Avisos de aplicabilidad visibles, nunca silenciosos | h/L, h/B, pendientes, ángulos |
 | ⏳ | n₁ según art. 1.9.2 | Baja altura = rígido, no bloquear · `n_a` de 1.9.3 sólo con acero/hormigón/mampostería, h < 90 m y h < 4·L_ef · `G_f` obligatorio si n₁ < 1 Hz |
 | ⏳ | Envolvente automática: 4 direcciones × 2 signos de `GC_pi` | Con el caso torsional en el resumen de críticos |

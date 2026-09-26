@@ -5,6 +5,7 @@
 import { useProyecto } from '../../context/ProyectoContext.jsx';
 import { Encabezado, Card, Tabla, Th, Td, TdN, Nota, Stat, Stats, Badge } from '../ui.jsx';
 import { c, SP } from '../tokens.js';
+import { U } from '../../lib/unidades.js';
 import { f, fmt } from '../../lib/formato.js';
 import { rotuloConteo } from '../../lib/avisos.js';
 
@@ -26,9 +27,9 @@ export function ResumenTab() {
       t => f(t.superficies.find(s => s.id === "pared_barlovento").tramos.at(-1).gobernante, 0)],
     ["p en la pared a sotavento (N/m²)",
       t => f(t.superficies.find(s => s.id === "pared_sotavento").gobernante, 0)],
-    ["Corte total en la base (kN)", t => f(Math.abs(resDe(t).cortante / 1000), 1)],
-    ["Levantamiento total (kN)", t => f(Math.abs(resDe(t).levantamiento / 1000), 1)],
-    ["Vuelco (kN·m)", t => f(Math.abs(resDe(t).vuelco / 1000), 1)],
+    [`Corte total en la base (${U.u.fuerza})`, t => U.n.fuerza(Math.abs(resDe(t).cortante), 1)],
+    [`Levantamiento total (${U.u.fuerza})`, t => U.n.fuerza(Math.abs(resDe(t).levantamiento), 1)],
+    [`Vuelco (${U.u.momento})`, t => U.n.momento(Math.abs(resDe(t).vuelco), 1)],
   ];
 
   return (

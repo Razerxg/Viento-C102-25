@@ -423,6 +423,25 @@ propio azul las hace parecer de proveedores distintos.
   con los `C_N` de las Figuras 2.4-4 a 2.4-7, que no están implementados; mostrar los Cp
   de la 2.4-1 es mostrar los de otro edificio.
 
+## Unidades — la conversión vive en `lib/unidades.js`
+
+- **El motor trabaja siempre en N, m, N/m².** Son las unidades en que el reglamento
+  escribe sus expresiones, así que adentro del cálculo no hay ninguna conversión y no
+  puede haber un factor 1000 perdido entre dos pasos.
+- **La conversión ocurre EN EL BORDE**, y sólo ahí. Antes cada pantalla dividía por 1000 a
+  mano: treinta y dos veces. El día que una se olvida, la pantalla muestra newtons donde
+  dice kN.
+- ⚠ **EL NÚMERO Y SU UNIDAD SALEN DEL MISMO OBJETO.** Un encabezado de columna escrito a
+  mano es la otra mitad del mismo error: al migrar, la tabla de cargas mínimas quedó
+  mostrando «750,00» bajo un encabezado que decía «kN/m²». Los encabezados salen de
+  `U.u.<magnitud>`.
+- **Tres perfiles**: `pantalla`, `memoria` —longitudes en mm como en un plano, presiones
+  en kN/m²— y `datos` —longitudes en m, que es lo que espera un modelo de barras—. La
+  unidad de longitud es lo único que cambia entre ellos, y cambia por ese motivo.
+- **Hay un test que recorre `src/components` y falla si reaparece una conversión a mano**,
+  más otro que verifica que el patrón sepa reconocerlas. Sin eso, la regla dura hasta el
+  próximo apuro.
+
 ## Interpolación — una sola implementación
 
 - **Vive en `engine/interpolacion.js`** y devuelve siempre los puntos de tabla usados: un

@@ -15,6 +15,7 @@ import { Encabezado, Card, Campo, Num, Sel, Salida, Aviso, Nota, Tabla, Th, Td, 
   Acordeon, Stat, Stats, Divisor } from '../ui.jsx';
 import { c, t, SP, MONO } from '../tokens.js';
 import { FIGURAS } from '../../constants/figuras.js';
+import { U } from '../../lib/unidades.js';
 import { f, fmt } from '../../lib/formato.js';
 
 // Casilla de verificación con el mismo cuerpo y color que el resto del formulario. El
@@ -202,13 +203,13 @@ export function AccesoriosTab() {
             : <>
               <Stats min={130}>
                 {cp.familia === "equipo" ? <>
-                  <Stat label="Fuerza lateral F_h" valor={f(Math.abs(r.F / 1000), 2)} unidad="kN"
+                  <Stat label="Fuerza lateral F_h" valor={U.n.fuerza(Math.abs(r.F), 2)} unidad={U.u.fuerza}
                     ayuda="Expresión (4.5-2). Se aplica a una altura sobre el techo igual o mayor que la del centroide del área proyectada." />
                   <Stat label="Levantamiento F_v"
-                    valor={f(Math.abs(r.q * r.extra.ver.gcr * r.extra.Ar / 1000), 2)} unidad="kN"
+                    valor={U.n.fuerza(Math.abs(r.q * r.extra.ver.gcr * r.extra.Ar), 2)} unidad={U.u.fuerza}
                     ayuda="Expresión (4.5-3). Los dos estudios que cita el comentario midieron fuerzas de levantamiento altas sobre el equipamiento de azotea." />
                 </> : <>
-                  <Stat label="Fuerza de viento F" valor={f(Math.abs(r.F / 1000), 2)} unidad="kN" />
+                  <Stat label="Fuerza de viento F" valor={U.n.fuerza(Math.abs(r.F), 2)} unidad={U.u.fuerza} />
                   <Stat label="Coeficiente C_f" valor={f(r.cf, 3)} />
                 </>}
                 <Stat label="Presión dinámica" valor={f(r.q, 0)} unidad="N/m²"
@@ -273,7 +274,7 @@ export function AccesoriosTab() {
                   <TdN>{f(reg.hasta, 2)}</TdN>
                   <TdN>{f(reg.cfTabla, 2)}</TdN>
                   <TdN peso={600}>{f(reg.cf, 3)}</TdN>
-                  <TdN>{f(r.q * G * reg.cf * reg.ancho * parseFloat(cp.s || 0) / 1000, 2)}</TdN>
+                  <TdN>{U.n.fuerza(r.q * G * reg.cf * reg.ancho * parseFloat(cp.s || 0), 2)}</TdN>
                 </tr>
               ))}
             </tbody>

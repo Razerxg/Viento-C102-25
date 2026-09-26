@@ -5,6 +5,7 @@
 // del caso B 0,2·B hacia el borde de barlovento, y la sube 0,05·h cuando el cartel apoya
 // en el suelo. Un croquis que dibujara la flecha en el centro estaría ocultando justo eso.
 import { mkView, Dim, Rotulo, Lienzo, Flecha } from './kit.jsx';
+import { U } from '../../lib/unidades.js';
 
 export function CroquisAccesorio({ analisis, datos, familia, fmt, tema = "claro",
   ancho = 620, alto = 340 }) {
@@ -89,7 +90,7 @@ export function CroquisAccesorio({ analisis, datos, familia, fmt, tema = "claro"
       <Flecha x1={X(0) - largoFlecha - v.l(B) * 0.12} y1={Y(alturaFlecha)}
         x2={X(0) - v.l(B) * 0.12} y2={Y(alturaFlecha)} color="#b03a2e" grosor={2.4} cabeza={8} />
       <Rotulo x={X(0) - largoFlecha - v.l(B) * 0.12 - 4} y={Y(alturaFlecha) - 13}
-        texto={`F = ${fmt.kN(Math.abs(analisis.F / 1000))}`} color={txt} tam={11} peso={600}
+        texto={`F = ${U.fuerza(Math.abs(analisis.F))}`} color={txt} tam={11} peso={600}
         ancla="start" />
       <Rotulo x={X(0) - largoFlecha - v.l(B) * 0.12 - 4} y={Y(alturaFlecha) + 13}
         texto={`z = ${fmt.m(alturaFlecha)}`} color={txt} tam={10} ancla="start" />

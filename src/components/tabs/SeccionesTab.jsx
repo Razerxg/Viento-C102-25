@@ -19,6 +19,7 @@ import { FIGURAS } from '../../constants/figuras.js';
 import { Encabezado, Card, Campo, Num, Sel, Salida, Aviso, Nota, Tabla, Th, Td, TdN,
   Acordeon, Stat, Stats, Divisor, Figura } from '../ui.jsx';
 import { c, t, SP, MONO } from '../tokens.js';
+import { U } from '../../lib/unidades.js';
 import { f, fmt } from '../../lib/formato.js';
 
 export function SeccionesTab() {
@@ -128,10 +129,10 @@ export function SeccionesTab() {
         <Card titulo="Resultado">
           {!r ? <Nota>Falta completar la geometría.</Nota> : <>
             <Stats min={140}>
-              <Stat label="Fuerza F" valor={f(Math.abs(r.F / 1000), 3)} unidad="kN"
+              <Stat label="Fuerza F" valor={U.n.fuerza(Math.abs(r.F), 3)} unidad={U.u.fuerza}
                 ayuda="Expresión (I.1): F = G·C_f·K_e·A_f·q_z." />
               {r.Fy !== null && (
-                <Stat label="Fuerza transversal F_y" valor={f(Math.abs(r.Fy / 1000), 3)} unidad="kN"
+                <Stat label="Fuerza transversal F_y" valor={U.n.fuerza(Math.abs(r.Fy), 3)} unidad={U.u.fuerza}
                   ayuda="Expresión (I.3). En la Tabla I.3B los valores son ±: los dos signos son casos de carga, no un rango del que se elige el peor." />
               )}
               <Stat label="Coeficiente C_f" valor={f(r.cf, 3)}
@@ -168,7 +169,7 @@ export function SeccionesTab() {
             <tbody>
               {r.extra.filas.map((fila, i) => {
                 const on = i === r.extra.idx;
-                const fz = (cf) => Math.abs(cf * r.q * r.ke.ke * r.area * 0.85 / 1000);
+                const fz = (cf) => U.val.fuerza(Math.abs(cf * r.q * r.ke.ke * r.area * 0.85));
                 return (
                   <tr key={fila.theta}>
                     <TdN peso={on ? 700 : 400} fondo={on ? c.azulBg : undefined}>{fila.theta}°</TdN>

@@ -13,6 +13,7 @@ import { Encabezado, Card, Campo, Num, Sel, Salida, Aviso, Nota, Tabla, Th, Td, 
   Acordeon, Stat, Stats, Divisor } from '../ui.jsx';
 import { c, t, SP, MONO } from '../tokens.js';
 import { FIGURAS } from '../../constants/figuras.js';
+import { U } from '../../lib/unidades.js';
 import { f, fmt } from '../../lib/formato.js';
 
 function Check({ label, v, set, ayuda }) {
@@ -90,7 +91,7 @@ export function SilosTab() {
 
         <Card titulo="Arrastre global de las paredes">
           <Stats min={130}>
-            <Stat label="Fuerza F" valor={f(Math.abs(r.Fpared / 1000), 2)} unidad="kN"
+            <Stat label="Fuerza F" valor={U.n.fuerza(Math.abs(r.Fpared), 2)} unidad={U.u.fuerza}
               ayuda="F = q·G·C_f·A_f sobre la proyección D·H, expresión (4.5-1)." />
             <Stat label="Coeficiente C_f" valor={f(r.paredCf.cf, 3)}
               sub={`para usar con ${r.paredCf.usarCon}`}

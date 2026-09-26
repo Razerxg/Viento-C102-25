@@ -11,6 +11,7 @@ import { c, t, SP, R, ANCHO_PANEL, TAM } from '../tokens.js';
 import { Badge, Tip } from '../ui.jsx';
 import { f, fmt } from '../../lib/formato.js';
 import { rotuloConteo } from '../../lib/avisos.js';
+import { U } from '../../lib/unidades.js';
 
 function Dato({ k, v, tip, tono }) {
   const fila = (
@@ -82,9 +83,9 @@ export function FichaEstado() {
           tip="Factor de efecto de ráfaga adoptado. Con n₁ < 1 Hz el art. 1.9.2 exige G_f." />
         <Dato k="Cubierta" v={MODO[act.modo] ?? act.modo}
           tip={act.motivoModo} />
-        <Dato k="Corte" v={fmt.kN(Math.abs(res.cortante / 1000))} />
-        <Dato k="Levantamiento" v={fmt.kN(Math.abs(res.levantamiento / 1000))} />
-        <Dato k="Vuelco" v={fmt.kNm(Math.abs(res.vuelco / 1000))} />
+        <Dato k="Corte" v={U.fuerza(Math.abs(res.cortante))} />
+        <Dato k="Levantamiento" v={U.fuerza(Math.abs(res.levantamiento))} />
+        <Dato k="Vuelco" v={U.momento(Math.abs(res.vuelco))} />
       </Bloque>
     </aside>
   );
