@@ -11,3 +11,7 @@ jobs:
         with: { node-version: 20 }
       - run: npm ci || npm install
       - run: npm test
+      # El build se corre acá TAMBIÉN, y no sólo en Vercel: si el bundle deja de
+      # compilar, se entera el PR y no el deploy. `build` ya arranca por `npm test`,
+      # así que esto verifica de paso que esa cadena no se rompió.
+      - run: npm run build
