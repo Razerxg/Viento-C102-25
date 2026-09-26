@@ -23,20 +23,24 @@
 const ORDEN = { error: 0, aviso: 1, info: 2 };
 
 export function avisosDe({ geoN, sitio, cerramiento, rafaga, modoG, n1, analisis, resultantes,
-  accesorio, silo, anexo }) {
+  accesorio, silo, anexo, topo }) {
   const av = [];
   const push = (o) => av.push(o);
 
   // ── SITIO ────────────────────────────────────────────────────────────────────
-  // K_zt es el aviso más importante de la app y el que más fácil se pasa por alto: es un
-  // multiplicador de la presión que puede llegar a 1,9, o sea casi el doble, y la app lo
-  // fija en 1,0 sin preguntar.
-  if ((sitio.Kzt ?? 1) === 1) {
+  // K_zt es el multiplicador que más puede cambiar el resultado: llega a 3,15. Ahora que
+  // hay formulario, el aviso ya no es «la app lo fija en 1,0» sino el MOTIVO concreto por
+  // el que dio 1,0 —o los avisos que trae el cálculo cuando sí aplica—.
+  if (topo && !topo.aplica) {
     push({ id: "kzt", tono: "aviso", tab: "Sitio",
-      titulo: "K_zt = 1,0 — se supone terreno llano",
-      detalle: "Si el edificio está en la mitad superior de una loma, en la cresta de una "
-        + "escarpa o sobre una colina aislada, no corresponde: el art. 1.8 puede llevar "
-        + "K_zt hasta 1,9, casi el doble de presión." });
+      titulo: "K_zt = 1,0 — sin efecto topográfico",
+      detalle: `${topo.motivo} Si el edificio está en la mitad superior de una loma, en la `
+        + "cresta de una escarpa o sobre una colina aislada, el art. 1.8 puede llevar K_zt "
+        + "hasta 3,15: más del triple de presión." });
+  }
+  for (const a of topo?.aplica ? topo.avisos.filter(x => x.tono !== "info") : []) {
+    push({ id: `topo-${a.texto.slice(0, 24)}`, tono: a.tono, tab: "Sitio",
+      titulo: `Topografía — ${a.ref}`, detalle: a.texto });
   }
   // Exposición B es la que más baja las presiones y la que más se elige por inercia. No
   // es un error —es la categoría más común— pero conviene que quede dicho contra qué se

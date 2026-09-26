@@ -119,6 +119,10 @@ export function interpolarTabla(x, xs, ys) {
   return { valor: ys[n - 1], interpolado: false, puntos: [{ x: xs[n - 1], y: ys[n - 1] }] };
 }
 
+// Las notas de trazabilidad se leen en la app y salen en la memoria: van con coma
+// decimal como el resto de la salida, no con el punto que imprime JS.
+const dec = (n, d) => Number(n).toFixed(d).replace(".", ",");
+
 /**
  * μ según el lado de la cresta.
  *
@@ -233,8 +237,8 @@ export function kzt({
   const Lh_ef_m = empinado ? 2 * H : Lh;
   if (empinado) {
     avisos.push({ tono: "info", ref: "Figura 1.8-1, nota 2", texto:
-      `H/Lh = ${HLh.toFixed(3).replace(".", ",")} > 0,5: se adopta H/Lh = 0,5 para K1 y se `
-      + `sustituye Lh por 2H = ${(2 * H).toFixed(2).replace(".", ",")} m en K2 y K3.` });
+      `H/Lh = ${dec(HLh, 3)} > 0,5: se adopta H/Lh = 0,5 para K1 y se `
+      + `sustituye Lh por 2H = ${dec((2 * H), 2)} m en K2 y K3.` });
   }
 
   const mu = muDe(forma, lado);
@@ -266,19 +270,19 @@ export function kzt({
       avisos.push({ tono: "aviso", ref: "Figura 1.8-1, nota 4 · art. 1.8.2", texto:
         `Método de tabla en exposición D. La nota 4 habilita los multiplicadores para `
         + `cualquier exposición, pero la tabla está construida numéricamente con los `
-        + `cocientes de exposición C: acá subestima K1 en ${sub.toFixed(1).replace(".", ",")} % `
-        + `(${t1.valor.toFixed(3).replace(".", ",")} contra ${exacto.toFixed(3).replace(".", ",")} `
+        + `cocientes de exposición C: acá subestima K1 en ${dec(sub, 1)} % `
+        + `(${dec(t1.valor, 3)} contra ${dec(exacto, 3)} `
         + `por expresiones). Ese desvío va en contra de la seguridad.` });
     }
   } else {
     // Expresiones de la Figura 1.8-1.
     const k1 = f.k1[exposicion] * HLh_ef;
     t1 = { valor: k1, interpolado: false, puntos: [],
-      nota: `(K1/(H/Lh))_${exposicion} = ${f.k1[exposicion]} × H/Lh = ${HLh_ef}` };
+      nota: `(K1/(H/Lh))_${exposicion} = ${dec(f.k1[exposicion], 2)} × H/Lh = ${dec(HLh_ef, 3)}` };
     t2 = { valor: 1 - x / (mu * Lh_ef_m), interpolado: false, puntos: [],
-      nota: `1 − |x|/(μ·Lh) con μ = ${mu}` };
+      nota: `1 − |x|/(μ·Lh) con |x| = ${dec(x, 1)} m, μ = ${dec(mu, 1)} y Lh = ${dec(Lh_ef_m, 1)} m` };
     t3 = { valor: Math.exp(-f.gamma * zLh), interpolado: false, puntos: [],
-      nota: `e^(−γ·z/Lh) con γ = ${f.gamma}` };
+      nota: `e^(−γ·z/Lh) con γ = ${dec(f.gamma, 1)} y z/Lh = ${dec(zLh, 3)}` };
   }
 
   // K1, K2 y K3 ≥ 0. El que puede irse negativo es K2, cuando |x| supera μ·Lh: la
@@ -288,7 +292,7 @@ export function kzt({
   const K3 = Math.max(0, t3.valor);
   if (t2.valor < 0) {
     avisos.push({ tono: "info", ref: "Figura 1.8-1", texto:
-      `|x| = ${x.toFixed(1).replace(".", ",")} m supera μ·Lh = ${(mu * Lh_ef_m).toFixed(1).replace(".", ",")} m: `
+      `|x| = ${dec(x, 1)} m supera μ·Lh = ${dec((mu * Lh_ef_m), 1)} m: `
       + "K2 se recorta en 0 y el accidente deja de acelerar el viento en ese punto." });
   }
 
@@ -297,7 +301,7 @@ export function kzt({
   // emplazamiento no está en la mitad superior de nada.
   if (lado === "barlovento" && x > Lh) {
     avisos.push({ tono: "aviso", ref: "Art. 1.8.1, condición 1", texto:
-      `A barlovento con |x| = ${x.toFixed(1).replace(".", ",")} m > Lh = ${Lh.toFixed(1).replace(".", ",")} m, `
+      `A barlovento con |x| = ${dec(x, 1)} m > Lh = ${dec(Lh, 1)} m, `
       + "el emplazamiento queda fuera de la mitad superior del accidente. Revisar si la "
       + "condición 1 del art. 1.8.1 se cumple de verdad." });
   }

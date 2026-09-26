@@ -13,9 +13,10 @@
 // Ahora el estado está acá, el cálculo se memoiza una sola vez y se comparte, y hay
 // autoguardado en `localStorage` más exportación e importación a JSON.
 import { createContext, useContext, useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { analizarEdificio, analizarDireccion, normalizarGeo, DIRECCIONES } from '../engine/edificio.js';
+import { analizarDireccion, normalizarGeo, DIRECCIONES } from '../engine/edificio.js';
 import { analizarAccesorio, analizarSilo, familiaDe } from '../engine/otrasEstructuras.js';
 import { analizarAnexo } from '../engine/anexo1.js';
+import { kzt as calcularKzt } from '../engine/topografia.js';
 import { gcpiDe } from '../constants/presionInterna.js';
 import { factorRafaga } from '../engine/factorRafaga.js';
 import { resultantes, barridoAlero, envolvente } from '../engine/resultantes.js';
@@ -41,6 +42,18 @@ export const INICIAL = {
   altitud: "0",
   usarKe: true,
   cerramiento: "cerrado",
+  // ── TOPOGRAFÍA, art. 1.8 ────────────────────────────────────────────────────
+  // Por defecto SIN accidente declarado, que es terreno llano y K_zt = 1,0. No es lo
+  // mismo que «se supone 1,0»: acá el 1,0 sale de que el usuario no declaró ninguna loma,
+  // y la app lo dice con ese motivo.
+  topo: {
+    forma: "", exposicionLocal: "", H_m: "", Lh_m: "", x_m: "0",
+    lado: "barlovento", z_m: "", cond1: false, metodo: "expresiones",
+    // Opción CONSERVADORA por defecto: los multiplicadores de la Fig. 1.8-1 suponen
+    // viento en la dirección de máxima pendiente (nota 3), así que aplicarlos en las
+    // cuatro es mayorar. Desactivarla exige declarar en qué direcciones aplica.
+    todasLasDirecciones: true, direcciones: ["Wx+"],
+  },
   geo: { a: "20", b: "30", hAlero: "6", theta: "0", cumbrera: "X",
     tipo: "plana", pendienteHacia: "+Y" },
   n1: "",
@@ -90,6 +103,7 @@ const leer = () => {
     // hasta que alguien abre el suyo.
     return v && typeof v === "object" ? { ...INICIAL, ...v,
       geo: { ...INICIAL.geo, ...(v.geo || {}) },
+      topo: { ...INICIAL.topo, ...(v.topo || {}) },
       cap4: { ...INICIAL.cap4, ...(v.cap4 || {}) },
       silo: { ...INICIAL.silo, ...(v.silo || {}) },
       anexo: { ...INICIAL.anexo, ...(v.anexo || {}) } } : null;
@@ -107,6 +121,7 @@ export function ProyectoProvider({ children }) {
   // mano: repetido en veinte lugares, es donde aparece el que pisa el objeto entero.
   const set = useCallback((k) => (v) => setD(x => ({ ...x, [k]: v })), []);
   const setGeo = useCallback((k) => (v) => setD(x => ({ ...x, geo: { ...x.geo, [k]: v } })), []);
+  const setTopo = useCallback((k) => (v) => setD(x => ({ ...x, topo: { ...x.topo, [k]: v } })), []);
   // Un setter por sub-objeto. Con `set("cap4")` habría que reconstruir el objeto entero en
   // cada pantalla, que es donde alguien pisa un campo sin querer.
   const setCap4 = useCallback((k) => (v) => setD(x => ({ ...x, cap4: { ...x.cap4, [k]: v } })), []);
@@ -124,13 +139,47 @@ export function ProyectoProvider({ children }) {
 
   const V = velocidadDe(d.ciudad, d.riesgo) ?? 0;
 
+  const geoN = useMemo(() => normalizarGeo(d.geo), [d.geo]);
+
+  // ── FACTOR TOPOGRÁFICO ──────────────────────────────────────────────────────
+  //
+  // ⚠ LA ALTURA z DEL ART. 1.8 NO ES UNA SOLA. K_zt decae con la altura sobre el terreno
+  // local, así que en rigor cambia a lo largo de la pared de barlovento. Acá se evalúa a
+  // la `z` que declara el usuario —por defecto, la altura media de cubierta— y se aplica
+  // constante. Es lo que hace la práctica habitual y es conservador si se toma la z más
+  // baja de interés; queda anotado como pendiente evaluar K_zt(z) tramo a tramo.
+  const topo = useMemo(() => calcularKzt({
+    forma: d.topo.forma || undefined,
+    exposicion: d.topo.exposicionLocal || d.exposicion,
+    H_m: parseFloat(d.topo.H_m), Lh_m: parseFloat(d.topo.Lh_m),
+    x_m: parseFloat(d.topo.x_m) || 0, lado: d.topo.lado,
+    // Campo vacío = «automático»: se evalúa a la altura media de cubierta, que es
+    // la z de referencia del resto del cálculo. Dejarlo como NaN haría que el motor
+    // informara «faltan datos» sobre un formulario que el usuario ve completo.
+    z_m: d.topo.z_m === "" ? geoN.h : parseFloat(d.topo.z_m),
+    cond1_confirmada: !!d.topo.cond1, metodo: d.topo.metodo,
+  }), [d.topo, d.exposicion, geoN.h]);
+
   const sitio = useMemo(() => ({
-    V, exposicion: d.exposicion, kd: kdDe("edificio_sprfv"), Kzt: 1.0,
+    V, exposicion: d.exposicion, kd: kdDe("edificio_sprfv"), Kzt: topo.kzt,
     altitud: parseFloat(d.altitud) || 0, usarKe: d.usarKe !== false,
     puntosPerfil: parseInt(d.puntosPerfil, 10) || 10,
-  }), [V, d.exposicion, d.altitud, d.usarKe, d.puntosPerfil]);
+  }), [V, d.exposicion, d.altitud, d.usarKe, d.puntosPerfil, topo.kzt]);
 
-  const geoN = useMemo(() => normalizarGeo(d.geo), [d.geo]);
+  /**
+   * El `sitio` que le toca a UNA dirección.
+   *
+   * La nota 3 de la Fig. 1.8-1 dice que los multiplicadores suponen viento en la
+   * dirección de máxima pendiente. Con «aplicar a todas» —el defecto— K_zt va en las
+   * cuatro, que es mayorar; con la opción desactivada, sólo en las declaradas, y las
+   * demás quedan en 1,0.
+   */
+  const sitioDe = useCallback((dir) => {
+    if (!topo.aplica) return sitio;
+    if (d.topo.todasLasDirecciones) return sitio;
+    return (d.topo.direcciones ?? []).includes(dir.id) ? sitio : { ...sitio, Kzt: 1.0 };
+  }, [sitio, topo.aplica, d.topo.todasLasDirecciones, d.topo.direcciones]);
+
 
   // El factor de ráfaga se calcula ANTES del análisis y lo alimenta: cuál de las tres
   // vías del art. 1.9 se adopta cambia TODAS las presiones, así que no puede quedar como
@@ -145,7 +194,9 @@ export function ProyectoProvider({ children }) {
   const entrada = useMemo(() => ({ geo: d.geo, sitio, cerramiento: d.cerramiento, G }),
     [d.geo, sitio, d.cerramiento, G]);
 
-  const todas = useMemo(() => analizarEdificio(entrada), [entrada]);
+  const todas = useMemo(
+    () => DIRECCIONES.map(dir => analizarDireccion({ ...entrada, sitio: sitioDe(dir) }, dir)),
+    [entrada, sitioDe]);
   const act = todas[Math.min(iDir, todas.length - 1)];
   const res = useMemo(() => resultantes(act), [act]);
 
@@ -203,8 +254,8 @@ export function ProyectoProvider({ children }) {
 
   const avisos = useMemo(() => avisosDe({
     geoN, sitio, cerramiento: d.cerramiento, rafaga, modoG: d.modoG, n1: d.n1,
-    analisis: act, resultantes: res, accesorio, silo, anexo,
-  }), [geoN, sitio, d.cerramiento, rafaga, d.modoG, d.n1, act, res, accesorio, silo, anexo]);
+    analisis: act, resultantes: res, accesorio, silo, anexo, topo,
+  }), [geoN, sitio, d.cerramiento, rafaga, d.modoG, d.n1, act, res, accesorio, silo, anexo, topo]);
 
   const irA = useCallback((nombre) => setTab(idxTab(nombre)), []);
 
@@ -241,7 +292,8 @@ export function ProyectoProvider({ children }) {
 
   return (
     <Ctx.Provider value={{
-      d, set, setGeo, setD, setCap4, setSilo, setAnexo,
+      d, set, setGeo, setD, setCap4, setSilo, setAnexo, setTopo,
+      topo, sitioDe,
       accesorio, silo, anexo, kdCap4, cap4Kd, kdSilo, kdAnexo,
       proyecto: d.proyecto, setProyecto: set("proyecto"),
       tab, setTab, irA, nombreTab: TABS[tab] ?? TABS[0],

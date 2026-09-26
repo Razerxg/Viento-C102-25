@@ -9,9 +9,13 @@ import { CIUDADES } from '../../constants/velocidades.js';
 import { CERRAMIENTOS, PRIORIDAD_ABIERTO } from '../../constants/presionInterna.js';
 import { EXPOSICIONES, TERRENO } from '../../constants/exposicion.js';
 import { MapaVelocidad } from '../MapaVelocidad.jsx';
+import { CroquisTopografia } from '../svg/CroquisTopografia.jsx';
+import { useUi } from '../../context/UiContext.jsx';
+import { FORMAS_TOPO, CONDICIONES_KZT } from '../../constants/topografia.js';
+import { DIRECCIONES } from '../../engine/edificio.js';
 import { Encabezado, Card, Campo, Num, Sel, Salida, Aviso, Nota, Tabla, Acordeon,
-  Th, Td, TdN } from '../ui.jsx';
-import { c, SP } from '../tokens.js';
+  Divisor, Th, Td, TdN } from '../ui.jsx';
+import { c, SP, t, TONO } from '../tokens.js';
 import { FIGURAS } from '../../constants/figuras.js';
 import { f, fmt } from '../../lib/formato.js';
 import { kz } from '../../engine/presionDinamica.js';
@@ -27,7 +31,9 @@ const EXPLICA_EXPOSICION = {
 };
 
 export function SitioTab() {
-  const { d, set, V, sitio, geoN, act } = useProyecto();
+  const { d, set, setTopo, V, sitio, geoN, act, topo } = useProyecto();
+  const { tema } = useUi();
+  const t_ = d.topo;
   const terr = TERRENO[d.exposicion];
 
   return (
@@ -110,12 +116,186 @@ export function SitioTab() {
         {/* La decisión de si el terreno es llano se toma FUERA de la app, con el sitio a
             la vista. Para eso hace falta ver qué llama «loma» y «escarpa» el reglamento y
             con qué tres condiciones, que es justo lo que trae la figura. */}
-        <Aviso titulo="K_zt = 1,0 — se supone terreno llano" fig={FIGURAS["1.8-1"]}>
-          El art. 1.8 puede llevar K_zt hasta 1,9 —casi el doble de presión— cuando el
-          edificio está en la mitad superior de una loma, cerca de la cresta de una escarpa
-          o sobre una colina aislada. El motor sabe calcularlo, pero la interfaz todavía no
-          pide los datos de la Figura 1.8-1, así que queda fijo en 1,0.
-        </Aviso>
+      </Card>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          FACTOR TOPOGRÁFICO — art. 1.8
+          Era 1,0 fijo. Es el multiplicador que más puede cambiar el resultado de toda
+          la app: llega a 3,15, más del triple de presión.
+          ══════════════════════════════════════════════════════════════════════ */}
+      <Card titulo="Factor topográfico K_zt" fig={FIGURAS["1.8-1"]}
+        desc="Art. 1.8. Aceleración del viento sobre lomas, escarpas y colinas aisladas. Cuando
+          da 1,0 el motivo queda escrito: no es lo mismo que suponer terreno llano.">
+        <Campo label="Accidente topográfico"
+          ayuda="Loma y escarpa bidimensionales o colina tridimensional axialsimétrica. Cada forma tiene su propio K1/(H/Lh), su γ y su μ.">
+          <Sel v={t_.forma} set={setTopo("forma")} w={280}
+            opciones={[["", "Sin accidente — terreno llano"],
+              ...FORMAS_TOPO.map(x => [x.id, x.label])]} />
+        </Campo>
+
+        {t_.forma && <>
+          <Campo label="Altura del accidente H" unit="m" fig={FIGURAS["1.8-1"]}
+            ayuda="Diferencia de elevación entre la cresta y el terreno a barlovento. Condición 3 del art. 1.8.1: H ≥ 5 m en exposición C y D, ó H ≥ 20 m en B.">
+            <Num v={t_.H_m} set={setTopo("H_m")} step="0.5" />
+          </Campo>
+          <Campo label="Distancia a media altura L_h" unit="m" fig={FIGURAS["1.8-1"]}
+            ayuda="⚠ NO es la base del cerro. Es la distancia A BARLOVENTO desde la cresta hasta donde la elevación del terreno es igual a la MITAD de H. Condición 2: H/Lh ≥ 0,20.">
+            <Num v={t_.Lh_m} set={setTopo("Lh_m")} step="1" />
+          </Campo>
+          <Campo label="Distancia desde la cresta x" unit="m"
+            ayuda="Medida DESDE LA CRESTA, no desde el pie. Su valor absoluto entra en K2; de qué lado está se declara aparte, porque cambia μ.">
+            <Num v={t_.x_m} set={setTopo("x_m")} step="1" />
+          </Campo>
+          <Campo label="Lado de la cresta"
+            ayuda="Cambia μ sólo en la escarpa: a sotavento μ = 4 y a barlovento μ = 1,5, porque la estela de aceleración se extiende hacia atrás. En loma y colina es 1,5 de los dos lados.">
+            <Sel v={t_.lado} set={setTopo("lado")} w={180}
+              opciones={[["barlovento", "A barlovento"], ["sotavento", "A sotavento"]]} />
+          </Campo>
+          <Campo label="Altura sobre el terreno local z" unit="m"
+            ayuda="⚠ Sobre el terreno LOCAL del emplazamiento, no sobre el nivel del valle. Vacío toma la altura media de cubierta del edificio.">
+            <Num v={t_.z_m} set={setTopo("z_m")} step="0.5"
+              ph={f(geoN.h, 2)} />
+          </Campo>
+
+          <Divisor>Condición cualitativa</Divisor>
+          {/* Es la condición 1 del art. 1.8.1 y NO hay expresión que la decida: la confirma
+              el proyectista mirando el emplazamiento. Sin ella, K_zt = 1,0. */}
+          <label style={{ display: "flex", gap: SP.sm + 2, alignItems: "flex-start",
+            padding: `${SP.sm}px 0`, cursor: "pointer" }}>
+            <input type="checkbox" checked={!!t_.cond1}
+              onChange={e => setTopo("cond1")(e.target.checked)}
+              style={{ width: 16, height: 16, marginTop: 2, accentColor: c.azul, cursor: "pointer" }} />
+            <span style={{ ...t.body, lineHeight: 1.6 }}>
+              Confirmo que la estructura se localiza <b style={{ color: c.txt }}>en la mitad
+              superior de la loma o colina, o cerca de la cresta de la escarpa</b>{" "}
+              (art. 1.8.1, condición 1). Es cualitativa: no hay expresión que la decida.
+            </span>
+          </label>
+
+          <Divisor>Método de cálculo</Divisor>
+          <Campo label="Método" ayuda="El art. 1.8.2 permite expresiones o tablas indistintamente. Por defecto expresiones; la memoria indica cuál se usó.">
+            <Sel v={t_.metodo} set={setTopo("metodo")} w={220}
+              opciones={[["expresiones", "Expresiones (1.8-1)"],
+                ["tabla", "Tablas de la Figura 1.8-1"]]} />
+          </Campo>
+
+          <Divisor>Direcciones en que se aplica</Divisor>
+          <label style={{ display: "flex", gap: SP.sm + 2, alignItems: "flex-start",
+            padding: `${SP.sm}px 0`, cursor: "pointer" }}>
+            <input type="checkbox" checked={!!t_.todasLasDirecciones}
+              onChange={e => setTopo("todasLasDirecciones")(e.target.checked)}
+              style={{ width: 16, height: 16, marginTop: 2, accentColor: c.azul, cursor: "pointer" }} />
+            <span style={{ ...t.body, lineHeight: 1.6 }}>
+              Aplicar K_zt a <b style={{ color: c.txt }}>todas las direcciones</b>. Los
+              multiplicadores suponen viento en la dirección de máxima pendiente (nota 3),
+              así que usarlos en las cuatro es <b style={{ color: c.txt }}>conservador</b>.
+            </span>
+          </label>
+          {!t_.todasLasDirecciones && (
+            <Campo label="Direcciones con efecto"
+              ayuda="Las demás quedan con K_zt = 1,0. Corresponde declarar aquellas en que el viento sopla en la dirección de máxima pendiente del accidente.">
+              <div style={{ display: "flex", gap: 2, padding: 2, background: c.canvas,
+                border: `1px solid ${c.border}`, borderRadius: 8 }}>
+                {DIRECCIONES.map(dir => {
+                  const on = (t_.direcciones ?? []).includes(dir.id);
+                  return (
+                    <button key={dir.id} type="button" aria-pressed={on}
+                      onClick={() => setTopo("direcciones")(on
+                        ? t_.direcciones.filter(x => x !== dir.id)
+                        : [...(t_.direcciones ?? []), dir.id])}
+                      style={{ padding: "5px 10px", borderRadius: 6, cursor: "pointer",
+                        border: `1px solid ${on ? c.borderFuerte : "transparent"}`,
+                        background: on ? c.raised : "transparent",
+                        color: on ? c.txt : c.txt3, fontWeight: on ? 600 : 500,
+                        fontSize: 13 }}>{dir.id}</button>
+                  );
+                })}
+              </div>
+            </Campo>
+          )}
+        </>}
+
+        <Divisor>Resultado</Divisor>
+        <Salida label="Factor topográfico K_zt" v={f(topo.kzt, 4)}
+          ayuda="K_zt = (1 + K1·K2·K3)², expresión (1.8-1). Multiplica directamente a la presión dinámica." />
+        {topo.aplica && <>
+          <Salida label="K1 — forma del accidente" v={f(topo.K1, 4)} />
+          <Salida label="K2 — distancia a la cresta" v={f(topo.K2, 4)} />
+          <Salida label="K3 — altura sobre el terreno" v={f(topo.K3, 4)} />
+        </>}
+
+        {!topo.aplica && <Aviso tono="aviso" titulo="K_zt = 1,0">{topo.motivo}</Aviso>}
+
+        {/* Las tres condiciones, cada una con su estado. Con una sola, el usuario corrige
+            esa y se encuentra con la siguiente. */}
+        {t_.forma && (
+          <div style={{ marginTop: SP.md }}>
+            {topo.condiciones.map(cond => (
+              <div key={cond.id} style={{ display: "flex", gap: SP.sm + 2, padding: "5px 0",
+                alignItems: "flex-start" }}>
+                <span aria-hidden style={{ width: 7, height: 7, borderRadius: 999, marginTop: 6,
+                  flexShrink: 0, background: cond.cumple ? TONO.ok.fg : TONO.error.fg }} />
+                <span style={{ ...t.body, flex: 1 }}>
+                  <b style={{ color: c.txt2 }}>{cond.ref}</b> — {cond.texto}
+                  {cond.valor != null && <span style={{ color: c.txt3 }}>
+                    {" "}(actual: {f(cond.valor, cond.id === "pendiente" ? 3 : 1)})</span>}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {topo.aplica && topo.avisos.filter(a => a.tono !== "info").map((a, i) => (
+          <div key={i} style={{ marginTop: SP.sm }}>
+            <Aviso tono={a.tono} titulo={a.ref}>{a.texto}</Aviso>
+          </div>
+        ))}
+
+        {t_.forma && parseFloat(t_.H_m) > 0 && parseFloat(t_.Lh_m) > 0 && (
+          <div style={{ marginTop: SP.md }}>
+            <CroquisTopografia forma={t_.forma} H_m={t_.H_m} Lh_m={t_.Lh_m}
+              x_m={t_.x_m} z_m={t_.z_m === "" ? geoN.h : t_.z_m} lado={t_.lado}
+              fmt={fmt} tema={tema} />
+          </div>
+        )}
+
+        {topo.aplica && (
+          <Acordeon titulo="Cómo se obtuvo cada multiplicador">
+            <Tabla minWidth={520}>
+              <thead><tr>
+                <Th>Multiplicador</Th><Th alinear="right">Valor</Th>
+                <Th>Cómo salió</Th><Th>Puntos de tabla usados</Th>
+              </tr></thead>
+              <tbody>
+                {["K1", "K2", "K3"].map(k => {
+                  const tr = topo.trazas[k];
+                  return (
+                    <tr key={k}>
+                      <Td nowrap>{k}</Td>
+                      <TdN>{f(tr.valor, 4)}</TdN>
+                      <Td tono={c.txt3}>{tr.nota ?? (tr.interpolado
+                        ? "interpolado linealmente en la tabla (nota 1)" : "punto de tabla")}</Td>
+                      <Td tono={c.txt3} nowrap>{tr.puntos.length
+                        ? tr.puntos.map(pt => `(${f(pt.x, 2)} ; ${f(pt.y, 2)})`).join(" — ")
+                        : "—"}</Td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </Tabla>
+            <Nota>
+              Método: <b style={{ color: c.txt }}>{topo.metodo === "tabla"
+                ? "tablas de la Figura 1.8-1" : "expresiones (1.8-1)"}</b> ·
+              μ = {f(topo.mu, 1)} · H/Lh = {f(topo.HLh, 3)}
+              {topo.empinado && <> (se adopta {f(topo.HLh_ef, 2)} y L_h pasa a{" "}
+                {f(topo.Lh_ef_m, 2)} m, nota 2)</>}.
+              <br /><br />
+              {topo.avisos.filter(a => a.tono === "info").map((a, i) => (
+                <span key={i}><b style={{ color: c.txt2 }}>{a.ref}</b> — {a.texto}<br /><br /></span>
+              ))}
+            </Nota>
+          </Acordeon>
+        )}
       </Card>
 
       <Card titulo="Clasificación de cerramiento"

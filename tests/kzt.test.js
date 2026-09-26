@@ -384,6 +384,52 @@ describe('trazabilidad de la interpolación', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// FORMATO DE LA SALIDA
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Las notas y los avisos no son cadenas internas: se leen en la app y van a la memoria de
+// cálculo. Un número interpolado por JS sale «1.3» y rompe la coma decimal del resto de la
+// salida. El test barre casos que activan TODAS las ramas que arman texto —nota 2 por
+// pendiente fuerte, exposición D con tablas, recorte de K2, sitio fuera de la mitad
+// superior— y exige que ningún número quede con punto decimal.
+describe('las notas y avisos salen con coma decimal', () => {
+  const casos = [
+    ["expresiones, caso corriente", base({ H_m: 30, Lh_m: 100, x_m: 40, z_m: 12 })],
+    // H elegida para que TANTO H/Lh como 2H salgan fraccionarios: con 2H entero la
+    // nota 2 pasaría el control sin haber formateado nada.
+    ["pendiente fuerte, nota 2", base({ H_m: 75.25, Lh_m: 100, x_m: 10, z_m: 5 })],
+    ["tabla en exposición D", base({ metodo: "tabla", exposicion: "D", x_m: 30, z_m: 8 })],
+    ["K2 recortado en cero", base({ x_m: 900, z_m: 4 })],
+    ["barlovento más allá de Lh", base({ x_m: 140, z_m: 4 })],
+    ["escarpa a sotavento", base({ forma: "escarpa_2D", lado: "sotavento", x_m: 250, z_m: 9 })],
+  ];
+
+  // Las CITAS llevan punto de por sí —«art. 1.8.1», «Tabla 1.11-1», «(1.8-1)»— y son
+  // correctas así. Se las saca primero y recién después se busca un punto entre dígitos,
+  // que a esa altura sólo puede ser un número que se escapó sin formatear.
+  const sinCitas = (t) => t
+    .replace(/\b(?:art\.|Art\.|Tabla|Figura|Fig\.|expr\.|Expr\.|C)\s*\d[\d.\-]*/g, "«cita»")
+    // La forma parentética «(1.8-1)»: adentro no hay más que dígitos, puntos y guiones.
+    .replace(/\(\s*[\d.\-]+\s*\)/g, "«cita»");
+  const PUNTO_DECIMAL = /\d\.\d/;
+
+  for (const [nombre, entrada] of casos) {
+    it(nombre, () => {
+      const r = kzt(entrada);
+      const textos = [
+        ...r.avisos.map(a => a.texto),
+        ...(r.trazas ? ["K1", "K2", "K3"].map(k => r.trazas[k].nota ?? "") : []),
+        r.motivo ?? "",
+      ];
+      // Y que efectivamente haya texto que revisar: si un día las notas dejaran de
+      // armarse, el test pasaría en vacío sin verificar nada.
+      expect(textos.join("").length).toBeGreaterThan(200);
+      for (const t of textos) expect(sinCitas(t), t).not.toMatch(PUNTO_DECIMAL);
+    });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // REGRESIÓN CONTRA LOS CASOS DEL PROYECTISTA
 // ═══════════════════════════════════════════════════════════════════════════════
 
