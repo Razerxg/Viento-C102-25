@@ -6,13 +6,12 @@ import { useProyecto } from '../../context/ProyectoContext.jsx';
 import { Encabezado, Card, Tabla, Th, Td, TdN, Nota, Stat, Stats, Badge } from '../ui.jsx';
 import { c, SP } from '../tokens.js';
 import { f, fmt } from '../../lib/formato.js';
-import { resultantes } from '../../engine/resultantes.js';
 import { rotuloConteo } from '../../lib/avisos.js';
 
 const MODO = { faldones: "faldones", unica: "única", franjas: "franjas" };
 
 export function ResumenTab() {
-  const { todas, act, iDir, d, V, sitio, geoN, G, rafaga, conteo } = useProyecto();
+  const { todas, act, iDir, d, V, sitio, geoN, G, rafaga, conteo, resDe } = useProyecto();
   const resumen = rotuloConteo(conteo);
 
   const filas = [
@@ -27,9 +26,9 @@ export function ResumenTab() {
       t => f(t.superficies.find(s => s.id === "pared_barlovento").tramos.at(-1).gobernante, 0)],
     ["p en la pared a sotavento (N/m²)",
       t => f(t.superficies.find(s => s.id === "pared_sotavento").gobernante, 0)],
-    ["Corte total en la base (kN)", t => f(Math.abs(resultantes(t).cortante / 1000), 1)],
-    ["Levantamiento total (kN)", t => f(Math.abs(resultantes(t).levantamiento / 1000), 1)],
-    ["Vuelco (kN·m)", t => f(Math.abs(resultantes(t).vuelco / 1000), 1)],
+    ["Corte total en la base (kN)", t => f(Math.abs(resDe(t).cortante / 1000), 1)],
+    ["Levantamiento total (kN)", t => f(Math.abs(resDe(t).levantamiento / 1000), 1)],
+    ["Vuelco (kN·m)", t => f(Math.abs(resDe(t).vuelco / 1000), 1)],
   ];
 
   return (

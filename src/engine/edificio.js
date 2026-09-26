@@ -16,7 +16,7 @@ import { ALTURAS_KZ } from '../constants/exposicion.js';
 import { CP_PARED, CP_CUBIERTA_BARLOVENTO, CP_CUBIERTA_SOTAVENTO, CP_CUBIERTA_PARALELO,
   ANG_BARLOVENTO, ANG_SOTAVENTO, CERO_INTERPOLACION, CP_PENDIENTE_EXTREMA,
   FACTOR_AREA } from '../constants/presionesExternas.js';
-import { interp, cpSotavento, presion, MINIMOS } from './presiones.js';
+import { interp, cpSotavento, presion } from './presiones.js';
 import { gcpiDe } from '../constants/presionInterna.js';
 import { fachadasDe, areaHasta, momentoHasta } from './fachadas.js';
 import { tipoDe } from '../constants/cubiertas.js';
@@ -104,9 +104,18 @@ export function modoCubierta({ geo, dir }) {
       + "barlovento, cualquiera sea la dirección del viento." };
   }
   if (!normal) {
-    return { modo: "franjas", normal, motivo:
+    // ⚠ CUATRO AGUAS CON VIENTO PARALELO A LA CUMBRERA NO ESTÁ DEFINIDO EN LA FIGURA.
+    // La columna de «viento paralelo a la cumbrera» de la Figura 2.4-1 está dibujada para
+    // dos aguas. En un limatesa, con el viento según la cumbrera, la cara que el viento
+    // enfrenta es un FALDÓN inclinado y no un frontón, así que la zonificación en franjas
+    // es una extensión razonable pero no una transcripción. Se mantiene y se avisa.
+    const limatesa = geo.tipo === "cuatro_aguas";
+    return { modo: "franjas", normal, limatesaParalelo: limatesa, motivo:
       `El viento es PARALELO a la cumbrera (cumbrera según ${geo.cumbrera}), y para viento `
-      + "paralelo la figura zonifica en franjas para todo θ." };
+      + "paralelo la figura zonifica en franjas para todo θ."
+      + (limatesa ? " ⚠ La figura dibuja ese caso para DOS AGUAS; en cuatro aguas la cara "
+        + "de barlovento es un faldón inclinado y la zonificación es una extensión, no una "
+        + "transcripción." : "") };
   }
   if (geo.tipo === "vertiente_unica") {
     // Nota 4: la superficie entera es barlovento o sotavento. Cuál, lo decide hacia dónde
@@ -135,15 +144,31 @@ export function modoCubierta({ geo, dir }) {
 const HL_FILAS = [0.25, 0.5, 1.0];
 
 // Celda de una fila para un ángulo dado. Devuelve `[negativo, positivo]`.
+//
+// ⚠ EL NODO DE 60° VALE 0,6 FIJO, NO «0,01·θ EVALUADO AL ÁNGULO ACTUAL».
+//
+// La figura escribe «0,01θ» en la última columna, que es la de θ = 60°. Ese texto es el
+// VALOR DE ESA COLUMNA —0,01·60 = 0,6—, no una fórmula para el ángulo que uno esté
+// calculando. El código lo evaluaba al θ actual, así que al interpolar entre 45° y 60°
+// usaba como extremo superior un número que iba subiendo con θ en vez del nodo fijo: a
+// θ = 50° tomaba 0,50 donde corresponde 0,60, y el resultado salía CHICO.
+//
+// Y entre 45° y 60° el caso de SUCCIÓN vale 0. A 45° los tres renglones de h/L traen 0,0
+// —de los marcados en `CERO_INTERPOLACION`, que existen sólo a efectos de interpolar— y
+// a 60° ya no hay caso de succión: la pendiente es tan empinada que la cara sólo recibe
+// presión. Interpolar entre 0 y 0 da 0 en todo el tramo, que es lo correcto.
+const NODO_60 = [0, 0.6];
+
 function celdaFila(fila, theta) {
-  // θ ≥ 60°: la norma da la expresión 0,01·θ en vez de un valor
-  if (theta >= 60) return [0.01 * theta, 0.01 * theta];
+  // θ ≥ 60°: la figura da la expresión 0,01·θ en vez de un valor de tabla, y en ese
+  // régimen no existe el caso de succión.
+  if (theta >= 60) return [0, 0.01 * theta];
   const i = ANG_BARLOVENTO.findIndex(a => a >= theta);
   if (i <= 0) return fila[0];
   const c0 = fila[i - 1], c1 = fila[i];
   const t0 = ANG_BARLOVENTO[i - 1], t1 = ANG_BARLOVENTO[i];
   const f = (t1 - t0) === 0 ? 0 : (theta - t0) / (t1 - t0);
-  const val = (c) => Array.isArray(c) && typeof c[0] === "string" ? [0.01 * theta, 0.01 * theta] : c;
+  const val = (c) => Array.isArray(c) && typeof c[0] === "string" ? NODO_60 : c;
   const v0 = val(c0), v1 = val(c1);
   return [0, 1].map(k => v0[k] + (v1[k] - v0[k]) * f);
 }
@@ -268,8 +293,22 @@ export function perfilBarlovento({ h, sitio, hAlero, hCumbre, puntos = 10, zTope
   });
 }
 
+// Qué decir de G según la vía del art. 1.9 que se haya adoptado. Son tres vías y cada
+// una tiene su artículo: informar siempre la primera hace que la traza no se pueda
+// controlar contra la pantalla de Ráfaga.
+const DETALLE_G = {
+  defecto: { ref: "Art. 1.9.1",
+    detalle: "G = 0,85, valor por defecto para edificio RÍGIDO (n₁ ≥ 1 Hz)." },
+  calculado: { ref: "Art. 1.9.4 · expresión (1.9-6)",
+    detalle: "G CALCULADO con la expresión (1.9-6), con la intensidad de turbulencia y la "
+      + "escala de longitud de la Tabla 1.9-1. Puede dar mayor que 0,85 en exposición C o D." },
+  flexible: { ref: "Art. 1.9.5 · expresión (1.9-10)",
+    detalle: "G_f de edificio FLEXIBLE, expresión (1.9-10): incluye la respuesta resonante "
+      + "con n₁ y el amortiguamiento. Es obligatorio si n₁ < 1 Hz." },
+};
+
 // ── ANÁLISIS COMPLETO PARA UNA DIRECCIÓN ────────────────────────────────────────
-export function analizarDireccion({ geo, sitio, cerramiento, G = 0.85 }, dir) {
+export function analizarDireccion({ geo, sitio, cerramiento, G = 0.85, modoG = "defecto" }, dir) {
   const g = normalizarGeo(geo);
   const L = dir.eje === "X" ? g.a : g.b;
   const B = dir.eje === "X" ? g.b : g.a;
@@ -281,6 +320,12 @@ export function analizarDireccion({ geo, sitio, cerramiento, G = 0.85 }, dir) {
   const kztH = kztEn(sitio, g.h);
   const qh = qDinamica({ ...sitio, z: g.h, Kzt: kztH });
   const GCpi = gcpiDe(cerramiento) ?? 0;
+  // ── q_i, LA PRESIÓN DINÁMICA DE LA PRESIÓN INTERNA ────────────────────────────
+  // Se adopta q_h, que el art. 2.4.1 admite explícitamente para todas las clasificaciones.
+  // El artículo PERMITE además, en edificios parcialmente cerrados y parcialmente
+  // abiertos, evaluar la presión interna POSITIVA con q_z a la altura de la abertura más
+  // alta —lo que en un edificio alto la baja de forma apreciable—, pero eso exige declarar
+  // esa abertura y hoy no es un dato del modelo. q_h es la opción conservadora de las dos.
   const qi = qh;
 
   // ── LA TRAZA ──────────────────────────────────────────────────────────────────
@@ -317,8 +362,12 @@ export function analizarDireccion({ geo, sitio, cerramiento, G = 0.85 }, dir) {
     { paso: "Presión dinámica en la cubierta", simbolo: "q_h", dec: 0, valor: qh, unidad: "N/m²",
       ref: "Expresión (1.13-1)",
       detalle: "q = 0,613·K_z·K_zt·K_d·K_e·V². El 0,613 es ½·ρ con ρ = 1,225 kg/m³." },
-    { paso: "Factor de efecto de ráfaga", simbolo: "G", dec: 2, valor: G, unidad: "",
-      ref: "Art. 1.9.1", detalle: "Valor por defecto para edificio rígido (n₁ ≥ 1 Hz)." },
+    // ⚠ EL DETALLE DECÍA SIEMPRE «valor por defecto», ELIGIERA EL USUARIO LO QUE
+    // ELIGIERA. Con G calculado o con G_f de edificio flexible, la traza afirmaba algo
+    // falso justo en el paso que el lector va a controlar contra la pantalla de Ráfaga.
+    { paso: "Factor de efecto de ráfaga", simbolo: "G", dec: 3, valor: G, unidad: "",
+      ref: DETALLE_G[modoG]?.ref ?? "Art. 1.9.1",
+      detalle: DETALLE_G[modoG]?.detalle ?? DETALLE_G.defecto.detalle },
     { paso: "Coeficiente de presión interna", simbolo: "GC_pi", dec: 2, valor: GCpi,
       unidad: "", texto: `±${GCpi.toFixed(2).replace(".", ",")}`,
       ref: "Tabla 1.11-1",
@@ -412,8 +461,9 @@ export function analizarDireccion({ geo, sitio, cerramiento, G = 0.85 }, dir) {
     });
   }
 
-  return { dir, geo: g, L, B, hL, qh, GCpi, G, cerramiento, sitio, fachadas: fach,
+  return { dir, geo: g, L, B, hL, qh, GCpi, G, modoG, cerramiento, sitio, fachadas: fach,
     modo: mc.modo, motivoModo: mc.motivo, caraUnica: mc.cara,
+    limatesaParalelo: !!mc.limatesaParalelo,
     normalACumbrera: mc.normal, superficies: sup, perfil, traza };
 }
 

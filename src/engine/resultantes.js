@@ -22,7 +22,8 @@
 //    piso, informando cuál gobernó.
 import { CP_PARED } from '../constants/presionesExternas.js';
 import { cpSotavento } from './presiones.js';
-import { momentoHasta } from './fachadas.js';
+import { momentoHasta, siluetaProyectada } from './fachadas.js';
+import { MINIMOS } from './presiones.js';
 
 // ── APORTE DE LAS PAREDES ───────────────────────────────────────────────────────
 //
@@ -188,7 +189,44 @@ export function aporteCubierta({ analisis, casoNota3 = "negativo", casoInterno =
 // fuerza horizontal a favor del viento, a la cota z, aporta F·z —el brazo es la altura,
 // cualquiera sea el punto de la base respecto del que se tome, porque la fuerza es
 // horizontal—. Un levantamiento V aplicado a la abscisa x aporta V·(x_ref − x).
-export function resultantes(analisis) {
+/**
+ * CARGA MÍNIMA DEL ART. 2.1.5 — un CASO DE CARGA APARTE, no un piso por cara.
+ *
+ * ⚠ ANTES HABÍA UN `aplicarMinimoPared` QUE SUBÍA CADA PRESIÓN A 0,75 kN/m². Eso no es lo
+ * que dice el artículo y estaba mal de dos maneras: aplicaba el mínimo superficie por
+ * superficie —cuando el 2.1.5 habla del SISTEMA— y no distinguía pared de cubierta, que
+ * llevan 0,75 y 0,40. Además nunca se usó: estaba exportado y ningún archivo lo llamaba.
+ *
+ * El artículo pide, sobre las áreas PROYECTADAS en un plano vertical normal al viento:
+ *   · cerrado o parcialmente cerrado: 0,75 kN/m²·A_pared + 0,40 kN/m²·A_cubierta,
+ *     aplicadas SIMULTÁNEAMENTE;
+ *   · abierto: 0,75 kN/m²·A_f.
+ *
+ * Se informa junto al corte calculado, sin reemplazarlo: son dos casos, y cuál gobierna
+ * es parte del resultado.
+ */
+export function cargaMinima(analisis) {
+  const sil = siluetaProyectada(analisis.geo, analisis.dir);
+  const abierto = analisis.cerramiento === "abierto";
+  const fuerza = abierto
+    ? MINIMOS.abierto * (sil.pared + sil.cubierta)
+    : MINIMOS.pared * sil.pared + MINIMOS.cubierta * sil.cubierta;
+  return { fuerza, areaPared: sil.pared, areaCubierta: sil.cubierta, abierto,
+    nota: sil.nota,
+    ref: abierto ? "Art. 2.1.5 — edificio abierto: 0,75 kN/m² sobre A_f"
+      : "Art. 2.1.5 — 0,75 kN/m² sobre la pared y 0,40 kN/m² sobre la cubierta, "
+        + "proyectadas en un plano vertical normal al viento y simultáneas" };
+}
+
+/**
+ * @param {any} analisis
+ * @param {object} [opc]
+ * @param {boolean} [opc.porticosCubierta]  el SPRFV de cubierta son pórticos resistentes
+ *   a momento. El C 2.1.5 exime de la nota 7 a ese caso: ahí las succiones de cubierta SÍ
+ *   pueden restar del corte porque el sistema las toma. Por defecto NO, que es el piso
+ *   aplicado.
+ */
+export function resultantes(analisis, opc = {}) {
   const par = aporteParedes({ analisis });
 
   // Nota 3 de la Figura 2.4-1: el faldón a barlovento está sujeto a presión positiva y
@@ -198,8 +236,12 @@ export function resultantes(analisis) {
   const cub = casos.reduce((a, b) => (par.F + b.H > par.F + a.H ? b : a));
 
   const conCubierta = par.F + cub.H;
-  const gobiernaNota7 = conCubierta < par.F;
-  const cortante = Math.max(conCubierta, par.F);
+  // NOTA 7: el corte no puede quedar por debajo del de las paredes solas… salvo que el
+  // SPRFV de cubierta sean pórticos resistentes a momento, que es la excepción que el
+  // usuario declara. Por defecto el piso se aplica.
+  const exentoNota7 = opc.porticosCubierta === true;
+  const gobiernaNota7 = !exentoNota7 && conCubierta < par.F;
+  const cortante = gobiernaNota7 ? par.F : conCubierta;
 
   // El levantamiento se toma como la envolvente de los dos casos de la nota 3.
   const levCaso = casos.reduce((a, b) => (b.V > a.V ? b : a));
@@ -210,8 +252,24 @@ export function resultantes(analisis) {
   const momentoDe = (xRef) => mHoriz
     + (levCaso.xV == null ? 0 : levCaso.V * (xRef - levCaso.xV));
 
+  // ── EDIFICIO ABIERTO: EL RESULTADO NO ES VÁLIDO ───────────────────────────────
+  // Un edificio abierto no se resuelve con los Cp de la Figura 2.4-1 sino con los C_N de
+  // las Figuras 2.4-4 a 2.4-7, que no están implementados. Devolver un número igual sería
+  // devolver el de otro edificio.
+  const valido = analisis.cerramiento !== "abierto";
+  const minimo = cargaMinima(analisis);
+
   return {
     cortante,
+    valido,
+    motivoInvalido: valido ? null
+      : "Edificio ABIERTO. El capítulo 2 lo resuelve con los coeficientes C_N de las "
+        + "Figuras 2.4-4 a 2.4-7, que todavía no están implementados. Lo que se muestra "
+        + "sale de aplicar los Cp de la Figura 2.4-1, que son de edificios cerrados: no "
+        + "corresponde usarlo.",
+    cargaMinima: minimo,
+    gobiernaMinimo: minimo.fuerza > Math.abs(cortante),
+    exentoNota7,
     // El vuelco de referencia es el tomado respecto del CENTRO de la base.
     vuelco: momentoDe(L / 2),
     momentos: {

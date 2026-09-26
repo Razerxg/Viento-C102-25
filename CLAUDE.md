@@ -327,6 +327,49 @@ propio azul las hace parecer de proveedores distintos.
   edificio. Un venteo de 18 m y un cartel de 3 m sobre la misma loma no tienen el mismo
   factor.
 
+## Estática — decisiones que no conviene revertir
+
+- **SIGNO DE LA COMPONENTE HORIZONTAL DE CUBIERTA.** Con `p` positiva hacia la superficie:
+  faldón a barlovento `H = +p·tanθ·A_planta`, faldón a sotavento `H = −p·tanθ·A_planta`.
+  Sale de que el normal exterior de un faldón que asciende con el viento tiene componente
+  horizontal CONTRA el viento, y la fuerza va según −n. Estuvo invertido, y en un
+  caballete simétrico los dos faldones se cancelan y no se ve: aparece apenas los Cp
+  difieren.
+- **`H` se calcula SÓLO con presiones externas.** La presión interna actúa sobre las dos
+  caras de la envolvente y su resultante horizontal se cancela; si entra, el corte pasa a
+  depender del signo de `GC_pi`, que es un dato de la clasificación de cerramiento y no
+  del empuje. En el levantamiento no se cancela y ahí sí entra.
+- **Los DOS casos del faldón a barlovento (nota 3) se evalúan siempre**, y se adopta el de
+  mayor corte. El levantamiento es la envolvente de ambos.
+- **LAS PAREDES TIENEN FORMA, NO SON RECTÁNGULOS.** Rectángulo hasta el alero, hastial con
+  viento paralelo a la cumbrera, trapecio en vertiente única, y pared alta a `alero +
+  remonte`. Las tres formas son la misma con tres números —`W`, `z1`, `z2`— y por eso el
+  área y el momento estático salen en forma cerrada. El perfil de `q_z` cierra en la cota
+  real de la pared y no en `h`.
+- **A cuatro aguas NO tiene hastial en ninguna pared.** Los cuatro faldones arrancan en el
+  alero. Es la diferencia con dos aguas que más se pasa por alto, porque el remonte y la
+  altura media son los mismos.
+- **EL VUELCO INCLUYE LA RESULTANTE VERTICAL**, con su brazo en planta. En un edificio bajo
+  y largo es el término que más pesa. Se informa respecto del centro de la base y de cada
+  borde; el término horizontal es el mismo en los tres, porque el brazo de una fuerza
+  horizontal es su altura.
+- **LA CARGA MÍNIMA DEL ART. 2.1.5 ES UN CASO DE CARGA APARTE, no un piso por cara.**
+  0,75 kN/m² sobre la pared y 0,40 sobre la cubierta, proyectadas en un plano vertical
+  normal al viento y SIMULTÁNEAS. La partición de la silueta no se solapa: la parte de
+  pared es el área de la pared a barlovento y la de cubierta es lo que la silueta agrega
+  por encima. Había un `aplicarMinimoPared` que subía cada presión a 0,75 —no es lo que
+  dice el artículo y además no lo llamaba nadie—; se eliminó.
+- **EL NODO DE 60° DE LA FIGURA 2.4-1 VALE 0,6 FIJO.** El «0,01θ» de la última columna es
+  el valor de ESA columna, no una fórmula para el ángulo que uno esté calculando. Evaluado
+  al θ actual, la interpolación entre 45° y 60° usaba un extremo superior que subía con θ
+  y el resultado salía CHICO. Entre 45° y 60° el caso de succión vale 0.
+- **El piso de la nota 7 se aplica POR DEFECTO**, y la excepción del C 2.1.5 —SPRFV de
+  cubierta con pórticos resistentes a momento— es una declaración del proyectista, no algo
+  deducible de la geometría.
+- **Cerramiento ABIERTO ⇒ resultantes no válidas**, con aviso de nivel error. Se resuelve
+  con los `C_N` de las Figuras 2.4-4 a 2.4-7, que no están implementados; mostrar los Cp
+  de la 2.4-1 es mostrar los de otro edificio.
+
 ## Interpolación — una sola implementación
 
 - **Vive en `engine/interpolacion.js`** y devuelve siempre los puntos de tabla usados: un

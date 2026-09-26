@@ -82,12 +82,29 @@ export function avisosDe({ geoN, sitio, cerramiento, rafaga, modoG, n1, analisis
         + "depende del área de aberturas y es lo que más cambia el levantamiento de la "
         + "cubierta: conviene verificar las condiciones del art. 1.10 antes de adoptarla." });
   }
+  // ⚠ ESTO ERA UN AVISO «info» Y NO LO ES. Un edificio abierto no se resuelve con los Cp
+  // de la Figura 2.4-1 sino con los C_N de las Figuras 2.4-4 a 2.4-7, que no están
+  // implementados. Los números que la app muestra en ese caso son los de OTRO edificio
+  // —uno cerrado— y presentarlos como una nota al pie hacía que se pudieran usar.
   if (cerramiento === "abierto") {
-    push({ id: "abierto", tono: "info", tab: "Sitio",
-      titulo: "Edificio abierto — GC_pi = 0",
-      detalle: "Sin presión interna. Para un edificio abierto el reglamento prevé además el "
-        + "tratamiento por C_N de la Figura 2.4-4 en adelante, que no está implementado: lo "
-        + "que se calcula acá son las presiones externas con el procedimiento general." });
+    push({ id: "abierto", tono: "error", tab: "Resultantes",
+      titulo: "Edificio abierto — los resultados NO son válidos",
+      detalle: "El capítulo 2 resuelve los edificios abiertos con los coeficientes C_N de "
+        + "las Figuras 2.4-4 a 2.4-7, que todavía no están implementados. Lo que se muestra "
+        + "sale de aplicar los Cp de la Figura 2.4-1, que son de edificios cerrados: no "
+        + "corresponde llevarlo al modelo. La presión interna sí es correcta: GC_pi = 0." });
+  }
+
+  // Cuatro aguas con viento paralelo a la cumbrera: la Figura 2.4-1 dibuja ese caso para
+  // dos aguas. Se mantiene la zonificación en franjas, que es la extensión razonable, y
+  // queda dicho que es una extensión.
+  if (analisis?.limatesaParalelo) {
+    push({ id: "limatesa-paralelo", tono: "info", tab: "Presiones",
+      titulo: "Cuatro aguas con viento paralelo a la cumbrera",
+      detalle: "La columna de «viento paralelo a la cumbrera» de la Figura 2.4-1 está "
+        + "dibujada para dos aguas. Acá la cara de barlovento es un faldón inclinado y no "
+        + "un frontón, así que la zonificación en franjas es una extensión razonable y no "
+        + "una transcripción. Se adopta igual, por falta de un tratamiento específico." });
   }
 
   // ── FACTOR DE RÁFAGA ─────────────────────────────────────────────────────────

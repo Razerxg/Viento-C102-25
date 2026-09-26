@@ -64,9 +64,43 @@ describe('coeficientes de cubierta', () => {
     expect(cpCubiertaSotavento(hL, 25)).toBeCloseTo(CP_CUBIERTA_SOTAVENTO[hL][2], 9);
   });
 
-  it('θ ≥ 60° usa la expresión 0,01·θ y no un valor de tabla', () => {
-    expect(cpCubiertaBarlovento(0.5, 60)[0]).toBeCloseTo(0.6, 9);
-    expect(cpCubiertaBarlovento(0.5, 75)[0]).toBeCloseTo(0.75, 9);
+  // La celda va [succión, presión]. El 0,01·θ de la figura es el valor de PRESIÓN; en ese
+  // régimen no hay caso de succión y la ranura correspondiente vale 0. Antes se escribía
+  // 0,01·θ en las DOS, y eso hacía que el «caso de succión» de una cubierta a 60° trajera
+  // un coeficiente positivo.
+  it('θ ≥ 60° usa la expresión 0,01·θ como presión, y no hay caso de succión', () => {
+    expect(cpCubiertaBarlovento(0.5, 60)[1]).toBeCloseTo(0.6, 9);
+    expect(cpCubiertaBarlovento(0.5, 75)[1]).toBeCloseTo(0.75, 9);
+    expect(cpCubiertaBarlovento(0.5, 60)[0]).toBe(0);
+    expect(cpCubiertaBarlovento(0.5, 75)[0]).toBe(0);
+  });
+
+  // ── NOTA 2, ENTRE 45° Y 60° ───────────────────────────────────────────────────
+  // El nodo de 60° vale 0,6 FIJO. El código lo evaluaba al θ actual, así que al
+  // interpolar tomaba un extremo superior que subía con θ y el resultado salía CHICO: a
+  // 50° usaba 0,50 donde corresponde 0,60.
+  it('entre 45° y 60° interpola contra el nodo fijo de 0,6', () => {
+    // h/L ≤ 0,25 y θ = 50°: presión = 0,4 + (0,6 − 0,4)·(50 − 45)/(60 − 45).
+    expect(cpCubiertaBarlovento(0.25, 50)[1]).toBeCloseTo(0.4 + 0.2 * 5 / 15, 9);
+    expect(cpCubiertaBarlovento(0.25, 50)[0]).toBeCloseTo(0, 12);
+  });
+
+  it('en todo el tramo 45°–60° el caso de succión es 0', () => {
+    for (const hL of [0.25, 0.5, 0.75, 1.0]) {
+      for (let th = 45; th <= 60; th += 1.5) {
+        expect(cpCubiertaBarlovento(hL, th)[0], `h/L=${hL} θ=${th}`).toBeCloseTo(0, 12);
+      }
+    }
+  });
+
+  it('la presión crece de forma monótona de 45° a 60° y cierra en 0,6', () => {
+    let previo = -Infinity;
+    for (let th = 45; th <= 60; th += 0.5) {
+      const v = cpCubiertaBarlovento(0.25, th)[1];
+      expect(v, `θ=${th}`).toBeGreaterThanOrEqual(previo);
+      previo = v;
+    }
+    expect(cpCubiertaBarlovento(0.25, 60)[1]).toBeCloseTo(0.6, 9);
   });
 
   // Nota # de la figura: por encima de 80° la cubierta ya no es cubierta, es pared.

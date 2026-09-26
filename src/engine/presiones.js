@@ -69,4 +69,5 @@ export const presionAbierto = ({ qh, G, CN }) => Number(qh) * Number(G) * Number
 // reglamento lo muestra —su primera fila dice 750 N/m² donde el cálculo da 650—.
 export const MINIMOS = { pared: 750, cubierta: 400, abierto: 750 };   // N/m²
 
-export const aplicarMinimoPared = (p) => Math.sign(p || 1) * Math.max(Math.abs(p), MINIMOS.pared);
+// El mínimo NO se aplica superficie por superficie: es un caso de carga sobre el
+// sistema, y vive en `resultantes.js → cargaMinima()`.

@@ -9,12 +9,11 @@ import { useUi } from '../../context/UiContext.jsx';
 import { CurvasAltura } from '../svg/CurvasAltura.jsx';
 import { Encabezado, Card, Stat, Stats, Aviso, Nota, Tabla, Divisor, Salida,
   Th, Td, TdN } from '../ui.jsx';
-import { c, SP } from '../tokens.js';
+import { c, SP, t } from '../tokens.js';
 import { f, fmt } from '../../lib/formato.js';
-import { resultantes } from '../../engine/resultantes.js';
 
 export function ResultantesTab() {
-  const { act, res, curvas, todas, geoN } = useProyecto();
+  const { act, res, resDe, curvas, todas, geoN, d, set } = useProyecto();
   const { tema } = useUi();
 
   return (
@@ -74,6 +73,14 @@ export function ResultantesTab() {
           tome el momento. Lo único que cambia es el brazo en planta del levantamiento.
         </Nota>
 
+        {!res.valido && (
+          <div style={{ marginTop: SP.md }}>
+            <Aviso tono="error" titulo="Estas resultantes NO son válidas">
+              {res.motivoInvalido}
+            </Aviso>
+          </div>
+        )}
+
         {res.gobiernaNota7 && (
           <div style={{ marginTop: SP.md }}>
             <Aviso tono="info" titulo="Gobierna el piso de la nota 7">
@@ -82,6 +89,59 @@ export function ResultantesTab() {
               así que el valor informado es ese mínimo.
             </Aviso>
           </div>
+        )}
+      </Card>
+
+      {/* ── CARGA MÍNIMA — ART. 2.1.5 ──────────────────────────────────────────────
+          Es un CASO DE CARGA APARTE, no un piso por cara. Antes había un helper que subía
+          cada presión a 0,75 kN/m², que no es lo que dice el artículo —habla del sistema,
+          y distingue pared de cubierta— y que además no lo llamaba nadie. */}
+      <Card titulo="Carga mínima — art. 2.1.5"
+        desc="Caso de carga SEPARADO, que se verifica además de los normales. Se aplica
+          sobre las áreas proyectadas en un plano vertical normal al viento.">
+        <Salida label={res.cargaMinima.abierto ? "0,75 kN/m² × A_f" : "Área de pared proyectada"}
+          unit="m²" v={f(res.cargaMinima.areaPared, 1)} />
+        {!res.cargaMinima.abierto && (
+          <Salida label="Área de cubierta proyectada" unit="m²"
+            v={f(res.cargaMinima.areaCubierta, 1)}
+            ayuda="Lo que la silueta agrega POR ENCIMA de la pared a barlovento. Con viento paralelo a la cumbrera el borde del hastial ya ES la línea del techo, así que da cero: la partición no se solapa." />
+        )}
+        <Salida label="Fuerza mínima" v={fmt.kN(res.cargaMinima.fuerza / 1000)}
+          ayuda={res.cargaMinima.ref} />
+        <Salida label="Corte calculado" v={fmt.kN(Math.abs(res.cortante) / 1000)} />
+        <Nota>{res.cargaMinima.nota}</Nota>
+        <Aviso tono={res.gobiernaMinimo ? "aviso" : "info"}
+          titulo={res.gobiernaMinimo ? "Gobierna la carga mínima" : "Gobierna el cálculo"}>
+          {res.gobiernaMinimo
+            ? "En esta dirección la carga mínima del art. 2.1.5 supera al corte calculado. "
+              + "Es el caso que hay que llevar al modelo."
+            : "El corte calculado supera a la carga mínima del art. 2.1.5 en esta dirección."}
+          {" "}Gobierna en: <b style={{ color: c.txt }}>{
+            todas.filter(t => resDe(t).gobiernaMinimo).map(t => t.dir.id).join(" · ") || "ninguna dirección"
+          }</b>.
+        </Aviso>
+      </Card>
+
+      <Card titulo="Sistema estructural de la cubierta"
+        desc="La nota 7 de la Figura 2.4-1 pone un piso al corte: no puede ser menor que el
+          de las paredes solas. El C 2.1.5 exime de ese piso a un caso, y es una
+          declaración del proyectista sobre el sistema, no algo deducible de la geometría.">
+        <label style={{ display: "flex", gap: SP.sm + 2, alignItems: "flex-start",
+          padding: `${SP.sm}px 0`, cursor: "pointer" }}>
+          <input type="checkbox" checked={d.porticosCubierta === true}
+            onChange={e => set("porticosCubierta")(e.target.checked)}
+            style={{ width: 16, height: 16, marginTop: 2, accentColor: c.azul, cursor: "pointer" }} />
+          <span style={{ ...t.body, lineHeight: 1.6 }}>
+            El SPRFV de la cubierta son <b style={{ color: c.txt }}>pórticos resistentes a
+            momento</b>. Con eso, las componentes horizontales de cubierta pueden restar
+            del corte y <b style={{ color: c.txt }}>no se aplica el piso de la nota 7</b>.
+          </span>
+        </label>
+        {res.exentoNota7 && (
+          <Aviso tono="aviso" titulo="Piso de la nota 7 NO aplicado">
+            Queda declarado que el sistema de cubierta son pórticos resistentes a momento.
+            Sin esa condición, el corte informado sería el de las paredes solas.
+          </Aviso>
         )}
       </Card>
 
@@ -108,9 +168,9 @@ export function ResultantesTab() {
             {todas.map(t => <Th key={t.dir.id} alinear="right">{t.dir.id}</Th>)}
           </tr></thead>
           <tbody>
-            {[["Corte (kN)", t => Math.abs(resultantes(t).cortante / 1000)],
-              ["Levantamiento (kN)", t => Math.abs(resultantes(t).levantamiento / 1000)],
-              ["Vuelco (kN·m)", t => Math.abs(resultantes(t).vuelco / 1000)]].map(([nom, fn]) => {
+            {[["Corte (kN)", t => Math.abs(resDe(t).cortante / 1000)],
+              ["Levantamiento (kN)", t => Math.abs(resDe(t).levantamiento / 1000)],
+              ["Vuelco (kN·m)", t => Math.abs(resDe(t).vuelco / 1000)]].map(([nom, fn]) => {
               // El máximo de la fila se marca: es la dirección que gobierna esa magnitud, y
               // es justamente el dato que se busca en una tabla de cuatro columnas.
               const vals = todas.map(fn);

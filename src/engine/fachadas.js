@@ -150,3 +150,55 @@ export function fachadasDe(geo, dir) {
     lateral2: fachada(geo, /** @type {"X"|"Y"} */ (o), -1),
   };
 }
+
+// ── SILUETA: LO QUE EL VIENTO «VE» DE FRENTE ────────────────────────────────────
+//
+// El art. 2.1.5 pide las áreas PROYECTADAS SOBRE UN PLANO VERTICAL NORMAL AL VIENTO, una
+// de pared y otra de cubierta, con presiones distintas —0,75 y 0,40 kN/m²—. La partición
+// tiene que ser exacta: si las dos se solapan, el mismo pedazo de silueta paga dos veces.
+//
+// Criterio: la parte de PARED es el área de la propia pared a barlovento —que por ser
+// normal al viento se proyecta sobre sí misma, hastial incluido— y la de CUBIERTA es lo
+// que la silueta agrega POR ENCIMA de esa pared. Con viento paralelo a la cumbrera el
+// borde superior del hastial ES la línea del techo, así que la cubierta no agrega nada y
+// su parte da cero; con viento normal, la cubierta agrega la franja entre el alero y la
+// cumbrera.
+//
+// ⚠ EN CUATRO AGUAS CON VIENTO NORMAL A LA CUMBRERA SE ADOPTA B·r, QUE ES COTA SUPERIOR.
+// La cumbrera de un limatesa no recorre todo el largo: los faldones de punta recortan la
+// silueta. Calcular el recorte exacto exige la longitud de cumbrera, que hoy no es un
+// dato del modelo. Queda del lado seguro y dicho.
+export function siluetaProyectada(geo, dir) {
+  const bar = fachada(geo, dir.eje, /** @type {1|-1} */ (-dir.signo));
+  const B = bar.W;
+  const r = geo.hCumbre - geo.hAlero;
+  if (!(r > 0)) {
+    return { pared: bar.area, cubierta: 0, B,
+      nota: "Cubierta plana: la silueta es la pared." };
+  }
+
+  // Cuánto agrega la CUBIERTA a la silueta, contando desde la línea de alero.
+  let siluetaSobreAlero, nota;
+  const paralelaACumbrera = dir.eje === geo.cumbrera;
+  if (geo.tipo === "vertiente_unica") {
+    const ejePend = geo.pendienteHacia.slice(1);
+    siluetaSobreAlero = dir.eje === ejePend ? B * r : B * r / 2;
+    nota = dir.eje === ejePend
+      ? "Vertiente única con el viento según la pendiente: la silueta sube hasta la cota alta en todo el ancho."
+      : "Vertiente única con el viento transversal a la pendiente: la silueta sobre el alero es el triángulo del talud.";
+  } else if (paralelaACumbrera) {
+    siluetaSobreAlero = B * r / 2;
+    nota = "Viento paralelo a la cumbrera: la silueta sobre el alero es el frontón triangular.";
+  } else {
+    siluetaSobreAlero = B * r;
+    nota = geo.tipo === "cuatro_aguas"
+      ? "Cuatro aguas con viento normal a la cumbrera: se adopta B·r, cota superior, porque los faldones de punta recortan la silueta y la longitud de cumbrera no es dato."
+      : "Viento normal a la cumbrera: la cumbrera recorre todo el ancho y la silueta sube B·r sobre el alero.";
+  }
+
+  // La pared ya cubre parte de esa franja —el hastial, el trapecio, la pared alta—. La
+  // cubierta sólo paga lo que sobra.
+  const paredSobreAlero = bar.area - B * geo.hAlero;
+  return { pared: bar.area, cubierta: Math.max(0, siluetaSobreAlero - paredSobreAlero),
+    B, nota };
+}

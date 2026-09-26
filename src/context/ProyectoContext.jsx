@@ -61,6 +61,8 @@ export const INICIAL = {
   modoG: "defecto",
   tipoFrec: "",
   puntosPerfil: "10",
+  // Art. 2.1.5 / C 2.1.5: exime del piso de la nota 7. Por defecto NO, o sea con piso.
+  porticosCubierta: false,
 
   // ── CAPÍTULO 4 ──────────────────────────────────────────────────────────────
   // Un caso cargado por defecto, igual que el edificio: abrir en blanco obliga a inventar
@@ -204,14 +206,22 @@ export function ProyectoProvider({ children }) {
 
   const G = rafaga.opciones.find(o => o.id === d.modoG)?.G ?? 0.85;
 
-  const entrada = useMemo(() => ({ geo: d.geo, sitio, cerramiento: d.cerramiento, G }),
-    [d.geo, sitio, d.cerramiento, G]);
+  const entrada = useMemo(() => ({ geo: d.geo, sitio, cerramiento: d.cerramiento, G,
+    modoG: d.modoG }), [d.geo, sitio, d.cerramiento, G, d.modoG]);
 
   const todas = useMemo(
     () => DIRECCIONES.map(dir => analizarDireccion({ ...entrada, sitio: sitioDe(dir) }, dir)),
     [entrada, sitioDe]);
   const act = todas[Math.min(iDir, todas.length - 1)];
-  const res = useMemo(() => resultantes(act), [act]);
+  // La excepción de la nota 7 (C 2.1.5) es una DECLARACIÓN del proyectista sobre el
+  // sistema estructural, no algo que la app pueda deducir de la geometría.
+  const opcRes = useMemo(() => ({ porticosCubierta: d.porticosCubierta === true }),
+    [d.porticosCubierta]);
+  const res = useMemo(() => resultantes(act, opcRes), [act, opcRes]);
+  // Las pantallas que recorren las cuatro direcciones tienen que usar LA MISMA
+  // declaración que la dirección activa: llamando a `resultantes(t)` pelado, la tabla de
+  // las cuatro aplicaba el piso de la nota 7 aunque el usuario lo hubiera eximido.
+  const resDe = useCallback((t) => resultantes(t, opcRes), [opcRes]);
 
   // El máximo se toma sobre TODO el edificio y TODAS las direcciones. Si se normalizara
   // por dirección, cada croquis usaría su propia escala y dos croquis lado a lado dirían
@@ -311,7 +321,7 @@ export function ProyectoProvider({ children }) {
       proyecto: d.proyecto, setProyecto: set("proyecto"),
       tab, setTab, irA, nombreTab: TABS[tab] ?? TABS[0],
       iDir, setIDir, direcciones: DIRECCIONES,
-      V, sitio, geoN, rafaga, G, todas, act, res, maxAbs, curvas,
+      V, sitio, geoN, rafaga, G, todas, act, res, resDe, maxAbs, curvas,
       avisos, avisosPorTab: porTab(avisos), conteo: contar(avisos),
       guardadoEn, nuevo, exportar, importar, fileRef,
     }}>{children}</Ctx.Provider>

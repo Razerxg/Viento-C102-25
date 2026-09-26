@@ -65,18 +65,28 @@ Los dos que sí verifican (`H_bajo_minimo`, `HLh_bajo_0_2`) pasan.
 | ✅ | `KE_TABLA` contra la expresión de su nota 2, con la tolerancia justificada | `4839b56` |
 | ✅ | Runner de regresión con tolerancia relativa 0,5 % | `tests/casos/runner.js` |
 
-## Módulo edificios — correcciones 🔄
+## Módulo edificios — correcciones ✅
 
-Va **antes** de la Fase 2: las resultantes alimentan fundaciones, y la envolvente se
+Fue **antes** de la Fase 2: las resultantes alimentan fundaciones, y la envolvente se
 construye sobre ellas.
 
-| Estado | Ítem |
-|---|---|
-| 📥 | **La lista de correcciones no llegó.** El mensaje que las anunciaba no las incluyó. |
-| ✅ | Aclarado: `q_h` usa `K_z(h)·K_zt(h)` con la `h` del edificio analizado, con test |
+| Estado | Ítem | Dónde |
+|---|---|---|
+| ✅ | Aclarado: `q_h` usa `K_z(h)·K_zt(h)` con la `h` del edificio analizado | `7787343` |
+| ✅ | **1** · Signo de la componente horizontal de cubierta, estaba invertido | `fffbe65` |
+| ✅ | **1** · `H` sólo con presiones externas, en todos los modos | `fffbe65` |
+| ✅ | **1** · Los dos casos de la nota 3, con el mayor corte en la envolvente | `fffbe65` |
+| ✅ | **2** · Forma real de cada fachada por dirección | `fffbe65` · `engine/fachadas.js` |
+| ✅ | **2** · `q_z` integrado hasta la cota real, hastial incluido | `fffbe65` |
+| ✅ | **3** · Vuelco con la resultante vertical; `V`, `x_V` y los tres momentos | `fffbe65` |
+| ✅ | **4** · Carga mínima del art. 2.1.5 como caso aparte; fuera `aplicarMinimoPared` | ↓ |
+| ✅ | **5** · Fig. 2.4-1 entre 45° y 60°: nodo fijo de 0,6 y succión 0 | ↓ |
+| ✅ | **6** · Declaración de pórticos resistentes a momento, con el piso por defecto | ↓ |
+| ✅ | **7** · Cerramiento abierto: aviso de error y resultantes no válidas | ↓ |
+| ✅ | **9** · Detalle de `G` según `modoG`, comentario de `q_i`, aviso de limatesa | ↓ |
+| ⏳ | **8** · Casos de carga de la Fig. 2.4-8 y exención del art. 2.4.7 | va con la envolvente de la Fase 2 |
 
-El punto 8 de esa lista —casos de carga de la Figura 2.4-8 y exención del art. 2.4.7— se
-integra a la envolvente de la Fase 2, por decisión del proyectista.
+El punto 8 se integra a la envolvente de la Fase 2, por decisión del proyectista.
 
 ## Fase 2 — Robustez del cálculo ⏳
 
@@ -85,7 +95,9 @@ integra a la envolvente de la Fase 2, por decisión del proyectista.
 | ⏳ | `unidades.js`: conversión **en el borde**, motor en N, m, N/m² | Salida por defecto: kN, kN/m², kNm; longitud configurable (mm en memoria, m en CSV/JSON) |
 | ⏳ | Avisos de aplicabilidad visibles, nunca silenciosos | h/L, h/B, pendientes, ángulos |
 | ⏳ | n₁ según art. 1.9.2 | Baja altura = rígido, no bloquear · `n_a` de 1.9.3 sólo con acero/hormigón/mampostería, h < 90 m y h < 4·L_ef · `G_f` obligatorio si n₁ < 1 Hz |
-| ⏳ | Envolvente automática: 4 direcciones × 2 signos de `GC_pi` | Más `CASOS_CARGA` y `momentoTorsor` de la Fig. 2.4-8, con el caso torsional en el resumen de críticos |
+| ⏳ | Envolvente automática: 4 direcciones × 2 signos de `GC_pi` | Con el caso torsional en el resumen de críticos |
+| ⏳ | **Casos de carga de la Fig. 2.4-8** (punto 8 del módulo edificios) | Caso 2: paredes y cubierta al 75 % del caso 1 · Casos 3 y 4 (nota 2): cubierta al 100 % de la mayor presión de los casos 1 y 2 sobre cada área, en las dos direcciones principales · Caso 4: `M_T = 0,563·(P_WX+P_LX)·B_X·e_X + 0,563·(P_WY+P_LY)·B_Y·e_Y` — hoy `momentoTorsor` cubre un solo eje · `e = ±0,15·B` en rígidas con el signo más desfavorable, expr. (2.4-5) en flexibles · nota 3: paredes laterales omitibles en los casos 1 y 2 con diafragma rígido continuo · nota 4: `M_T` sobre diafragmas rígidos; con diafragma flexible o sin diafragma, bloque de presión distribuida sobre las paredes con presión normal |
+| ⏳ | **Exención del art. 2.4.7** | Selector con las condiciones del 2.4.7.2 —una planta con h ≤ 10 m; hasta dos plantas de entramado liviano; hasta dos plantas con diafragmas flexibles— ⇒ sólo casos 1 y 3. Las del 2.4.7.3 a 2.4.7.5, como declaración del usuario con cita del artículo. Corregir el comentario de `CASOS_CARGA` |
 | ⏳ | Parseo de inputs | Un solo separador (coma o punto) = decimal · **sin separador de miles** · con más de uno se rechaza con aviso · mostrar al lado el valor interpretado |
 
 ## Fase 3 — Salidas ⏳
@@ -104,6 +116,22 @@ integra a la envolvente de la Fase 2, por decisión del proyectista.
 Zonas y `GC_p`, con la exposición más desfavorable según el art. 1.7.4.4. Uso previsto:
 LSF, correas y chapas. El capítulo **no está leído todavía**.
 
+## Roadmap — después de la Fase 2
+
+Pedido por el proyectista junto con las correcciones del módulo edificios. Va después de
+la Fase 2 y no antes.
+
+| Estado | Ítem | Qué incluye |
+|---|---|---|
+| ⏳ | **Cubiertas aisladas**, Figs. 2.4-4 a 2.4-7 | Exposición más desfavorable (art. 1.7.4.1) · flujo libre y obstruido, calculando AMBOS si el uso bajo cubierta es incierto · cenefas y parapetos con `q_p = q_h` y fricción según la Tabla 2.4-1 (art. 2.4.3.1) · mínimo de 0,75 kN/m² × A_f |
+| ⏳ | **Clasificación de cerramiento calculada** | Con `A_o`, `A_g`, `A_oi` y `A_gi` por pared, definiciones del art. 1.2 y art. 1.10.5, y de ahí `GC_pi` y `R_i` |
+| ⏳ | **Parapetos**, art. 2.4.5 | `p_p = q_p·GC_pn`, con +1,5 a barlovento y −1,0 a sotavento, `q_p` evaluado en el borde superior |
+| ⏳ | **Voladizos**, art. 2.4.4 | `C_p = +0,8` en la cara inferior a barlovento, combinado con la superior |
+| ⏳ | **Exposición por sector** | 8 sectores, C 1.7-8 |
+
+Las cubiertas aisladas son además lo que desbloquea el cerramiento **abierto**, que hoy
+devuelve resultantes marcadas como no válidas.
+
 ---
 
 ## TODO normativos — transcripto pero sin cablear
@@ -112,7 +140,7 @@ LSF, correas y chapas. El capítulo **no está leído todavía**.
 |---|---|---|
 | ⏳ | `CP_VOLADIZO_INFERIOR`, art. 2.4.4 | `constants/presionesExternas.js` |
 | ⏳ | `GCPN_PARAPETO`, art. 2.4.5 | `constants/presionesExternas.js` |
-| ⏳ | `CASOS_CARGA` y `momentoTorsor`, Fig. 2.4-8 | `engine/edificio.js` — va con la envolvente de la Fase 2 |
+| ⏳ | `CASOS_CARGA` y `momentoTorsor`, Fig. 2.4-8 | `engine/edificio.js` — va con la envolvente de la Fase 2. `momentoTorsor` cubre un solo eje; el caso 4 necesita los dos |
 | ⏳ | `R_i`, expr. (1.11-1), reducción por gran volumen | `constants/presionInterna.js` — hoy 1,0, admisible y conservador |
 | ⏳ | Presión interna positiva a la altura de la abertura más alta, art. 2.4.1 | Hoy `q_h`, que es lo conservador que el propio artículo admite |
 
@@ -144,3 +172,12 @@ No son pendientes: son decisiones tomadas, conservadoras, que conviene tener pre
 - **`C_b = 1`** — conservador.
 - **`K_e` por la expresión y no por la tabla.** El art. 1.12 admite las dos; difieren hasta
   0,007 y hay test que lo fija.
+- **La silueta de un limatesa con viento normal a la cumbrera se adopta como `B·r`**, que
+  es cota superior: la cumbrera no recorre todo el largo y los faldones de punta la
+  recortan. Calcular el recorte exige la longitud de cumbrera, que hoy no es dato.
+- **`q_i` usa `q_h`.** El art. 2.4.1 permite evaluar la presión interna POSITIVA con `q_z`
+  a la altura de la abertura más alta en parcialmente cerrados y parcialmente abiertos,
+  pero eso exige declarar esa abertura. `q_h` es la opción conservadora de las dos.
+- **Cuatro aguas con viento paralelo a la cumbrera**: la Figura 2.4-1 dibuja ese caso para
+  dos aguas. Se mantiene la zonificación en franjas, que es la extensión razonable, con un
+  aviso que dice que es una extensión y no una transcripción.
