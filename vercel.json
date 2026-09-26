@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm test && vite build",
+  "buildCommand": "npm run typecheck && npm test && vite build",
   "outputDirectory": "dist",
   "framework": "vite"
 }

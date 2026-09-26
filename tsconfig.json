@@ -1,0 +1,33 @@
+{
+  "//": [
+    "VERIFICACIÓN DE TIPOS SIN MIGRAR A TYPESCRIPT.",
+    "`checkJs` corre el verificador de tsc sobre los .js y .jsx tal como están: el runtime",
+    "no cambia, no hay paso de compilación nuevo y las anotaciones van en JSDoc. Migrar",
+    "3.500 líneas de motor y constantes a .ts sería una fase entera con riesgo de",
+    "regresión sobre código ya validado contra el reglamento, y sin ninguna ganancia",
+    "normativa.",
+    "",
+    "`strict` queda en false a propósito: con true, `strictNullChecks` marca cada acceso a",
+    "una fila de tabla que puede no existir y convierte la adopción en un refactor masivo.",
+    "El objetivo de esta fase es que tsc detecte lo que importa acá —un argumento de menos,",
+    "una propiedad mal escrita, una firma cambiada sin actualizar a los llamadores— y que",
+    "el CI lo frene. El endurecimiento va después, archivo por archivo."
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "types": ["vite/client", "node"],
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/engine/**/*.js", "src/constants/**/*.js", "src/lib/**/*.js"],
+  "exclude": ["node_modules", "dist"]
+}
