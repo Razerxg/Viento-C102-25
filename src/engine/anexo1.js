@@ -3,7 +3,7 @@
 // Secciones de forma uniforme: cilindros, prismas, perfiles, cables y tuberías. Es lo que
 // falta cuando lo que hay que calcular no es un edificio ni una de las familias del
 // capítulo 4, sino un elemento: un venteo, un tirante, un montante de un pórtico.
-import { q as qDinamica, kz } from './presionDinamica.js';
+import { q as qDinamica, kz, kztEn } from './presionDinamica.js';
 import { TERRENO } from '../constants/exposicion.js';
 import {
   VB_I1, TABLA_I1, TABLA_I2, TABLA_I3A, TABLA_I3B, I3B_THETA_MAX, factorInclinacion,
@@ -170,9 +170,10 @@ export function keEsbeltez(esbeltez) {
 
 // ── LA FUERZA ──────────────────────────────────────────────────────────────────
 
+// K_zt a la altura de ESTA sección, por lo mismo que en el capítulo 4.
 export const qEnAnexo = (z, sitio, kd) => qDinamica({
   z, V: sitio.V, exposicion: sitio.exposicion, kd,
-  Kzt: sitio.Kzt ?? 1, altitud: sitio.altitud ?? 0, usarKe: sitio.usarKe !== false,
+  Kzt: kztEn(sitio, z), altitud: sitio.altitud ?? 0, usarKe: sitio.usarKe !== false,
 });
 
 // F = G · Cf · K_e(esbeltez) · A_f · q_z, expresiones (I.1) a (I.3).

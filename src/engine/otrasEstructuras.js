@@ -13,7 +13,7 @@
 // Usar el centroide en un cartel, o el tope en una chimenea, cambia el resultado en el
 // mismo sentido en el que nadie lo revisa: hacia abajo, y poco.
 
-import { q as qDinamica, kz } from './presionDinamica.js';
+import { q as qDinamica, kz, kztEn } from './presionDinamica.js';
 import {
   BS_CARTEL, SH_CARTEL, CF_CARTEL_AB, cfCartelAjuste,
   BS_CASO_C_A, CF_CASO_C_A, BS_CASO_C_B, CF_CASO_C_B, CASO_C_REGIONES, CASO_C_ESQUINA,
@@ -335,9 +335,12 @@ export const fuerza = ({ q, G, cf, area }) =>
 // Presión dinámica a una altura, con el K_d que corresponda a ESTA estructura.
 // El K_d del capítulo 4 no es 0,85: una chimenea redonda usa 1,00 y una torre de sección
 // no habitual 0,95, y adoptar el del edificio baja la carga un 15 % sin justificación.
+// ⚠ K_zt TAMBIÉN se evalúa a ESTA z, no a la altura media de cubierta del edificio. Un
+// venteo de 18 m y un cartel de 3 m sobre la misma loma NO tienen el mismo factor
+// topográfico: K3 decae con la altura y el cartel, más bajo, recibe MÁS.
 export const qEn = (z, sitio, kd) => qDinamica({
   z, V: sitio.V, exposicion: sitio.exposicion, kd,
-  Kzt: sitio.Kzt ?? 1, altitud: sitio.altitud ?? 0, usarKe: sitio.usarKe !== false,
+  Kzt: kztEn(sitio, z), altitud: sitio.altitud ?? 0, usarKe: sitio.usarKe !== false,
 });
 
 // Traza común: los pasos que toda estructura del capítulo 4 comparte, en el orden de la
@@ -356,9 +359,16 @@ export function trazaBase({ sitio, kd, z, G, etiquetaZ }) {
     { paso: "Coeficiente de exposición", simbolo: "K_z", valor: Kz, dec: 3, unidad: "",
       ref: "Art. 1.13.1 · Tabla 1.13-1",
       detalle: `Exposición ${sitio.exposicion}, z = ${fc(z)} m (${etiquetaZ}).` },
-    { paso: "Factor topográfico", simbolo: "K_zt", valor: sitio.Kzt ?? 1, dec: 2, unidad: "",
-      ref: "Art. 1.8", detalle: "Terreno llano. El art. 4.1.4 no admite reducciones por "
-        + "la protección aparente de edificios u otras estructuras vecinas." },
+    // Decía «Terreno llano» SIEMPRE, incluso con una loma declarada: el texto estaba
+    // escrito para la época en que K_zt era 1,0 fijo y nadie lo revisó al agregar el
+    // art. 1.8. Ahora el detalle dice a qué altura se evaluó, que es el dato que se
+    // revisa.
+    { paso: "Factor topográfico", simbolo: "K_zt", valor: kztEn(sitio, z), dec: 3, unidad: "",
+      ref: "Art. 1.8", detalle: (kztEn(sitio, z) === 1
+        ? "Terreno llano. "
+        : `Evaluado a z = ${fc(z)} m sobre el terreno local (${etiquetaZ}). `)
+        + "El art. 4.1.4 no admite reducciones por la protección aparente de edificios u "
+        + "otras estructuras vecinas." },
     { paso: "Factor de altitud", simbolo: "K_e", dec: 4, unidad: "",
       valor: sitio.usarKe === false ? 1 : Math.exp(-0.000119 * (sitio.altitud || 0)),
       ref: "Art. 1.12", detalle: `K_e = e^(−0,000119·z_g) con z_g = ${sitio.altitud || 0} m.` },

@@ -17,7 +17,7 @@ import { Lienzo, Dim, Rotulo } from './kit.jsx';
  * @param {number} p.H_m @param {number} p.Lh_m @param {number} p.x_m @param {number} p.z_m
  * @param {"barlovento"|"sotavento"} p.lado
  */
-export function CroquisTopografia({ forma, H_m, Lh_m, x_m, z_m, lado, fmt,
+export function CroquisTopografia({ forma, H_m, Lh_m, x_m, z_m, lado, fmt, etiquetaZ = "z",
   tema = "claro", ancho = 620, altoMax = 300 }) {
   const ink = tema === "oscuro" ? "#c3c2b7" : "#52514e";
   const txt = tema === "oscuro" ? "#ffffff" : "#0b0b0b";
@@ -135,7 +135,7 @@ export function CroquisTopografia({ forma, H_m, Lh_m, x_m, z_m, lado, fmt,
         stroke={ROJO} strokeWidth="2.2" />
       <circle cx={X(xSig)} cy={Y(yTerreno + z)} r="3.4" fill={ROJO} />
       <Rotulo x={X(xSig) + (zAlaDerecha ? 8 : -8)} y={Y(yTerreno + z) - 5}
-        texto={`z = ${fmt.m(z)}`} color={ROJO} tam={10} peso={600}
+        texto={`${etiquetaZ} = ${fmt.m(z)}`} color={ROJO} tam={10} peso={600}
         ancla={zAlaDerecha ? "start" : "end"} />
 
       <Rotulo x={X(izq) - 6} y={alto - 8} texto="barlovento" color={txt} tam={10} ancla="start" />

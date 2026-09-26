@@ -31,7 +31,7 @@ const EXPLICA_EXPOSICION = {
 };
 
 export function SitioTab() {
-  const { d, set, setTopo, V, sitio, geoN, act, topo } = useProyecto();
+  const { d, set, setTopo, V, sitio, geoN, act, topo, topoBase } = useProyecto();
   const { tema } = useUi();
   const t_ = d.topo;
   const terr = TERRENO[d.exposicion];
@@ -151,11 +151,6 @@ export function SitioTab() {
             <Sel v={t_.lado} set={setTopo("lado")} w={180}
               opciones={[["barlovento", "A barlovento"], ["sotavento", "A sotavento"]]} />
           </Campo>
-          <Campo label="Altura sobre el terreno local z" unit="m"
-            ayuda="⚠ Sobre el terreno LOCAL del emplazamiento, no sobre el nivel del valle. Vacío toma la altura media de cubierta del edificio.">
-            <Num v={t_.z_m} set={setTopo("z_m")} step="0.5"
-              ph={f(geoN.h, 2)} />
-          </Campo>
 
           <Divisor>Condición cualitativa</Divisor>
           {/* Es la condición 1 del art. 1.8.1 y NO hay expresión que la decida: la confirma
@@ -216,13 +211,31 @@ export function SitioTab() {
         </>}
 
         <Divisor>Resultado</Divisor>
-        <Salida label="Factor topográfico K_zt" v={f(topo.kzt, 4)}
-          ayuda="K_zt = (1 + K1·K2·K3)², expresión (1.8-1). Multiplica directamente a la presión dinámica." />
+        {/* K_zt NO es un número: K3 decae con la altura, así que el factor es máximo al
+            ras del suelo. Mostrar uno solo —como hacía la versión con campo «z de
+            evaluación»— hace creer que el edificio entero recibe ese valor. */}
+        <Salida label="K_zt al nivel del terreno" v={f(topoBase.kzt, 4)}
+          ayuda="z = 0. Es el MÁXIMO de todo el perfil: K3 = e^(−γ·z/Lh) vale 1 en el terreno y baja con la altura." />
+        <Salida label="K_zt en la cubierta — K_zt(h)" v={f(topo.kzt, 4)}
+          ayuda="Evaluado a la altura media de cubierta. Es el que multiplica a q_h, o sea a sotavento, laterales y cubierta." />
         {topo.aplica && <>
-          <Salida label="K1 — forma del accidente" v={f(topo.K1, 4)} />
-          <Salida label="K2 — distancia a la cresta" v={f(topo.K2, 4)} />
-          <Salida label="K3 — altura sobre el terreno" v={f(topo.K3, 4)} />
+          <Salida label="K1 — forma del accidente" v={f(topo.K1, 4)}
+            ayuda="No depende de la altura: es el mismo en todo el perfil." />
+          <Salida label="K2 — distancia a la cresta" v={f(topo.K2, 4)}
+            ayuda="Tampoco depende de la altura." />
+          <Salida label="K3 en la cubierta" v={f(topo.K3, 4)}
+            ayuda="Es el único de los tres que varía con z, y el que hace que K_zt no sea un número sino un perfil." />
         </>}
+        {topo.aplica && (
+          <Nota>
+            La pared a barlovento se resuelve <b style={{ color: c.txt }}>tramo a
+            tramo</b>: en cada uno se evalúa K_z·K_zt en las dos cotas y se adopta la
+            mayor. No alcanza con el extremo superior —que es lo que gobierna sin
+            topografía, porque K_z crece con z— ya que por debajo de z_mín K_z queda
+            congelado mientras K_zt sigue creciendo hacia abajo. Qué extremo gobierna cada
+            tramo está en la tabla de cargas.
+          </Nota>
+        )}
 
         {!topo.aplica && <Aviso tono="aviso" titulo="K_zt = 1,0">{topo.motivo}</Aviso>}
 
@@ -254,7 +267,7 @@ export function SitioTab() {
         {t_.forma && parseFloat(t_.H_m) > 0 && parseFloat(t_.Lh_m) > 0 && (
           <div style={{ marginTop: SP.md }}>
             <CroquisTopografia forma={t_.forma} H_m={t_.H_m} Lh_m={t_.Lh_m}
-              x_m={t_.x_m} z_m={t_.z_m === "" ? geoN.h : t_.z_m} lado={t_.lado}
+              x_m={t_.x_m} z_m={geoN.h} etiquetaZ="h" lado={t_.lado}
               fmt={fmt} tema={tema} />
           </div>
         )}

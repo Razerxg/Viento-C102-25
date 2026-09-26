@@ -137,7 +137,7 @@ describe('la traza de decisiones', () => {
 
   it('cubre los parámetros que entran en la presión dinámica', () => {
     const sim = r.traza.map(t => t.simbolo);
-    for (const s of ["V", "K_d", "K_h", "K_zt", "K_e", "q_h", "G", "GC_pi"]) {
+    for (const s of ["V", "K_d", "K_h", "K_zt(h)", "K_e", "q_h", "G", "GC_pi"]) {
       expect(sim).toContain(s);
     }
   });

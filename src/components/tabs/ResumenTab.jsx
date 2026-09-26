@@ -45,7 +45,7 @@ export function ResumenTab() {
           <Stat label="Velocidad básica" valor={f(V, 1)} unidad="m/s"
             sub="ráfaga de 3 s a 10 m" />
           <Stat label="Exposición" valor={sitio.exposicion}
-            sub={`K_zt = ${f(sitio.Kzt, 1)} · K_d = ${f(sitio.kd, 2)}`} />
+            sub={`K_zt(h) = ${f(sitio.Kzt, 3)} · K_d = ${f(sitio.kd, 2)}`} />
           <Stat label="Planta" valor={`${f(geoN.a, 1)} × ${f(geoN.b, 1)}`} unidad="m"
             sub={`alero ${f(geoN.hAlero, 2)} m · h = ${f(geoN.h, 2)} m`} />
           <Stat label="Cubierta"

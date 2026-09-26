@@ -48,7 +48,7 @@ export const INICIAL = {
   // y la app lo dice con ese motivo.
   topo: {
     forma: "", exposicionLocal: "", H_m: "", Lh_m: "", x_m: "0",
-    lado: "barlovento", z_m: "", cond1: false, metodo: "expresiones",
+    lado: "barlovento", cond1: false, metodo: "expresiones",
     // Opción CONSERVADORA por defecto: los multiplicadores de la Fig. 1.8-1 suponen
     // viento en la dirección de máxima pendiente (nota 3), así que aplicarlos en las
     // cuatro es mayorar. Desactivarla exige declarar en qué direcciones aplica.
@@ -143,28 +143,38 @@ export function ProyectoProvider({ children }) {
 
   // ── FACTOR TOPOGRÁFICO ──────────────────────────────────────────────────────
   //
-  // ⚠ LA ALTURA z DEL ART. 1.8 NO ES UNA SOLA. K_zt decae con la altura sobre el terreno
-  // local, así que en rigor cambia a lo largo de la pared de barlovento. Acá se evalúa a
-  // la `z` que declara el usuario —por defecto, la altura media de cubierta— y se aplica
-  // constante. Es lo que hace la práctica habitual y es conservador si se toma la z más
-  // baja de interés; queda anotado como pendiente evaluar K_zt(z) tramo a tramo.
-  const topo = useMemo(() => calcularKzt({
+  // K_zt NO ES UN NÚMERO, ES UNA FUNCIÓN DE LA ALTURA. K3 = e^(−γ·z/Lh) decae con z, así
+  // que sobre una loma el factor es máximo al ras del suelo y va bajando. Había un campo
+  // «z de evaluación» que lo congelaba en un valor: se eliminó, porque tomar la altura
+  // media de cubierta NO es conservador —abajo de z_mín K_z queda congelado mientras
+  // K_zt sigue creciendo hacia abajo, y ahí la presión real supera a la calculada—.
+  //
+  // Lo que viaja al motor son los DATOS del accidente sin altura (`sitio.topo`), y cada
+  // superficie evalúa K_zt a la z que le corresponde. `topo` de acá es el cálculo a la
+  // altura media de cubierta, que es el que se informa en la pantalla Sitio.
+  const entradaTopo = useMemo(() => ({
     forma: d.topo.forma || undefined,
     exposicion: d.topo.exposicionLocal || d.exposicion,
     H_m: parseFloat(d.topo.H_m), Lh_m: parseFloat(d.topo.Lh_m),
     x_m: parseFloat(d.topo.x_m) || 0, lado: d.topo.lado,
-    // Campo vacío = «automático»: se evalúa a la altura media de cubierta, que es
-    // la z de referencia del resto del cálculo. Dejarlo como NaN haría que el motor
-    // informara «faltan datos» sobre un formulario que el usuario ve completo.
-    z_m: d.topo.z_m === "" ? geoN.h : parseFloat(d.topo.z_m),
     cond1_confirmada: !!d.topo.cond1, metodo: d.topo.metodo,
-  }), [d.topo, d.exposicion, geoN.h]);
+  }), [d.topo, d.exposicion]);
+
+  const topo = useMemo(() => calcularKzt({ ...entradaTopo, z_m: geoN.h }),
+    [entradaTopo, geoN.h]);
+
+  // K_zt a nivel del terreno: es el máximo de todo el perfil y va en la pantalla junto al
+  // de la cubierta, para que se vea el rango en el que se mueve.
+  const topoBase = useMemo(() => calcularKzt({ ...entradaTopo, z_m: 0 }), [entradaTopo]);
 
   const sitio = useMemo(() => ({
-    V, exposicion: d.exposicion, kd: kdDe("edificio_sprfv"), Kzt: topo.kzt,
+    V, exposicion: d.exposicion, kd: kdDe("edificio_sprfv"),
+    // El escalar sigue siendo el de la cubierta: es el que usan q_h y las trazas. Lo que
+    // hace variar K_zt con la altura es `topo`, y sólo está cuando el cálculo APLICA.
+    Kzt: topo.kzt, topo: topo.aplica ? entradaTopo : null,
     altitud: parseFloat(d.altitud) || 0, usarKe: d.usarKe !== false,
     puntosPerfil: parseInt(d.puntosPerfil, 10) || 10,
-  }), [V, d.exposicion, d.altitud, d.usarKe, d.puntosPerfil, topo.kzt]);
+  }), [V, d.exposicion, d.altitud, d.usarKe, d.puntosPerfil, topo.kzt, topo.aplica, entradaTopo]);
 
   /**
    * El `sitio` que le toca a UNA dirección.
@@ -177,7 +187,10 @@ export function ProyectoProvider({ children }) {
   const sitioDe = useCallback((dir) => {
     if (!topo.aplica) return sitio;
     if (d.topo.todasLasDirecciones) return sitio;
-    return (d.topo.direcciones ?? []).includes(dir.id) ? sitio : { ...sitio, Kzt: 1.0 };
+    // Sin efecto en esta dirección se cae al terreno llano COMPLETO: K_zt = 1,0 y sin
+    // datos de accidente, o la pared a barlovento lo seguiría evaluando por tramo.
+    return (d.topo.direcciones ?? []).includes(dir.id)
+      ? sitio : { ...sitio, Kzt: 1.0, topo: null };
   }, [sitio, topo.aplica, d.topo.todasLasDirecciones, d.topo.direcciones]);
 
 
@@ -293,7 +306,7 @@ export function ProyectoProvider({ children }) {
   return (
     <Ctx.Provider value={{
       d, set, setGeo, setD, setCap4, setSilo, setAnexo, setTopo,
-      topo, sitioDe,
+      topo, topoBase, sitioDe,
       accesorio, silo, anexo, kdCap4, cap4Kd, kdSilo, kdAnexo,
       proyecto: d.proyecto, setProyecto: set("proyecto"),
       tab, setTab, irA, nombreTab: TABS[tab] ?? TABS[0],

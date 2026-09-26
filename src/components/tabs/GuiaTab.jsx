@@ -86,7 +86,10 @@ export function GuiaTab() {
           con los dos casos de presión interna que exige la nota 3 de la Tabla 1.11-1. El
           perfil de q_z en altura sobre la pared a barlovento. El factor de ráfaga por las
           tres vías del art. 1.9. Las resultantes en la base —corte, levantamiento y
-          vuelco— con el piso de la nota 7.
+          vuelco— con el piso de la nota 7. El factor topográfico K_zt del art. 1.8, por
+          los dos métodos del art. 1.8.2 y evaluado <b style={{ color: c.txt }}>a cada
+          altura</b>: sobre la pared a barlovento cada tramo se resuelve con el peor de sus
+          dos extremos, porque K_zt crece hacia el terreno mientras K_z está congelado.
           <br /><br />
           <b style={{ color: c.txt }}>Del Capítulo 4</b> —accesorios y otras estructuras—
           calcula paredes libres llenas y carteles llenos con sus casos A, B y C; carteles
@@ -99,8 +102,7 @@ export function GuiaTab() {
           rectangulares con sus dos componentes, perfiles estructurales, cables y tuberías,
           con la corrección por esbeltez de la Tabla I.6.
           <br /><br />
-          <b style={{ color: c.txt }}>No calcula.</b> El factor topográfico K_zt, que queda
-          fijo en 1,0. Los coeficientes de componentes y revestimientos del Capítulo 5. Las
+          <b style={{ color: c.txt }}>No calcula.</b> Los coeficientes de componentes y revestimientos del Capítulo 5. Las
           cubiertas abovedadas y en mansarda. El tratamiento por C_N de edificios abiertos de
           las Figuras 2.4-4 y siguientes. Los cuatro casos de carga de la Figura 2.4-8, que
           están declarados pero todavía no se aplican al resultado. Y los paneles solares de

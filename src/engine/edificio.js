@@ -10,7 +10,8 @@
 // descentrada, barlovento y sotavento intercambian coeficientes y el resultado cambia.
 // Además las cuatro direcciones se corresponden una a una con las hipótesis Wx+, Wx−,
 // Wy+, Wy− de las otras aplicaciones, que es lo que va a permitir exportarlas.
-import { kz, q as qDinamica } from './presionDinamica.js';
+import { kz, q as qDinamica, kztEn, kztVariable,
+  gobernanteTramo, alturasCriticasKzt } from './presionDinamica.js';
 import { ALTURAS_KZ } from '../constants/exposicion.js';
 import { CP_PARED, CP_CUBIERTA_BARLOVENTO, CP_CUBIERTA_SOTAVENTO, CP_CUBIERTA_PARALELO,
   ANG_BARLOVENTO, ANG_SOTAVENTO, CERO_INTERPOLACION, CP_PENDIENTE_EXTREMA,
@@ -234,13 +235,27 @@ export function perfilBarlovento({ h, sitio, hAlero, hCumbre, puntos = 10 }) {
   if (hCumbre != null) poner(Math.min(hCumbre, h), hCumbre <= h + 1e-9 ? "cumbrera" : null);
   poner(h, "altura media h");
 
+  // EL MÁXIMO DE K_z·K_zt, CUANDO CAE ENTRE DOS CORTES. Con topografía el producto sube
+  // y después baja, así que puede tener su máximo en el medio de un tramo, donde la regla
+  // de los dos extremos no lo ve. Agregarlo como corte lo convierte en extremo. Se busca
+  // desde los 5 m —abajo de eso K_z está congelado y el producto sólo decrece, con lo que
+  // el máximo es z = 0, que ya es un corte—.
+  if (h > 5) for (const zc of alturasCriticasKzt(sitio, 5, h)) poner(zc, "máx. de K_z·K_zt");
+
   const lista = [...cortes.values()].sort((a, b) => a.z - b.z);
   let previo = 0;
   return lista.map(({ z, marcas }) => {
+    // ⚠ EL TRAMO SE EVALÚA EN SUS DOS EXTREMOS, NO SÓLO ARRIBA. Con K_zt constante el
+    // techo siempre gobierna —K_z crece con z— y esto da el mismo número de siempre. Con
+    // K_zt(z) no: K3 decrece con la altura y K_z está congelado abajo de 5 m, así que en
+    // la franja de base el peor punto es el PISO. `gobernanteTramo` elige el mayor
+    // producto K_z·K_zt y deja anotado cuál ganó.
+    const g = gobernanteTramo({ desde: previo, hasta: z, sitio });
     const t = { desde: previo, hasta: z, z,
       marca: marcas.size ? [...marcas].join(" = ") : null,
       marcas: [...marcas],
-      kz: kz(z, sitio.exposicion), q: qDinamica({ ...sitio, z }) };
+      kz: g.kz, kzt: g.kzt, q: g.q,
+      zGobernante: g.z, gobierna: g.gobierna, extremos: g.extremos };
     previo = z;
     return t;
   });
@@ -254,7 +269,10 @@ export function analizarDireccion({ geo, sitio, cerramiento, G = 0.85 }, dir) {
   const hL = g.h / L;
   const mc = modoCubierta({ geo: g, dir });
 
-  const qh = qDinamica({ ...sitio, z: g.h });
+  // Sotavento, laterales y cubierta usan q_h, y su K_zt es el de la ALTURA MEDIA DE
+  // CUBIERTA: es la altura a la que el reglamento evalúa esas superficies.
+  const kztH = kztEn(sitio, g.h);
+  const qh = qDinamica({ ...sitio, z: g.h, Kzt: kztH });
   const GCpi = gcpiDe(cerramiento) ?? 0;
   const qi = qh;
 
@@ -274,11 +292,17 @@ export function analizarDireccion({ geo, sitio, cerramiento, G = 0.85 }, dir) {
       unidad: "", ref: "Art. 1.13.1 · Tabla 1.13-1, nota 1",
       detalle: `Exposición ${sitio.exposicion}, z = h = ${fc(g.h)} m. `
         + `K_z = 2,41·(z/z_g)^(2/α) con α y z_g de la Tabla 1.9-1.` },
-    { paso: "Factor topográfico", simbolo: "K_zt", dec: 2, valor: sitio.Kzt ?? 1, unidad: "",
-      ref: "Art. 1.8", detalle: (sitio.Kzt ?? 1) === 1
+    // El K_zt de la traza es el de q_h, o sea el de z = h. La pared a barlovento tiene
+    // el suyo por tramo y va en su propia tabla: informar acá un solo número y llamarlo
+    // «el K_zt del edificio» taparía justamente la variación que motiva todo esto.
+    { paso: "Factor topográfico en la cubierta", simbolo: "K_zt(h)", dec: 3, valor: kztH,
+      unidad: "", ref: "Art. 1.8",
+      detalle: !kztVariable(sitio)
         ? "Terreno llano. NO corresponde si el edificio está en la mitad superior de una "
           + "loma o cerca de la cresta de una escarpa."
-        : "Calculado con la Figura 1.8-1." },
+        : `Evaluado a z = h = ${fc(g.h)} m sobre el terreno local. En la pared a `
+          + `barlovento K_zt varía con la altura: crece hacia abajo, donde K3 tiende a 1, `
+          + `y cada tramo se resuelve con el extremo que dé mayor K_z·K_zt.` },
     { paso: "Factor de altitud", simbolo: "K_e", dec: 3, valor: sitio.usarKe === false ? 1
         : Math.exp(-0.000119 * (sitio.altitud || 0)), unidad: "",
       ref: "Art. 1.12 · Tabla 1.12-1, nota 2",
