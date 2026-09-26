@@ -61,8 +61,12 @@ export const INICIAL = {
   modoG: "defecto",
   tipoFrec: "",
   puntosPerfil: "10",
-  // Art. 2.1.5 / C 2.1.5: exime del piso de la nota 7. Por defecto NO, o sea con piso.
+  // Excepción de la propia nota 7 de la Figura 2.4-1: «excepto para SPRFVs en el techo
+  // consistentes en entramados resistentes a momento». Por defecto NO, o sea con piso.
   porticosCubierta: false,
+  // El piso es parte de la estructura —contenedor, shelter sobre skid, módulo— y la
+  // presión interna se autoequilibra. Desactivado por defecto: lo conservador.
+  pisoSolidario: false,
 
   // ── CAPÍTULO 4 ──────────────────────────────────────────────────────────────
   // Un caso cargado por defecto, igual que el edificio: abrir en blanco obliga a inventar
@@ -213,10 +217,11 @@ export function ProyectoProvider({ children }) {
     () => DIRECCIONES.map(dir => analizarDireccion({ ...entrada, sitio: sitioDe(dir) }, dir)),
     [entrada, sitioDe]);
   const act = todas[Math.min(iDir, todas.length - 1)];
-  // La excepción de la nota 7 (C 2.1.5) es una DECLARACIÓN del proyectista sobre el
-  // sistema estructural, no algo que la app pueda deducir de la geometría.
-  const opcRes = useMemo(() => ({ porticosCubierta: d.porticosCubierta === true }),
-    [d.porticosCubierta]);
+  // Dos DECLARACIONES del proyectista sobre el sistema estructural, que la app no puede
+  // deducir de la geometría: la excepción de la nota 7 de la Figura 2.4-1, y si el piso
+  // es parte de la estructura —lo que hace que la presión interna se autoequilibre—.
+  const opcRes = useMemo(() => ({ porticosCubierta: d.porticosCubierta === true,
+    pisoSolidario: d.pisoSolidario === true }), [d.porticosCubierta, d.pisoSolidario]);
   const res = useMemo(() => resultantes(act, opcRes), [act, opcRes]);
   // Las pantallas que recorren las cuatro direcciones tienen que usar LA MISMA
   // declaración que la dirección activa: llamando a `resultantes(t)` pelado, la tabla de

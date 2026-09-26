@@ -366,6 +366,30 @@ propio azul las hace parecer de proveedores distintos.
 - **El piso de la nota 7 se aplica POR DEFECTO**, y la excepción del C 2.1.5 —SPRFV de
   cubierta con pórticos resistentes a momento— es una declaración del proyectista, no algo
   deducible de la geometría.
+- **LOS DOS CASOS DE LA NOTA 3 SON ESTADOS DE CARGA COMPLETOS.** Cada uno trae su terna
+  `H`, `V`, `x_V` y sus tres momentos. La envolvente toma máximos SOBRE CASOS, no por
+  componente, y dice cuál gobierna cada magnitud. Antes se mezclaba el corte de uno con el
+  levantamiento del otro y el vuelco que salía no correspondía a ningún estado de carga:
+  en el galpón de control parcialmente cerrado, Wy+, el momento en el borde de sotavento
+  daba 6.649 kNm cuando el caso de succión daba 6.081 y el de presión 4.988.
+- **EL MOMENTO RESPECTO DEL CENTRO DE LA BASE NO DEPENDE DE `GC_pi`**, en ninguna
+  geometría. La presión interna es uniforme sobre toda la planta de cubierta, así que su
+  resultante vertical cae en el baricentro de la planta y su brazo respecto del centro es
+  cero. Respecto de un borde no se cancela. Hay test: sirve de control cruzado del signo
+  de `V` y del brazo en planta, y es la razón por la que ese test no se puede escribir
+  sobre `vuelco`.
+- **PISO SOLIDARIO A LA ESTRUCTURA, declarable y DESACTIVADO por defecto.** La presión
+  interna actúa sobre toda la envolvente interior, piso incluido. Si el piso es parte de
+  la estructura —contenedor, shelter sobre skid, módulo—, el empuje sobre la cubierta
+  tiene su reacción sobre el piso y el par se autoequilibra: no llega al levantamiento
+  global ni al vuelco. ⚠ NO cambia la presión NETA sobre la cubierta: chapas, correas y
+  fijaciones siguen viendo externa ± interna.
+- **La excepción de la nota 7 está en la PROPIA nota 7** de la Figura 2.4-1 —«excepto para
+  SPRFVs en el techo consistentes en entramados resistentes a momento»—, no en el C 2.1.5,
+  que trata cargas mínimas.
+- **La carga mínima del art. 2.1.5 es un caso de carga COMPLETO**: fuerza, punto de
+  aplicación y momento en la base. El baricentro conjunto se pesa por FUERZA y no por
+  área, porque la pared paga 0,75 kN/m² y la cubierta 0,40.
 - **Cerramiento ABIERTO ⇒ resultantes no válidas**, con aviso de nivel error. Se resuelve
   con los `C_N` de las Figuras 2.4-4 a 2.4-7, que no están implementados; mostrar los Cp
   de la 2.4-1 es mostrar los de otro edificio.

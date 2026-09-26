@@ -8,7 +8,7 @@ import { useProyecto } from '../../context/ProyectoContext.jsx';
 import { useUi } from '../../context/UiContext.jsx';
 import { CurvasAltura } from '../svg/CurvasAltura.jsx';
 import { Encabezado, Card, Stat, Stats, Aviso, Nota, Tabla, Divisor, Salida,
-  Th, Td, TdN } from '../ui.jsx';
+  Acordeon, Th, Td, TdN } from '../ui.jsx';
 import { c, SP, t } from '../tokens.js';
 import { f, fmt } from '../../lib/formato.js';
 
@@ -40,6 +40,18 @@ export function ResultantesTab() {
             El vuelco no es sólo las fuerzas horizontales. La succión de cubierta tiene
             brazo EN PLANTA, y en un edificio bajo y largo es el término que más pesa: con
             L = 40 m el brazo llega a 20 m, más que la altura del edificio. */}
+        {/* ── QUÉ CASO DE LA NOTA 3 GOBIERNA CADA MAGNITUD ────────────────────────
+            Los dos casos del faldón a barlovento son ESTADOS DE CARGA distintos. Antes se
+            mezclaban —el corte de uno con el levantamiento del otro— y el vuelco que
+            salía no correspondía a ninguno de los dos. */}
+        <Nota>
+          Caso de la nota 3 que gobierna cada magnitud:{" "}
+          <b style={{ color: c.txt }}>corte</b> {res.gobernante.cortante} ·{" "}
+          <b style={{ color: c.txt }}>levantamiento</b> {res.gobernante.levantamiento} ·{" "}
+          <b style={{ color: c.txt }}>vuelco</b> {res.gobernante.vuelco}. Cada uno sale de
+          un estado de carga completo, no de un máximo por componente.
+        </Nota>
+
         <Divisor>Resultante vertical de cubierta</Divisor>
         <Salida label="Levantamiento V" v={fmt.kN(res.verticalCubierta.V / 1000)}
           ayuda="Envolvente de los dos casos que exige la nota 3 de la Figura 2.4-1 para el faldón a barlovento." />
@@ -51,26 +63,32 @@ export function ResultantesTab() {
 
         <Tabla minWidth={520}>
           <thead><tr>
-            <Th>Momento respecto de</Th><Th alinear="right">Horizontales</Th>
-            <Th alinear="right">Vertical</Th><Th alinear="right">Total (kN·m)</Th>
+            <Th>Momento respecto de</Th>
+            {res.casos.map(cs => <Th key={cs.casoNota3} alinear="right">
+              Caso {cs.casoNota3}</Th>)}
+            <Th alinear="right">Envolvente (kN·m)</Th><Th>Gobierna</Th>
           </tr></thead>
           <tbody>
-            {[["Borde de barlovento", "bordeBarlovento", 0],
-              ["Centro de la base", "centro", act.L / 2],
-              ["Borde de sotavento", "bordeSotavento", act.L]].map(([nom, k, xRef]) => (
+            {[["Borde de barlovento", "bordeBarlovento"],
+              ["Centro de la base", "centro"],
+              ["Borde de sotavento", "bordeSotavento"]].map(([nom, k]) => (
               <tr key={k}>
                 <Td nowrap>{nom}</Td>
-                <TdN tono={c.txt3}>{f(res.momentos.horizontal / 1000, 1)}</TdN>
-                <TdN tono={c.txt3}>{f((res.momentos[k] - res.momentos.horizontal) / 1000, 1)}</TdN>
+                {res.casos.map(cs => (
+                  <TdN key={cs.casoNota3} tono={c.txt3}>{f(cs.momentos[k] / 1000, 1)}</TdN>
+                ))}
                 <TdN peso={600}>{f(res.momentos[k] / 1000, 1)}</TdN>
+                <Td tono={c.txt3} nowrap>{res.gobernante[k] ?? res.gobernante.vuelco}</Td>
               </tr>
             ))}
           </tbody>
         </Tabla>
         <Nota>
-          El término horizontal es el mismo en las tres filas: el brazo de una fuerza
-          horizontal es su altura, cualquiera sea el punto de la base respecto del que se
-          tome el momento. Lo único que cambia es el brazo en planta del levantamiento.
+          Dentro de UN caso, el término horizontal es el mismo en las tres filas —el brazo
+          de una fuerza horizontal es su altura, cualquiera sea el punto de la base— y lo
+          único que cambia es el brazo en planta del levantamiento. La columna de
+          envolvente toma el mayor de los dos casos fila por fila, así que sus tres valores
+          pueden venir de casos distintos y no guardan esa relación entre sí.
         </Nota>
 
         {!res.valido && (
@@ -108,7 +126,32 @@ export function ResultantesTab() {
         )}
         <Salida label="Fuerza mínima" v={fmt.kN(res.cargaMinima.fuerza / 1000)}
           ayuda={res.cargaMinima.ref} />
+        {/* Sin punto de aplicación, un caso de carga no se puede combinar con nada: no da
+            momento en la base y no entra en una envolvente de reacciones. */}
+        <Salida label="Punto de aplicación" unit="m"
+          v={res.cargaMinima.zBar == null ? "—" : f(res.cargaMinima.zBar, 2)}
+          ayuda="Baricentro de las áreas proyectadas, pesado por su presión: la de cubierta está más arriba pero paga 0,40 kN/m² contra 0,75." />
+        <Salida label="Momento en la base" v={fmt.kNm(res.cargaMinima.momento / 1000)} />
         <Salida label="Corte calculado" v={fmt.kN(Math.abs(res.cortante) / 1000)} />
+        <Tabla minWidth={480}>
+          <thead><tr>
+            <Th>Área proyectada</Th><Th alinear="right">m²</Th>
+            <Th alinear="right">kN/m²</Th><Th alinear="right">z̄ (m)</Th>
+            <Th alinear="right">Fuerza (kN)</Th><Th alinear="right">Momento (kN·m)</Th>
+          </tr></thead>
+          <tbody>
+            {res.cargaMinima.partes.map(x => (
+              <tr key={x.id}>
+                <Td>{x.label}</Td>
+                <TdN>{f(x.area, 1)}</TdN>
+                <TdN tono={c.txt3}>{f(x.presion / 1000, 2)}</TdN>
+                <TdN tono={c.txt3}>{x.area > 0 ? f(x.zBar, 2) : "—"}</TdN>
+                <TdN>{f(x.fuerza / 1000, 1)}</TdN>
+                <TdN>{f(x.momento / 1000, 1)}</TdN>
+              </tr>
+            ))}
+          </tbody>
+        </Tabla>
         <Nota>{res.cargaMinima.nota}</Nota>
         <Aviso tono={res.gobiernaMinimo ? "aviso" : "info"}
           titulo={res.gobiernaMinimo ? "Gobierna la carga mínima" : "Gobierna el cálculo"}>
@@ -124,7 +167,8 @@ export function ResultantesTab() {
 
       <Card titulo="Sistema estructural de la cubierta"
         desc="La nota 7 de la Figura 2.4-1 pone un piso al corte: no puede ser menor que el
-          de las paredes solas. El C 2.1.5 exime de ese piso a un caso, y es una
+          de las paredes solas. La EXCEPCIÓN está en la propia nota 7 —«excepto para SPRFVs
+          en el techo consistentes en entramados resistentes a momento»— y es una
           declaración del proyectista sobre el sistema, no algo deducible de la geometría.">
         <label style={{ display: "flex", gap: SP.sm + 2, alignItems: "flex-start",
           padding: `${SP.sm}px 0`, cursor: "pointer" }}>
@@ -132,17 +176,64 @@ export function ResultantesTab() {
             onChange={e => set("porticosCubierta")(e.target.checked)}
             style={{ width: 16, height: 16, marginTop: 2, accentColor: c.azul, cursor: "pointer" }} />
           <span style={{ ...t.body, lineHeight: 1.6 }}>
-            El SPRFV de la cubierta son <b style={{ color: c.txt }}>pórticos resistentes a
-            momento</b>. Con eso, las componentes horizontales de cubierta pueden restar
-            del corte y <b style={{ color: c.txt }}>no se aplica el piso de la nota 7</b>.
+            El SPRFV de la cubierta consiste en <b style={{ color: c.txt }}>entramados
+            resistentes a momento</b>, en los términos de la excepción de la nota 7. Con
+            eso, las componentes horizontales de cubierta pueden restar del corte y{" "}
+            <b style={{ color: c.txt }}>no se aplica el piso</b>.
           </span>
         </label>
         {res.exentoNota7 && (
           <Aviso tono="aviso" titulo="Piso de la nota 7 NO aplicado">
-            Queda declarado que el sistema de cubierta son pórticos resistentes a momento.
-            Sin esa condición, el corte informado sería el de las paredes solas.
+            Queda declarado que el SPRFV de cubierta consiste en entramados resistentes a
+            momento, que es la excepción de la propia nota 7. Sin esa condición, el corte
+            informado sería el de las paredes solas.
           </Aviso>
         )}
+
+        {/* ── PISO SOLIDARIO ──────────────────────────────────────────────────────
+            La presión interna actúa sobre TODA la envolvente interior, piso incluido. Con
+            un piso estructural el empuje sobre la cubierta tiene su reacción sobre el
+            piso y el par se autoequilibra. Sin él, no hay nada que lo tome. */}
+        <Divisor>Piso</Divisor>
+        <label style={{ display: "flex", gap: SP.sm + 2, alignItems: "flex-start",
+          padding: `${SP.sm}px 0`, cursor: "pointer" }}>
+          <input type="checkbox" checked={d.pisoSolidario === true}
+            onChange={e => set("pisoSolidario")(e.target.checked)}
+            style={{ width: 16, height: 16, marginTop: 2, accentColor: c.azul, cursor: "pointer" }} />
+          <span style={{ ...t.body, lineHeight: 1.6 }}>
+            El <b style={{ color: c.txt }}>piso es solidario a la estructura</b> —un
+            contenedor, un shelter sobre skid, un módulo—. Con eso la presión interna se
+            autoequilibra y <b style={{ color: c.txt }}>no entra en el levantamiento global
+            ni en el vuelco</b>. La presión neta sobre la cubierta no cambia.
+          </span>
+        </label>
+        {res.pisoSolidario && (
+          <Aviso tono="aviso" titulo="Presión interna autoequilibrada">
+            V y el vuelco salen sólo de las presiones EXTERNAS. En un contenedor de 40′ HC
+            —12,19 × 2,44 × 2,90 m— esto baja el levantamiento global entre 20 % y 43 % si
+            está cerrado, y entre 61 % y 132 % si es parcialmente cerrado. ⚠ Las chapas,
+            las correas y sus fijaciones siguen viendo externa ± interna: lo que se
+            autoequilibra es la resultante global, no la carga local.
+          </Aviso>
+        )}
+
+        <Acordeon titulo="Qué se declaró y qué cambió">
+          <Tabla minWidth={560}>
+            <thead><tr>
+              <Th>Declaración</Th><Th>Estado</Th><Th>Artículo</Th><Th>Efecto</Th>
+            </tr></thead>
+            <tbody>
+              {res.trazaDeclaraciones.map(x => (
+                <tr key={x.id}>
+                  <Td>{x.titulo}</Td>
+                  <Td tono={x.declarado ? c.txt : c.txt3}>{x.declarado ? "declarada" : "no"}</Td>
+                  <Td tono={c.txt3} nowrap>{x.ref}</Td>
+                  <Td tono={c.txt3}>{x.efecto}</Td>
+                </tr>
+              ))}
+            </tbody>
+          </Tabla>
+        </Acordeon>
       </Card>
 
       <Card titulo="Cómo cambian con la altura de alero"

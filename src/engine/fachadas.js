@@ -164,41 +164,66 @@ export function fachadasDe(geo, dir) {
 // su parte da cero; con viento normal, la cubierta agrega la franja entre el alero y la
 // cumbrera.
 //
+// Cada parte viaja con su BARICENTRO, porque la carga mínima es un caso de carga y un
+// caso de carga sin punto de aplicación no da momento en la base.
+//
 // ⚠ EN CUATRO AGUAS CON VIENTO NORMAL A LA CUMBRERA SE ADOPTA B·r, QUE ES COTA SUPERIOR.
 // La cumbrera de un limatesa no recorre todo el largo: los faldones de punta recortan la
 // silueta. Calcular el recorte exacto exige la longitud de cumbrera, que hoy no es un
 // dato del modelo. Queda del lado seguro y dicho.
+
+/** Un área con su baricentro en altura. `zBar` es `null` cuando el área es nula. */
+const trozo = (area, zBar) => ({ area, zBar: area > 1e-12 ? zBar : null });
+
+/** Resta de dos trozos, con el baricentro compuesto. */
+function restar(mayor, menor) {
+  const area = mayor.area - menor.area;
+  if (!(area > 1e-9)) return trozo(0, null);
+  return trozo(area, (mayor.area * mayor.zBar - menor.area * menor.zBar) / area);
+}
+
 export function siluetaProyectada(geo, dir) {
   const bar = fachada(geo, dir.eje, /** @type {1|-1} */ (-dir.signo));
   const B = bar.W;
   const r = geo.hCumbre - geo.hAlero;
+  const zBarPared = bar.area > 0 ? momentoHasta(bar, bar.z2) / bar.area : 0;
+
   if (!(r > 0)) {
-    return { pared: bar.area, cubierta: 0, B,
+    return { pared: bar.area, zBarPared, cubierta: 0, zBarCubierta: null, B,
       nota: "Cubierta plana: la silueta es la pared." };
   }
 
-  // Cuánto agrega la CUBIERTA a la silueta, contando desde la línea de alero.
-  let siluetaSobreAlero, nota;
+  // Cuánto ocupa la SILUETA COMPLETA por encima de la línea de alero. Son dos formas: una
+  // franja rectangular de altura r —cuando la cumbrera recorre todo el ancho— o un
+  // triángulo con vértice arriba, cuyo baricentro está a un tercio y no a la mitad.
+  const franja = trozo(B * r, geo.hAlero + r / 2);
+  const triangulo = trozo(B * r / 2, geo.hAlero + r / 3);
+
+  let silueta, nota;
   const paralelaACumbrera = dir.eje === geo.cumbrera;
   if (geo.tipo === "vertiente_unica") {
     const ejePend = geo.pendienteHacia.slice(1);
-    siluetaSobreAlero = dir.eje === ejePend ? B * r : B * r / 2;
-    nota = dir.eje === ejePend
+    const segunPendiente = dir.eje === ejePend;
+    silueta = segunPendiente ? franja : triangulo;
+    nota = segunPendiente
       ? "Vertiente única con el viento según la pendiente: la silueta sube hasta la cota alta en todo el ancho."
       : "Vertiente única con el viento transversal a la pendiente: la silueta sobre el alero es el triángulo del talud.";
   } else if (paralelaACumbrera) {
-    siluetaSobreAlero = B * r / 2;
+    silueta = triangulo;
     nota = "Viento paralelo a la cumbrera: la silueta sobre el alero es el frontón triangular.";
   } else {
-    siluetaSobreAlero = B * r;
+    silueta = franja;
     nota = geo.tipo === "cuatro_aguas"
       ? "Cuatro aguas con viento normal a la cumbrera: se adopta B·r, cota superior, porque los faldones de punta recortan la silueta y la longitud de cumbrera no es dato."
       : "Viento normal a la cumbrera: la cumbrera recorre todo el ancho y la silueta sube B·r sobre el alero.";
   }
 
-  // La pared ya cubre parte de esa franja —el hastial, el trapecio, la pared alta—. La
-  // cubierta sólo paga lo que sobra.
-  const paredSobreAlero = bar.area - B * geo.hAlero;
-  return { pared: bar.area, cubierta: Math.max(0, siluetaSobreAlero - paredSobreAlero),
-    B, nota };
+  // La PARED ya cubre parte de esa franja —el hastial, el trapecio, la pared alta—. La
+  // cubierta sólo paga lo que sobra, y con el baricentro de lo que sobra.
+  const paredSobreAlero = bar.forma === "rectangulo"
+    ? trozo(Math.max(0, bar.area - B * geo.hAlero), geo.hAlero + r / 2)   // pared alta
+    : trozo(bar.area - B * geo.hAlero, geo.hAlero + r / 3);               // hastial o trapecio
+  const cub = restar(silueta, paredSobreAlero);
+
+  return { pared: bar.area, zBarPared, cubierta: cub.area, zBarCubierta: cub.zBar, B, nota };
 }

@@ -84,6 +84,10 @@ construye sobre ellas.
 | ✅ | **6** · Declaración de pórticos resistentes a momento, con el piso por defecto | ↓ |
 | ✅ | **7** · Cerramiento abierto: aviso de error y resultantes no válidas | ↓ |
 | ✅ | **9** · Detalle de `G` según `modoG`, comentario de `q_i`, aviso de limatesa | ↓ |
+| ✅ | **Casos de la nota 3 consistentes**: terna completa por caso, envolvente sobre casos | ↓ |
+| ✅ | **Presión interna con piso solidario**, declarable y desactivada por defecto | ↓ |
+| ✅ | Cita de la excepción de la nota 7 corregida —está en la propia nota 7, no en el C 2.1.5— | ↓ |
+| ✅ | `cargaMinima()` con punto de aplicación y momento en la base | ↓ |
 | ⏳ | **8** · Casos de carga de la Fig. 2.4-8 y exención del art. 2.4.7 | va con la envolvente de la Fase 2 |
 
 El punto 8 se integra a la envolvente de la Fase 2, por decisión del proyectista.
@@ -144,6 +148,12 @@ devuelve resultantes marcadas como no válidas.
 | ⏳ | `R_i`, expr. (1.11-1), reducción por gran volumen | `constants/presionInterna.js` — hoy 1,0, admisible y conservador |
 | ⏳ | Presión interna positiva a la altura de la abertura más alta, art. 2.4.1 | Hoy `q_h`, que es lo conservador que el propio artículo admite |
 
+## Hallazgos abiertos — esperando decisión
+
+| Estado | Qué |
+|---|---|
+| 📥 | **`remonte()` no topea el limatesa en la media luz del otro eje.** Calcula el remonte de una cubierta a cuatro aguas igual que el de un caballete, sobre media luz normal a la cumbrera. Con `a < b` y cumbrera según X eso da una cumbrera más alta de la que una pendiente uniforme permite: la pieza es en realidad una pirámide y su vértice está a `(a/2)·tanθ`, no a `(b/2)·tanθ`. Apareció al contrastar la silueta contra el contorno integrado. Es **conservador** en todo —sube `h`, sube `q_h`, sube la silueta— y por eso no se tocó: cambiarlo baja cargas, y esa es una decisión del proyectista. En el caso de prueba (20 × 30, θ = 25°) la silueta sale 1,56 veces la geométrica. |
+
 ## Sin leer del reglamento
 
 Capítulo 5 entero · Figs. 2.4-2 (cúpula) y 2.4-3 (abovedada) · Figs. 2.4-4 a 2.4-7
@@ -175,6 +185,15 @@ No son pendientes: son decisiones tomadas, conservadoras, que conviene tener pre
 - **La silueta de un limatesa con viento normal a la cumbrera se adopta como `B·r`**, que
   es cota superior: la cumbrera no recorre todo el largo y los faldones de punta la
   recortan. Calcular el recorte exige la longitud de cumbrera, que hoy no es dato.
+- **Los dos casos de la nota 3 son ESTADOS DE CARGA completos.** La envolvente toma
+  máximos sobre casos, no por componente, e informa cuál gobierna cada magnitud. Es la
+  estructura que necesitan la envolvente de la Fase 2 y las reacciones de base de la
+  Fase 3: ahí cada caso viaja entero.
+- **El momento respecto del CENTRO de la base no depende de `GC_pi`, en ninguna
+  geometría.** La presión interna es uniforme sobre toda la planta de cubierta, así que su
+  resultante vertical cae en el baricentro de la planta y su brazo respecto del centro es
+  cero. Respecto de un borde no se cancela. Hay test, y sirve además de control cruzado
+  del signo de `V` y del brazo en planta.
 - **`q_i` usa `q_h`.** El art. 2.4.1 permite evaluar la presión interna POSITIVA con `q_z`
   a la altura de la abertura más alta en parcialmente cerrados y parcialmente abiertos,
   pero eso exige declarar esa abertura. `q_h` es la opción conservadora de las dos.

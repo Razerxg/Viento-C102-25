@@ -152,8 +152,11 @@ function partesCubierta(analisis, casoNota3) {
  * @param {"negativo"|"positivo"} [o.casoNota3]  cuál de los dos valores del faldón a
  *   barlovento se adopta. La nota 3 exige calcular los dos.
  * @param {string} [o.casoInterno]  qué caso de presión interna gobierna el LEVANTAMIENTO.
+ * @param {boolean} [o.pisoSolidario]  el piso es parte de la estructura: la presión
+ *   interna se autoequilibra y la resultante vertical global sale sólo de las externas.
  */
-export function aporteCubierta({ analisis, casoNota3 = "negativo", casoInterno = "conInternaPos" }) {
+export function aporteCubierta({ analisis, casoNota3 = "negativo",
+  casoInterno = "conInternaPos", pisoSolidario = false }) {
   const { geo, B } = analisis;
   const tan = Math.tan(rad2(geo.theta));
 
@@ -163,7 +166,18 @@ export function aporteCubierta({ analisis, casoNota3 = "negativo", casoInterno =
   for (const { s, desde, hasta, sentido } of partesCubierta(analisis, casoNota3)) {
     if (!s || !(hasta > desde)) continue;
     const areaProy = (hasta - desde) * B;
-    const pInt = s[casoInterno];          // levantamiento: con presión interna
+    // ── PISO SOLIDARIO A LA ESTRUCTURA ────────────────────────────────────────
+    // La presión interna actúa sobre TODA la envolvente interior, piso incluido. Si el
+    // piso es parte de la estructura —un contenedor, un shelter sobre skid, un módulo—
+    // la componente vertical que empuja la cubierta hacia arriba tiene su reacción
+    // empujando el piso hacia abajo, y el par se autoequilibra: no llega ni al
+    // levantamiento global ni al vuelco. En un edificio apoyado en el terreno no hay tal
+    // piso y la presión interna sí levanta.
+    //
+    // ⚠ NO CAMBIA LA PRESIÓN NETA SOBRE LA CUBIERTA. Las chapas, las correas y sus
+    // fijaciones siguen viendo externa ± interna: lo que se autoequilibra es la
+    // RESULTANTE GLOBAL, no la carga local.
+    const pInt = pisoSolidario ? s.externa : s[casoInterno];
     const pExt = s.externa;               // corte: sólo externa
     const v = -pInt * areaProy;           // p negativa (succión) ⇒ V positivo = levanta
     const h = sentido * pExt * tan * areaProy;
@@ -202,55 +216,119 @@ export function aporteCubierta({ analisis, casoNota3 = "negativo", casoInterno =
  *     aplicadas SIMULTÁNEAMENTE;
  *   · abierto: 0,75 kN/m²·A_f.
  *
- * Se informa junto al corte calculado, sin reemplazarlo: son dos casos, y cuál gobierna
- * es parte del resultado.
+ * Devuelve el caso COMPLETO —fuerza, punto de aplicación y momento en la base—, no sólo
+ * la fuerza: un caso de carga sin punto de aplicación no se puede combinar con nada.
  */
 export function cargaMinima(analisis) {
   const sil = siluetaProyectada(analisis.geo, analisis.dir);
   const abierto = analisis.cerramiento === "abierto";
-  const fuerza = abierto
-    ? MINIMOS.abierto * (sil.pared + sil.cubierta)
-    : MINIMOS.pared * sil.pared + MINIMOS.cubierta * sil.cubierta;
-  return { fuerza, areaPared: sil.pared, areaCubierta: sil.cubierta, abierto,
-    nota: sil.nota,
+
+  const partes = abierto
+    ? [{ id: "af", label: "A_f (pared + cubierta proyectadas)", presion: MINIMOS.abierto,
+         area: sil.pared + sil.cubierta,
+         zBar: sil.zBarCubierta == null ? sil.zBarPared
+           : (sil.pared * sil.zBarPared + sil.cubierta * sil.zBarCubierta)
+             / (sil.pared + sil.cubierta) }]
+    : [{ id: "pared", label: "Pared proyectada", presion: MINIMOS.pared,
+         area: sil.pared, zBar: sil.zBarPared },
+       { id: "cubierta", label: "Cubierta proyectada", presion: MINIMOS.cubierta,
+         area: sil.cubierta, zBar: sil.zBarCubierta ?? 0 }];
+
+  const conFuerza = partes.map(p => ({ ...p, fuerza: p.presion * p.area,
+    momento: p.presion * p.area * p.zBar }));
+  const fuerza = conFuerza.reduce((a, p) => a + p.fuerza, 0);
+  const momento = conFuerza.reduce((a, p) => a + p.momento, 0);
+
+  return {
+    fuerza, momento,
+    // Punto de aplicación de la resultante: baricentro pesado de las partes.
+    zBar: fuerza > 1e-9 ? momento / fuerza : null,
+    partes: conFuerza,
+    areaPared: sil.pared, zBarPared: sil.zBarPared,
+    areaCubierta: sil.cubierta, zBarCubierta: sil.zBarCubierta,
+    abierto, nota: sil.nota,
     ref: abierto ? "Art. 2.1.5 — edificio abierto: 0,75 kN/m² sobre A_f"
       : "Art. 2.1.5 — 0,75 kN/m² sobre la pared y 0,40 kN/m² sobre la cubierta, "
         + "proyectadas en un plano vertical normal al viento y simultáneas" };
 }
 
 /**
- * @param {any} analisis
- * @param {object} [opc]
- * @param {boolean} [opc.porticosCubierta]  el SPRFV de cubierta son pórticos resistentes
- *   a momento. El C 2.1.5 exime de la nota 7 a ese caso: ahí las succiones de cubierta SÍ
- *   pueden restar del corte porque el sistema las toma. Por defecto NO, que es el piso
- *   aplicado.
+ * UN ESTADO DE CARGA COMPLETO para uno de los dos casos de la nota 3.
+ *
+ * ── POR QUÉ HACE FALTA LA TERNA ENTERA ─────────────────────────────────────────
+ * Antes `resultantes()` tomaba el corte del caso que maximizaba H y el levantamiento del
+ * que maximizaba V, y los combinaba en un solo vuelco. El número que salía no correspondía
+ * a NINGÚN estado de carga: en un galpón parcialmente cerrado, viento Wy+, el momento en
+ * el borde de sotavento daba 6.649 kNm cuando el caso de succión daba 6.081 y el de
+ * presión 4.988.
+ *
+ * Un caso de carga es un conjunto de fuerzas CONCURRENTES. La envolvente se arma tomando
+ * máximos SOBRE CASOS, no máximos por componente, y diciendo qué caso gobierna cada
+ * magnitud. Es además la estructura que necesitan la envolvente de direcciones y las
+ * reacciones de base: ahí cada caso viaja entero.
  */
-export function resultantes(analisis, opc = {}) {
-  const par = aporteParedes({ analisis });
-
-  // Nota 3 de la Figura 2.4-1: el faldón a barlovento está sujeto a presión positiva y
-  // negativa a la vez, y hay que calcular las dos. Gobierna el corte la que dé mayor.
-  const casos = ["negativo", "positivo"].map(c =>
-    aporteCubierta({ analisis, casoNota3: /** @type {any} */ (c) }));
-  const cub = casos.reduce((a, b) => (par.F + b.H > par.F + a.H ? b : a));
+function estadoDeCarga({ analisis, par, casoNota3, exentoNota7, pisoSolidario }) {
+  const cub = aporteCubierta({ analisis, casoNota3, pisoSolidario });
 
   const conCubierta = par.F + cub.H;
-  // NOTA 7: el corte no puede quedar por debajo del de las paredes solas… salvo que el
-  // SPRFV de cubierta sean pórticos resistentes a momento, que es la excepción que el
-  // usuario declara. Por defecto el piso se aplica.
-  const exentoNota7 = opc.porticosCubierta === true;
+  // NOTA 7 de la Figura 2.4-1: el corte no puede quedar por debajo del de las paredes
+  // solas… «excepto para SPRFVs en el techo consistentes en entramados resistentes a
+  // momento», que es la excepción que el usuario declara. Por defecto el piso se aplica.
   const gobiernaNota7 = !exentoNota7 && conCubierta < par.F;
   const cortante = gobiernaNota7 ? par.F : conCubierta;
 
-  // El levantamiento se toma como la envolvente de los dos casos de la nota 3.
-  const levCaso = casos.reduce((a, b) => (b.V > a.V ? b : a));
-
+  // Convención: momento POSITIVO = el que tiende a levantar el borde de BARLOVENTO. Una
+  // fuerza horizontal a la cota z aporta F·z —el brazo es la altura, cualquiera sea el
+  // punto de la base respecto del que se tome, porque la fuerza es horizontal—. Un
+  // levantamiento V aplicado a la abscisa x aporta V·(x_ref − x).
+  const mCub = cub.H * analisis.geo.h;
+  const horizontal = par.M + (gobiernaNota7 ? 0 : mCub);
+  const momentoDe = (xRef) => horizontal + (cub.xV == null ? 0 : cub.V * (xRef - cub.xV));
   const L = analisis.L;
-  const mCub = cub.H * analisis.geo.h;           // horizontal de cubierta, a la cota h
-  const mHoriz = par.M + (gobiernaNota7 ? 0 : mCub);
-  const momentoDe = (xRef) => mHoriz
-    + (levCaso.xV == null ? 0 : levCaso.V * (xRef - levCaso.xV));
+
+  return {
+    casoNota3,
+    H: cub.H, V: cub.V, xV: cub.xV,
+    cortante, gobiernaNota7,
+    vuelco: momentoDe(L / 2),
+    momentos: {
+      centro: momentoDe(L / 2),
+      bordeBarlovento: momentoDe(0),
+      bordeSotavento: momentoDe(L),
+      horizontal,
+      vertical: cub.xV == null ? 0 : cub.V * (L / 2 - cub.xV),
+    },
+    partes: cub.partes,
+  };
+}
+
+/**
+ * @param {any} analisis
+ * @param {object} [opc]
+ * @param {boolean} [opc.porticosCubierta]  el SPRFV de cubierta son entramados resistentes
+ *   a momento. La propia nota 7 de la Figura 2.4-1 exceptúa ese caso del piso al corte.
+ *   Por defecto NO, que es el piso aplicado.
+ * @param {boolean} [opc.pisoSolidario]  el piso es parte de la estructura, así que la
+ *   presión interna se autoequilibra en la resultante vertical global y en el vuelco.
+ */
+export function resultantes(analisis, opc = {}) {
+  const par = aporteParedes({ analisis });
+  const exentoNota7 = opc.porticosCubierta === true;
+  const pisoSolidario = opc.pisoSolidario === true;
+
+  // Los DOS casos de la nota 3, cada uno completo.
+  const casos = ["negativo", "positivo"].map(c =>
+    estadoDeCarga({ analisis, par, casoNota3: /** @type {any} */ (c),
+      exentoNota7, pisoSolidario }));
+
+  /** Máximo en VALOR ABSOLUTO sobre los casos, devolviendo el caso entero. */
+  const gobierna = (f) => casos.reduce((a, b) => (Math.abs(f(b)) > Math.abs(f(a)) ? b : a));
+
+  const cCorte = gobierna(c => c.cortante);
+  const cLev = gobierna(c => c.V);
+  const cVuelco = gobierna(c => c.momentos.centro);
+  const cBar = gobierna(c => c.momentos.bordeBarlovento);
+  const cSot = gobierna(c => c.momentos.bordeSotavento);
 
   // ── EDIFICIO ABIERTO: EL RESULTADO NO ES VÁLIDO ───────────────────────────────
   // Un edificio abierto no se resuelve con los Cp de la Figura 2.4-1 sino con los C_N de
@@ -260,7 +338,32 @@ export function resultantes(analisis, opc = {}) {
   const minimo = cargaMinima(analisis);
 
   return {
-    cortante,
+    // Cada escalar de la envolvente SALE DE UN CASO, y se dice de cuál.
+    cortante: cCorte.cortante,
+    levantamiento: cLev.V,
+    vuelco: cVuelco.momentos.centro,
+    gobiernaNota7: cCorte.gobiernaNota7,
+    casoNota3: cCorte.casoNota3,
+
+    /** Qué caso gobierna cada magnitud. */
+    gobernante: {
+      cortante: cCorte.casoNota3, levantamiento: cLev.casoNota3,
+      vuelco: cVuelco.casoNota3, bordeBarlovento: cBar.casoNota3,
+      bordeSotavento: cSot.casoNota3,
+    },
+
+    // Los momentos también son de un caso cada uno, y el desglose horizontal/vertical
+    // viene del MISMO caso que el total: si no, la suma no cerraría.
+    momentos: {
+      centro: cVuelco.momentos.centro,
+      bordeBarlovento: cBar.momentos.bordeBarlovento,
+      bordeSotavento: cSot.momentos.bordeSotavento,
+      horizontal: cVuelco.momentos.horizontal,
+      vertical: cVuelco.momentos.vertical,
+    },
+
+    verticalCubierta: { V: cLev.V, xV: cLev.xV, casoNota3: cLev.casoNota3 },
+
     valido,
     motivoInvalido: valido ? null
       : "Edificio ABIERTO. El capítulo 2 lo resuelve con los coeficientes C_N de las "
@@ -268,22 +371,40 @@ export function resultantes(analisis, opc = {}) {
         + "sale de aplicar los Cp de la Figura 2.4-1, que son de edificios cerrados: no "
         + "corresponde usarlo.",
     cargaMinima: minimo,
-    gobiernaMinimo: minimo.fuerza > Math.abs(cortante),
-    exentoNota7,
-    // El vuelco de referencia es el tomado respecto del CENTRO de la base.
-    vuelco: momentoDe(L / 2),
-    momentos: {
-      centro: momentoDe(L / 2),
-      bordeBarlovento: momentoDe(0),
-      bordeSotavento: momentoDe(L),
-      horizontal: mHoriz,
-      vertical: levCaso.xV == null ? 0 : levCaso.V * (L / 2 - levCaso.xV),
-    },
-    levantamiento: levCaso.V,
-    verticalCubierta: { V: levCaso.V, xV: levCaso.xV, casoNota3: levCaso.casoNota3 },
-    gobiernaNota7, casoNota3: cub.casoNota3,
-    detalle: { paredes: par, cubierta: cub, casos,
-      corteParedes: par.F, corteCubierta: cub.H },
+    gobiernaMinimo: minimo.fuerza > Math.abs(cCorte.cortante),
+    exentoNota7, pisoSolidario,
+
+    /**
+     * Traza de las DECLARACIONES del proyectista: qué se declaró, qué artículo lo
+     * habilita y qué cambió en el resultado. Son las dos cosas que la app no puede
+     * deducir de la geometría, así que tienen que quedar escritas junto al número.
+     */
+    trazaDeclaraciones: [
+      { id: "nota7", declarado: exentoNota7,
+        titulo: "SPRFV de cubierta con entramados resistentes a momento",
+        ref: "Figura 2.4-1, nota 7",
+        efecto: exentoNota7
+          ? "NO se aplica el piso al corte. Las componentes horizontales de cubierta "
+            + "pueden restar, porque el sistema de cubierta las toma."
+          : "Se aplica el piso: el corte no baja del de las paredes solas. Es la regla "
+            + "general de la nota 7." },
+      { id: "piso", declarado: pisoSolidario,
+        titulo: "Piso solidario a la estructura",
+        ref: "Art. 2.4.1 · equilibrio de la presión interna",
+        efecto: pisoSolidario
+          ? "La presión interna NO entra en la resultante vertical global ni en el "
+            + "vuelco: actúa sobre toda la envolvente interior, y el empuje sobre la "
+            + "cubierta tiene su reacción sobre el piso. La presión NETA sobre la "
+            + "cubierta —chapas, correas, fijaciones— no cambia."
+          : "La presión interna SÍ levanta: sin piso estructural no hay nada que tome su "
+            + "reacción. Es la hipótesis conservadora y la que corresponde a un edificio "
+            + "apoyado en el terreno." },
+    ],
+
+    /** Los dos estados de carga completos, para la envolvente y las reacciones de base. */
+    casos,
+    detalle: { paredes: par, cubierta: { H: cCorte.H, V: cLev.V, partes: cCorte.partes },
+      casos, corteParedes: par.F, corteCubierta: cCorte.H },
   };
 }
 

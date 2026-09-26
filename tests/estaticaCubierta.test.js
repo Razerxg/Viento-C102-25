@@ -136,23 +136,28 @@ describe('vuelco con la resultante vertical de cubierta', () => {
     expect(c.xV).toBeCloseTo(num / c.V, 9);
   });
 
-  // La parte que faltaba. Un levantamiento sobre la mitad de barlovento SUMA al vuelco;
-  // sobre la de sotavento, RESTA. Los tres momentos se diferencian sólo en ese término.
-  it('el momento cambia según el borde que se tome, y sólo por el término vertical', () => {
-    const { centro, bordeBarlovento, bordeSotavento, horizontal, vertical } = res.momentos;
-    expect(centro - horizontal).toBeCloseTo(vertical, 6);
-    // El brazo crece linealmente con la abscisa de referencia.
-    expect(bordeSotavento - centro).toBeCloseTo(centro - bordeBarlovento, 6);
-    expect(bordeSotavento - bordeBarlovento).toBeCloseTo(res.verticalCubierta.V * r.L, 6);
+  // ⚠ LA IDENTIDAD VALE DENTRO DE UN CASO, NO SOBRE LA ENVOLVENTE. Los tres momentos de
+  // la envolvente pueden venir de casos distintos de la nota 3, y entonces no guardan
+  // entre sí ninguna relación lineal: cada uno es el de SU estado de carga.
+  it('dentro de cada caso, el momento cambia sólo por el término vertical', () => {
+    for (const c of res.casos) {
+      const { centro, bordeBarlovento, bordeSotavento, horizontal, vertical } = c.momentos;
+      expect(centro - horizontal, c.casoNota3).toBeCloseTo(vertical, 6);
+      expect(bordeSotavento - centro, c.casoNota3).toBeCloseTo(centro - bordeBarlovento, 6);
+      expect(bordeSotavento - bordeBarlovento, c.casoNota3).toBeCloseTo(c.V * r.L, 6);
+    }
   });
 
-  it('un levantamiento centrado no aporta momento respecto del centro', () => {
-    // Cubierta plana: la succión se reparte simétricamente y el centroide cae en L/2… no
-    // exactamente, porque las franjas no son simétricas. Se verifica la IDENTIDAD, que es
-    // lo que vale en general.
+  it('el desglose de la envolvente sale del MISMO caso que su total', () => {
+    const { centro, horizontal, vertical } = res.momentos;
+    expect(centro - horizontal).toBeCloseTo(vertical, 6);
+  });
+
+  it('el término vertical es V·(L/2 − x_V) del caso que gobierna el vuelco', () => {
     const plano = resultantes(mk({ a: 20, b: 40, hAlero: 6, theta: 0, tipo: "plana" }, "Wy+"));
+    const c = plano.casos.find(c => c.casoNota3 === plano.gobernante.vuelco);
     expect(plano.momentos.centro - plano.momentos.horizontal)
-      .toBeCloseTo(plano.verticalCubierta.V * (20 - plano.verticalCubierta.xV), 6);
+      .toBeCloseTo(c.V * (20 - c.xV), 6);
   });
 
   it('el vuelco informado es el tomado respecto del centro de la base', () => {
