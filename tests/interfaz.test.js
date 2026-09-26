@@ -274,26 +274,76 @@ describe('nombre de la clasificación de cerramiento', () => {
   });
 });
 
-describe('el capítulo 4 y su navegación', () => {
-  it('sus dos pantallas existen y son un grupo aparte', () => {
-    expect(TABS).toContain('Accesorios');
-    expect(TABS).toContain('Silos y tanques');
+// Las tres pantallas de «no es un edificio»: las dos del capítulo 4 y la del Anexo I.
+// Van juntas porque responden la misma pregunta y lo que cambia es de qué tabla sale el
+// coeficiente; un grupo propio con una sola entrada llamada «Anexo I» obligaría a saber de
+// antemano que existe.
+const OTRAS = ['Accesorios', 'Silos y tanques', 'Secciones uniformes'];
+
+describe('el capítulo 4, el Anexo I y su navegación', () => {
+  it('sus pantallas existen y son un grupo aparte', () => {
+    for (const n of OTRAS) expect(TABS).toContain(n);
     const grupo = NAV.find(g => (g.grupo ?? "").includes('cap. 4'));
     expect(grupo).toBeDefined();
-    expect(grupo.items).toEqual(['Accesorios', 'Silos y tanques']);
+    expect(grupo.items).toEqual(OTRAS);
   });
 
   it('no llevan selector de dirección', () => {
     // Un coeficiente de fuerza ya contempla la dirección más desfavorable dentro del propio
-    // C_f y de sus casos A, B y C: ofrecer «estás mirando Wx+» sería mentir.
-    expect(SIN_DIRECCION.has('Accesorios')).toBe(true);
-    expect(SIN_DIRECCION.has('Silos y tanques')).toBe(true);
+    // C_f y de sus casos: ofrecer «estás mirando Wx+» sería mentir.
+    for (const n of OTRAS) expect(SIN_DIRECCION.has(n), n).toBe(true);
   });
 
   it('sí llevan ficha de estado', () => {
-    // Lo que muestra la ficha —V, exposición, K_zt, K_e— es justamente lo que el capítulo 4
-    // comparte con el edificio, y es lo que hay que poder mirar sin volver a Sitio.
-    expect(SIN_FICHA.has('Accesorios')).toBe(false);
-    expect(SIN_FICHA.has('Silos y tanques')).toBe(false);
+    // Lo que muestra la ficha —V, exposición, K_zt, altitud— es justamente lo que estas
+    // pantallas comparten con el edificio, y es lo que hay que poder mirar sin volver a Sitio.
+    for (const n of OTRAS) expect(SIN_FICHA.has(n), n).toBe(false);
+  });
+});
+
+// ── FIGURAS DEL REGLAMENTO ───────────────────────────────────────────────────────
+//
+// Un `?` que abre una figura inexistente no rompe nada: se ve el panel con el título, el
+// hueco de la imagen rota, y listo. En una app cuyo argumento es «acá está de dónde sale
+// cada número», eso es peor que no tener el ícono.
+import fs from 'node:fs';
+import path from 'node:path';
+import { FIGURAS, figuraDe } from '../src/constants/figuras.js';
+
+describe('registro de figuras', () => {
+  const dir = new URL('../public/figuras/', import.meta.url).pathname;
+
+  it('cada figura declarada tiene su archivo en disco', () => {
+    const ids = Object.keys(FIGURAS);
+    expect(ids.length).toBeGreaterThan(10);
+    for (const id of ids) {
+      const f = FIGURAS[id];
+      const p = path.join(dir, `${f.archivo}.png`);
+      expect(fs.existsSync(p), `falta ${f.archivo}.png para la figura ${id}`).toBe(true);
+      // Un PNG de cero bytes pasaría el existsSync y se vería igual de roto.
+      expect(fs.statSync(p).size, f.archivo).toBeGreaterThan(5000);
+    }
+  });
+
+  it('no hay archivos huérfanos en public/figuras', () => {
+    // Al revés: una imagen que nadie referencia son cien kilobytes que se publican y no se
+    // usan, y la señal de que un `?` se quitó sin querer.
+    const usados = new Set(Object.values(FIGURAS).map(f => `${f.archivo}.png`));
+    for (const archivo of fs.readdirSync(dir)) {
+      expect(usados.has(archivo), `${archivo} no lo referencia ninguna figura`).toBe(true);
+    }
+  });
+
+  it('cada figura dice qué es y de dónde sale', () => {
+    for (const [id, f] of Object.entries(FIGURAS)) {
+      expect(f.titulo, id).toMatch(/(Figura|Tabla)/);
+      // La referencia a página es lo que permite ir al papel a controlar.
+      expect(f.ref, id).toMatch(/pág/);
+      expect(f.nota.length, id).toBeGreaterThan(40);
+    }
+  });
+
+  it('figuraDe devuelve null ante un id desconocido, sin romper', () => {
+    expect(figuraDe("no existe")).toBeNull();
   });
 });

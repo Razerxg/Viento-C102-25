@@ -12,6 +12,7 @@ import { CF_SILO_GRUPO, CP_TECHO_SILO, CF_SILO_AISLADO, SILO_ALCANCE } from '../
 import { Encabezado, Card, Campo, Num, Sel, Salida, Aviso, Nota, Tabla, Th, Td, TdN,
   Acordeon, Stat, Stats, Divisor } from '../ui.jsx';
 import { c, t, SP, MONO } from '../tokens.js';
+import { FIGURAS } from '../../constants/figuras.js';
 import { f, fmt } from '../../lib/formato.js';
 
 function Check({ label, v, set, ayuda }) {
@@ -42,7 +43,9 @@ export function SilosTab() {
 
       <div style={{ display: "grid", gap: SP.md, alignItems: "start",
         gridTemplateColumns: "repeat(auto-fit, minmax(330px, 1fr))" }}>
-        <Card titulo="Geometría">
+        {/* La Figura 4.5-4 es la que distingue H de h y define C. Sin ella, «altura del
+            cilindro» y «altura media» se cargan intercambiadas con toda naturalidad. */}
+        <Card titulo="Geometría" fig={FIGURAS["4.5-4"]}>
           <Campo label="Diámetro D" unit="m">
             <Num v={s.D} set={setSilo("D")} />
           </Campo>
@@ -116,6 +119,7 @@ export function SilosTab() {
       </div>
 
       <Card titulo="Presiones sobre el techo"
+        fig={r.reg.modo === "agrupado" ? FIGURAS["4.5-6"] : FIGURAS["4.5-5"]}
         desc="Expresión (4.5-4): p = q_h·(G·C_p − (GC_pi)). Los ensayos en túnel sólo
           observaron succiones en estos techos, así que los dos coeficientes son negativos.">
         <Tabla minWidth={560}>

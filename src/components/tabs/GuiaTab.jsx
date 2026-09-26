@@ -94,6 +94,11 @@ export function GuiaTab() {
           reticuladas; equipos sobre cubierta; y silos, tanques y recipientes cilíndricos
           verticales, aislados y agrupados, con las presiones de su techo y de su fondo.
           <br /><br />
+          <b style={{ color: c.txt }}>Del Anexo I</b> calcula secciones de forma uniforme con
+          esbeltez ℓ/b menor que 40: formas redondeadas, prismas de aristas vivas, prismas
+          rectangulares con sus dos componentes, perfiles estructurales, cables y tuberías,
+          con la corrección por esbeltez de la Tabla I.6.
+          <br /><br />
           <b style={{ color: c.txt }}>No calcula.</b> El factor topográfico K_zt, que queda
           fijo en 1,0. Los coeficientes de componentes y revestimientos del Capítulo 5. Las
           cubiertas abovedadas y en mansarda. El tratamiento por C_N de edificios abiertos de

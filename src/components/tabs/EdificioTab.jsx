@@ -11,6 +11,7 @@ import { Vista3D } from '../svg/Vista3D.jsx';
 import { useUi } from '../../context/UiContext.jsx';
 import { Encabezado, Card, Campo, Num, Sel, Salida, Nota, Aviso, Divisor } from '../ui.jsx';
 import { c, t, SP } from '../tokens.js';
+import { FIGURAS } from '../../constants/figuras.js';
 import { f, fmt } from '../../lib/formato.js';
 
 export function EdificioTab() {
@@ -42,7 +43,10 @@ export function EdificioTab() {
 
           <Divisor>Cubierta</Divisor>
 
-          <Campo label="Tipo" ayuda={tipo.ayuda}>
+          {/* La figura es LA forma de elegir acá: entre «vertiente única», «dos aguas»
+              y «mansarda» no se decide leyendo, se decide mirando la planta y la
+              elevación de cada una. */}
+          <Campo label="Tipo" ayuda={tipo.ayuda} fig={FIGURAS["2.4-1"]}>
             <Sel v={d.geo.tipo} set={setGeo("tipo")} w={240}
               opciones={TIPOS_CUBIERTA.map(x =>
                 [x.id, x.noImplementada ? `${x.label} — no implementada` : x.label, !!x.noImplementada])} />
@@ -59,7 +63,7 @@ export function EdificioTab() {
             </Campo>
           )}
           {d.geo.tipo !== "plana" && (
-            <Campo label="Dirección de la cumbrera"
+            <Campo label="Dirección de la cumbrera" fig={FIGURAS["2.4-1"]}
               ayuda="El eje al que es PARALELA la línea de cumbrera. El viento normal a la cumbrera parte la cubierta en dos faldones; el viento paralelo la zonifica en franjas.">
               <Sel v={d.geo.cumbrera} set={setGeo("cumbrera")} w={160}
                 opciones={[["X", "Paralela a X"], ["Y", "Paralela a Y"]]} />

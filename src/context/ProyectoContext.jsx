@@ -15,6 +15,7 @@
 import { createContext, useContext, useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { analizarEdificio, analizarDireccion, normalizarGeo, DIRECCIONES } from '../engine/edificio.js';
 import { analizarAccesorio, analizarSilo, familiaDe } from '../engine/otrasEstructuras.js';
+import { analizarAnexo } from '../engine/anexo1.js';
 import { gcpiDe } from '../constants/presionInterna.js';
 import { factorRafaga } from '../engine/factorRafaga.js';
 import { resultantes, barridoAlero, envolvente } from '../engine/resultantes.js';
@@ -72,6 +73,12 @@ export const INICIAL = {
   // la fila de chimeneas y tanques redondos, que es lo que un silo cilíndrico es.
   silo: { D: "10", H: "18", theta: "25", separacion: "5", elevado: false, C: "",
     kd: "chim_redonda" },
+  // ANEXO I — secciones de forma uniforme. Lleva su propio K_d por el mismo motivo que el
+  // silo: un caño redondo va por la fila de chimeneas redondas, no por el 0,85 del edificio.
+  anexo: { familia: "redondeada", kd: "chim_redonda",
+    b: "0.5", L: "12", z: "6", d: "0.5", theta: "0",
+    filaI1: "cil_liso", filaI2: "cuad_cara", filaI5: "tub_lisa",
+    perfil: "angulo", thetaPerfil: "0" },
 };
 
 const leer = () => {
@@ -84,7 +91,8 @@ const leer = () => {
     return v && typeof v === "object" ? { ...INICIAL, ...v,
       geo: { ...INICIAL.geo, ...(v.geo || {}) },
       cap4: { ...INICIAL.cap4, ...(v.cap4 || {}) },
-      silo: { ...INICIAL.silo, ...(v.silo || {}) } } : null;
+      silo: { ...INICIAL.silo, ...(v.silo || {}) },
+      anexo: { ...INICIAL.anexo, ...(v.anexo || {}) } } : null;
   } catch { return null; }
 };
 
@@ -103,6 +111,7 @@ export function ProyectoProvider({ children }) {
   // cada pantalla, que es donde alguien pisa un campo sin querer.
   const setCap4 = useCallback((k) => (v) => setD(x => ({ ...x, cap4: { ...x.cap4, [k]: v } })), []);
   const setSilo = useCallback((k) => (v) => setD(x => ({ ...x, silo: { ...x.silo, [k]: v } })), []);
+  const setAnexo = useCallback((k) => (v) => setD(x => ({ ...x, anexo: { ...x.anexo, [k]: v } })), []);
 
   // AUTOGUARDADO. Diferido medio segundo: sin la demora se escribe en `localStorage` en
   // cada tecla de cada campo numérico.
@@ -184,10 +193,18 @@ export function ProyectoProvider({ children }) {
     datos: d.silo, sitio, kd: kdSilo, G, gcpi: gcpiDe(d.cerramiento) ?? 0,
   }), [d.silo, sitio, kdSilo, G, d.cerramiento]);
 
+  const kdAnexo = kdDe(d.anexo.kd || "chim_redonda") ?? 1.0;
+  const anexo = useMemo(() => analizarAnexo({
+    familia: d.anexo.familia, sitio, kd: kdAnexo, G,
+    datos: { b: d.anexo.b, L: d.anexo.L, z: d.anexo.z, d: d.anexo.d, theta: d.anexo.theta,
+      filaI1: d.anexo.filaI1, filaI2: d.anexo.filaI2, filaI5: d.anexo.filaI5,
+      perfil: d.anexo.perfil, thetaPerfil: parseFloat(d.anexo.thetaPerfil) || 0 },
+  }), [d.anexo, sitio, kdAnexo, G]);
+
   const avisos = useMemo(() => avisosDe({
     geoN, sitio, cerramiento: d.cerramiento, rafaga, modoG: d.modoG, n1: d.n1,
-    analisis: act, resultantes: res, accesorio, silo,
-  }), [geoN, sitio, d.cerramiento, rafaga, d.modoG, d.n1, act, res, accesorio, silo]);
+    analisis: act, resultantes: res, accesorio, silo, anexo,
+  }), [geoN, sitio, d.cerramiento, rafaga, d.modoG, d.n1, act, res, accesorio, silo, anexo]);
 
   const irA = useCallback((nombre) => setTab(idxTab(nombre)), []);
 
@@ -224,8 +241,8 @@ export function ProyectoProvider({ children }) {
 
   return (
     <Ctx.Provider value={{
-      d, set, setGeo, setD, setCap4, setSilo,
-      accesorio, silo, kdCap4, cap4Kd, kdSilo,
+      d, set, setGeo, setD, setCap4, setSilo, setAnexo,
+      accesorio, silo, anexo, kdCap4, cap4Kd, kdSilo, kdAnexo,
       proyecto: d.proyecto, setProyecto: set("proyecto"),
       tab, setTab, irA, nombreTab: TABS[tab] ?? TABS[0],
       iDir, setIDir, direcciones: DIRECCIONES,

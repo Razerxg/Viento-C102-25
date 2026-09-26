@@ -23,7 +23,7 @@
 const ORDEN = { error: 0, aviso: 1, info: 2 };
 
 export function avisosDe({ geoN, sitio, cerramiento, rafaga, modoG, n1, analisis, resultantes,
-  accesorio, silo }) {
+  accesorio, silo, anexo }) {
   const av = [];
   const push = (o) => av.push(o);
 
@@ -144,6 +144,11 @@ export function avisosDe({ geoN, sitio, cerramiento, rafaga, modoG, n1, analisis
   for (const a of silo?.avisos ?? []) {
     push({ id: `silo-${a.texto.slice(0, 24)}`, tono: a.tono, tab: "Silos y tanques",
       titulo: "Silo, tanque o recipiente cilíndrico", detalle: a.texto });
+  }
+
+  for (const a of anexo?.avisos ?? []) {
+    push({ id: `anx-${a.texto.slice(0, 24)}`, tono: a.tono, tab: "Secciones uniformes",
+      titulo: anexo.fam?.label ?? "Sección uniforme", detalle: a.texto });
   }
 
   return av.sort((x, y) => ORDEN[x.tono] - ORDEN[y.tono]);

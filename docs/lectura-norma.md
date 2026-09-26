@@ -260,3 +260,68 @@ volver sobre el documento el día que se digitalicen las curvas:
 `Ns = n·Lc/V` (4.5-12) · y **`γa` de la Figura 4.5-8**, que es la única curva de la serie
 transcribible exacto porque sus dos quiebres caen sobre líneas de grilla, en `A = 1 m²`
 (γa = 0,8) y `A = 10 m²` (γa = 0,4), con el tramo intermedio lineal **en log A**.
+
+---
+
+# ANEXO I — COEFICIENTES DE FUERZA PARA SECCIONES UNIFORMES
+
+10 páginas (247 a 256). **Es el único PDF recibido CON capa de texto**, así que las tablas
+se pudieron leer de dos formas independientes —extrayendo el texto y mirando la imagen
+renderizada— y contrastar una contra otra. Hizo falta: el extractor de texto **da vuelta las
+fracciones apiladas**.
+
+## Contenido
+
+| Art. | Contenido | Tabla |
+|---|---|---|
+| I.1 | `F = G·Cf·Ke·Af·qz` (I.1), `Fx` (I.2), `Fy` (I.3). Alcance `ℓ/b < 40` | — |
+| I.2 | Formas prismáticas con aristas redondeadas, por `Vz·b` | I.1 |
+| I.3 | Prismas con aristas vivas, independientes del Reynolds | I.2 |
+| I.4 | Prismas de sección rectangular, `Cfx` y `Cfy` | I.3A · I.3B |
+| I.5 | Perfiles estructurales, `θ` antihorario | I.4 |
+| I.6 | Cables, tirantes y tuberías de esbeltez infinita | I.5 |
+| I.7 | Corrección por esbeltez | I.6 |
+
+## ⚠ EL SÍMBOLO `Ke` ESTÁ USADO PARA DOS COSAS DISTINTAS
+
+En el cuerpo del reglamento `Ke` es el **factor de altitud** del art. 1.12,
+`e^(−0,000119·zg)`, y entra en la presión dinámica. En el Anexo es el **factor de corrección
+por esbeltez** de la Tabla I.6, entre 0,7 y 1,0, y multiplica a la fuerza. **Los dos afectan
+al mismo resultado.** Confundirlos no produce ningún error visible: la fuerza sale un 30 %
+menor o un 12 % mayor y sigue pareciendo razonable.
+
+En el código el de esbeltez se llama SIEMPRE `keEsbeltez`.
+
+## LA TRAMPA DEL EXTRACTOR DE TEXTO
+
+Las relaciones de la Tabla I.1 son **`b/d`**, con `b` normal al viento y `d` paralela. El
+texto extraído las devuelve todas como `d/b`, porque lee la fracción apilada de abajo hacia
+arriba. Leerlas al revés **intercambia filas enteras**: la elipse achatada (`b/d = 1/2`) da
+`Cf = 0,7` y la parada (`b/d = 2`) da `1,7`, más del doble. Se verificó contra la imagen
+renderizada, y hay test.
+
+Lo mismo con la Tabla I.3B: sus valores llevan **`±`** —son dos casos de carga, no un
+rango— y el signo se pierde en la extracción de texto.
+
+## Otros hallazgos
+
+- **`Vz` del Anexo NO lleva el factor `b̂`.** El art. I.2 escribe `Vz = (z/10)^α̂·V`, sin el
+  `b̂` que sí lleva el perfil de ráfaga del art. 1.9. Agregarlo cambiaría `Vz` entre un 16 %
+  en exposición B y un 9 % en D. Se transcribe lo que dice el reglamento.
+- **El máximo de `Cfx` no está en el cuadrado** sino en `d/b ≈ 0,65`, donde llega a **3,0**
+  contra 2,2 de la sección cuadrada. La nota 1 lo atribuye a Nakaguchi y asoc. (1968), y el
+  resto de la Tabla I.3A a Jancauskas (1983).
+- **`Cfy` no es monótono:** 1,2 → 0,8 → 0,6 → 0,8 → 1,0. Es la firma de la excitación
+  transversal, y el motivo de que la tabla exista.
+- **La Tabla I.5 usa otro umbral —`0,6 m²/s`— y NO interpola.** Dos regímenes y nada en el
+  medio, a diferencia de la I.1 que sí interpola entre 4 y 10.
+- **La Tabla I.6 arranca en `ℓ/b = 8`.** Por debajo no da valores. Extrapolar sería ir al
+  lado inseguro —la tendencia es decreciente— así que el motor adopta el 0,7 de la primera
+  fila y lo declara.
+- **La Tabla I.4 tiene celdas con `±`** («±2,1» en la T a 180° y «±0,5» en la doble T de
+  `d = 0,48b` a 90°): el signo es indeterminado y hay que verificar con los dos.
+- **La nota de la Tabla I.4 advierte que `b` no siempre es normal al flujo**, así que
+  `Af = b·ℓ` se arma con la `b` que marca el dibujo de cada perfil.
+- **Las referencias cruzadas del art. I.1 apuntan a «5.6.3.2» y «5.8»**, que no corresponden
+  a la numeración del 102-2025 —exposición es el 1.7 y ráfaga el 1.9—. El Anexo conserva la
+  numeración de la edición anterior.

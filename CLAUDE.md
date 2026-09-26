@@ -56,6 +56,17 @@ categoría de riesgo, y qué cambió en las categorías de exposición.
 | Tipología | **Edificios**, en las cuatro clasificaciones de cerramiento: cerrado, parcialmente cerrado, parcialmente abierto y abierto |
 | Salida | **Presiones por zona y por superficie** (`p` en cada pared y cada zona de cubierta, con su `Cp` y su `GCpi`) |
 
+### Anexo I — secciones de forma uniforme (implementado)
+
+Tablas I.1 a I.6: formas redondeadas, aristas vivas, prismas rectangulares, perfiles
+estructurales, cables y tuberías, y la corrección por esbeltez. `F = G·C_f·K_e·A_f·q_z`.
+
+⚠ **EL `K_e` DEL ANEXO NO ES EL `K_e` DEL ART. 1.12.** En el cuerpo del reglamento es el
+factor de ALTITUD; en el Anexo es el de CORRECCIÓN POR ESBELTEZ de la Tabla I.6. Dos cosas
+distintas con el mismo símbolo, las dos multiplicando la misma fuerza. En el código el de
+esbeltez se llama SIEMPRE `keEsbeltez`, nunca `Ke` a secas, y la pantalla lo advierte arriba
+de todo.
+
 ### Capítulo 4 — accesorios y otras estructuras (implementado)
 
 | | |
@@ -92,6 +103,36 @@ categoría de riesgo, y qué cambió en las categorías de exposición.
 - **La memoria de cálculo es un entregable, no un extra.** Mismo criterio que la de
   `bases-v-0.1`: estructura de capítulos, tablas `Concepto · Símbolo · Valor · Unidad`,
   figuras numeradas y las fórmulas en LaTeX.
+
+## Anexo I — decisiones que no conviene revertir
+
+- ⚠ **`V_z` DEL ANEXO NO LLEVA EL FACTOR `b̂`.** El perfil de ráfaga del art. 1.9 se escribe
+  `V_z = b̂·(z/10)^α̂·V`, pero la expresión del art. I.2 está SIN `b̂`, y acá se transcribe lo
+  que dice el reglamento y no lo que uno supondría por analogía. Agregarlo cambiaría `V_z`
+  entre un 16 % en exposición B y un 9 % en D, y con ella la columna de la que sale el `C_f`.
+- ⚠ **LAS RELACIONES DE LA TABLA I.1 SON `b/d`, NO `d/b`.** El extractor de texto del PDF da
+  vuelta las fracciones apiladas y las convirtió todas en `d/b`. Leerlas al revés intercambia
+  filas: la elipse achatada da 0,7 y la parada 1,7, más del doble. Verificado contra la
+  imagen renderizada; hay test.
+- **EL MÁXIMO DE `C_fx` NO ESTÁ EN EL CUADRADO** sino en `d/b ≈ 0,65`, donde llega a 3,0
+  —un 36 % más que el 2,2 de la sección cuadrada—. Un motor que interpolara suponiendo la
+  curva monótona se saltearía justo la condición de diseño. La app avisa cuando la sección
+  cae cerca de ese pico.
+- **LA TABLA I.5 TIENE OTRO UMBRAL Y NO INTERPOLA.** Es `V_z·b = 0,6 m²/s`, no el 4 y 10 de
+  la I.1, y da dos regímenes sin nada en el medio.
+- **POR DEBAJO DE `ℓ/b = 8` LA TABLA I.6 NO DA VALORES.** Se adopta el 0,7 de su primera fila
+  y SE DICE, en vez de extrapolar: la tendencia es decreciente, así que estirarla daría una
+  fuerza menor —el lado inseguro— justo donde el reglamento se calló.
+- **LAS CELDAS CON `±` DE LA TABLA I.4 SE MARCAN.** La figura escribe «±2,1» y «±0,5»: el
+  signo es indeterminado y son dos casos. Transcribirlas como un número a secas deja algo que
+  parece definido y no lo está.
+- **NO SE INTERPOLA ENTRE LOS ÁNGULOS DE LA TABLA I.4.** El Anexo da 0, 45, 90, 135 y 180 y
+  no autoriza valores intermedios; la app muestra la fila completa y el peor ángulo, que es
+  lo que se dimensiona.
+- **Las referencias cruzadas del Anexo apuntan a los artículos «5.6.3.2» y «5.8»**, que no
+  corresponden a la numeración del cuerpo del 102-2025 —exposición es el art. 1.7 y ráfaga el
+  1.9—. El Anexo conserva la numeración de la edición anterior. La app usa los vigentes y lo
+  declara en la traza, porque quien controle contra el papel va a encontrar la discrepancia.
 
 ## Capítulo 4 — decisiones que no conviene revertir
 
@@ -132,6 +173,42 @@ categoría de riesgo, y qué cambió en las categorías de exposición.
 - **NO SE INTERPOLA ENTRE LAS BANDAS DE ε DE LA FIGURA 4.5-2.** A diferencia de la 4.5-1,
   que autoriza interpolar en su nota 2, ésta no lo dice: dentro de cada banda el valor es
   constante, y por encima de `ε = 0,7` el motor devuelve `null` con el motivo.
+
+## Figuras del reglamento en la interfaz — dónde sí y dónde no
+
+Hay dos clases de «?» en la app. El **gris** abre una ayuda de TEXTO: dice qué es el campo.
+El **azul relleno** abre una FIGURA DEL REGLAMENTO: muestra cómo la define la norma. Los dos
+conviven en varios campos y eso es deliberado. A 15 px, dos círculos huecos que sólo se
+diferencian por el tono se leen como el mismo ícono repetido y el segundo no se abre nunca:
+por eso el de figura va relleno.
+
+El registro está en `constants/figuras.js` y las imágenes en `public/figuras/`, recortadas
+de los PDF a 200 dpi y reducidas a 980 px. **No se importan como módulos**: se descargan
+sólo cuando alguien abre el tooltip. Hay test que exige que cada figura declarada tenga su
+archivo, que ninguna imagen quede huérfana y que todas digan de qué página salieron.
+
+**UNA FIGURA ENTRA CUANDO DECIDE ALGO QUE EL TEXTO NO PUEDE DECIR:**
+
+| Dónde | Figura | Por qué |
+|---|---|---|
+| Edificio → tipo de cubierta y dirección de cumbrera | 2.4-1 | Entre «vertiente única», «dos aguas» y «mansarda» no se elige leyendo: se elige mirando la planta y la elevación |
+| Sitio → aviso de `K_zt` | 1.8-1 | La decisión se toma FUERA de la app, con el terreno a la vista. Hacen falta los dibujos de loma y escarpa y las tres condiciones |
+| Accesorios → geometría de cada familia | 4.4-1 · 4.5-1 · 4.5-2 · 4.5-3 | La figura DEFINE los símbolos: «declare B, s, h y t» no significa nada sin ella |
+| Accesorios → caso C | 4.4-1 cont. | El reparto en regiones y la esquina de retorno |
+| Silos → geometría | 4.5-4 | Es la que distingue `H` (cilindro sólido) de `h` (altura media) y define `C` |
+| Silos → presiones del techo | 4.5-5 o 4.5-6 | Cambia según sea aislado o agrupado |
+| Anexo I → cada tabla | I.1 a I.5 | **La forma ES la tabla**: «elipse b/d = 1/2» no se identifica por su nombre |
+
+**Y NO ENTRA CUANDO SERÍA RUIDO:**
+
+- **La app ya imprime esa misma tabla.** `K_z` y sus parámetros de terreno están desplegados
+  en Sitio; los criterios de cerramiento, en su acordeón; los `C_p` de cada superficie, en
+  Presiones con su referencia. Un escaneo de lo mismo no agrega nada.
+- **La app dibuja algo MEJOR.** Los croquis de zonas, el perfil de `q(z)` y la vista 3D son
+  del caso concreto y con sus números; la figura genérica sería un paso atrás.
+- **El dato es un número sin forma:** altitud, `n₁`, `β`, cantidad de puntos de cálculo.
+- **Ya hay un visor dedicado y mejor:** los mapas de velocidad básica tienen el suyo, con
+  selección por categoría de riesgo.
 
 ## Croquis — los cuatro pedidos
 

@@ -12,6 +12,7 @@ import { MapaVelocidad } from '../MapaVelocidad.jsx';
 import { Encabezado, Card, Campo, Num, Sel, Salida, Aviso, Nota, Tabla, Acordeon,
   Th, Td, TdN } from '../ui.jsx';
 import { c, SP } from '../tokens.js';
+import { FIGURAS } from '../../constants/figuras.js';
 import { f, fmt } from '../../lib/formato.js';
 import { kz } from '../../engine/presionDinamica.js';
 
@@ -106,7 +107,10 @@ export function SitioTab() {
         <Salida label="Presión dinámica en la cubierta q_h" v={fmt.q(act.qh)}
           ayuda="q = 0,613·K_z·K_zt·K_d·K_e·V², expresión (1.13-1), evaluada en z = h. El 0,613 es ½·ρ con ρ = 1,225 kg/m³." />
 
-        <Aviso titulo="K_zt = 1,0 — se supone terreno llano">
+        {/* La decisión de si el terreno es llano se toma FUERA de la app, con el sitio a
+            la vista. Para eso hace falta ver qué llama «loma» y «escarpa» el reglamento y
+            con qué tres condiciones, que es justo lo que trae la figura. */}
+        <Aviso titulo="K_zt = 1,0 — se supone terreno llano" fig={FIGURAS["1.8-1"]}>
           El art. 1.8 puede llevar K_zt hasta 1,9 —casi el doble de presión— cuando el
           edificio está en la mitad superior de una loma, cerca de la cresta de una escarpa
           o sobre una colina aislada. El motor sabe calcularlo, pero la interfaz todavía no

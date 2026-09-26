@@ -29,6 +29,7 @@ import { ResultantesTab } from "./components/tabs/ResultantesTab.jsx";
 import { ResumenTab } from "./components/tabs/ResumenTab.jsx";
 import { AccesoriosTab } from "./components/tabs/AccesoriosTab.jsx";
 import { SilosTab } from "./components/tabs/SilosTab.jsx";
+import { SeccionesTab } from "./components/tabs/SeccionesTab.jsx";
 
 // El mapa vive acá y no en `constants/tabs.js` a propósito: ese archivo lo importa el
 // contexto y lo importarán los tests, y no tiene por qué arrastrar ocho componentes de
@@ -38,6 +39,7 @@ const PANTALLAS = {
   "Presiones": PresionesTab, "Croquis": CroquisTab, "Resultantes": ResultantesTab,
   "Resumen": ResumenTab,
   "Accesorios": AccesoriosTab, "Silos y tanques": SilosTab,
+  "Secciones uniformes": SeccionesTab,
 };
 
 function Shell() {

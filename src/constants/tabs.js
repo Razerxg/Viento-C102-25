@@ -24,7 +24,12 @@ export const NAV = [
   //
   // La partición en dos pantallas es la del propio reglamento: la Tabla 4.1-1 da los pasos
   // de accesorios y otras estructuras, y la Tabla 4.1-2 los de recipientes cilíndricos.
-  { grupo: "Otras estructuras — cap. 4", items: ["Accesorios", "Silos y tanques"] },
+  // El Anexo I va en el mismo grupo que el capítulo 4 y no en uno propio: las tres
+  // pantallas responden la misma pregunta —«esto no es un edificio, ¿cuánta fuerza le hace
+  // el viento?»— y lo que cambia es de qué tabla sale el coeficiente. Un grupo con una sola
+  // entrada llamado «Anexo I» obligaría a saber de antemano que existe.
+  { grupo: "Otras estructuras — cap. 4", items: ["Accesorios", "Silos y tanques",
+    "Secciones uniformes"] },
 ];
 
 export const TABS = NAV.flatMap(n => n.items);
@@ -38,7 +43,7 @@ export const idxTab = (nombre) => Math.max(0, TABS.indexOf(nombre));
 // capítulo 2 reparte Cp por dirección, pero un coeficiente de fuerza ya contempla la
 // dirección más desfavorable dentro del propio C_f y de sus casos A, B y C.
 export const SIN_DIRECCION = new Set(["Guía", "Sitio", "Edificio", "Ráfaga", "Resumen",
-  "Accesorios", "Silos y tanques"]);
+  "Accesorios", "Silos y tanques", "Secciones uniformes"]);
 
 // Pantallas que NO llevan la ficha de estado al costado. Los croquis y el resumen usan
 // todo el ancho: en el resumen la ficha duplicaría columnas que la propia tabla ya lista,

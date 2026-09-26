@@ -14,6 +14,7 @@ import { CroquisAccesorio, PlantaCasoC } from '../svg/CroquisAccesorio.jsx';
 import { Encabezado, Card, Campo, Num, Sel, Salida, Aviso, Nota, Tabla, Th, Td, TdN,
   Acordeon, Stat, Stats, Divisor } from '../ui.jsx';
 import { c, t, SP, MONO } from '../tokens.js';
+import { FIGURAS } from '../../constants/figuras.js';
 import { f, fmt } from '../../lib/formato.js';
 
 // Casilla de verificación con el mismo cuerpo y color que el resto del formulario. El
@@ -33,6 +34,13 @@ export function AccesoriosTab() {
   const cp = d.cap4;
   const fam = FAMILIAS.find(x => x.id === cp.familia) ?? FAMILIAS[0];
   const r = accesorio;
+
+  // La figura que define los símbolos de ESTA familia. Es la que hace falta al cargar la
+  // geometría: «declare B, s, h y t» no significa nada hasta ver la Figura 4.4-1.
+  const figGeo = {
+    cartel_lleno: FIGURAS["4.4-1"], cartel_abierto: FIGURAS["4.5-2"],
+    chimenea: FIGURAS["4.5-1"], torre: FIGURAS["4.5-3"], equipo: null,
+  }[cp.familia];
 
   const datosCroquis = {
     B: cp.B, s: cp.s, h: cp.h, D: cp.Dchim, Bedif: cp.Bedif, hedif: cp.hedif, Af: cp.Af,
@@ -72,7 +80,7 @@ export function AccesoriosTab() {
 
       <div style={{ display: "grid", gap: SP.md, alignItems: "start",
         gridTemplateColumns: "repeat(auto-fit, minmax(330px, 1fr))" }}>
-        <Card titulo="Geometría">
+        <Card titulo="Geometría" fig={figGeo}>
           {(cp.familia === "cartel_lleno" || cp.familia === "cartel_abierto") && <>
             <Campo label="Ancho del cartel B" unit="m"
               ayuda="Dimensión horizontal. Junto con s fija la relación de aspecto B/s, que es la columna de la Figura 4.4-1.">
@@ -109,7 +117,7 @@ export function AccesoriosTab() {
           </>}
 
           {cp.familia === "cartel_abierto" && <>
-            <Campo label="Relación de área sólida ε" unit=""
+            <Campo label="Relación de área sólida ε" unit="" fig={FIGURAS["4.5-2"]}
               ayuda="Área sólida sobre área bruta. Con 30 % o más de aberturas —o sea ε ≤ 0,7— el cartel es abierto y va por la Figura 4.5-2.">
               <Num v={cp.epsAb} set={setCap4("epsAb")} step="0.01" />
             </Campo>
@@ -134,7 +142,7 @@ export function AccesoriosTab() {
               ayuda="Diámetro en las circulares; menor dimensión horizontal en las cuadradas, hexagonales y octogonales.">
               <Num v={cp.Dchim} set={setCap4("Dchim")} />
             </Campo>
-            <Campo label="Sección"
+            <Campo label="Sección" fig={FIGURAS["4.5-1"]}
               ayuda="Las dos filas circulares no son alternativas de criterio: las separa el valor de D·√q_z, y la app avisa si la elegida contradice al cálculo.">
               <Sel v={cp.filaChimenea} set={setCap4("filaChimenea")} w={250}
                 opciones={CF_CHIMENEA.map(x => [x.id,
@@ -247,7 +255,7 @@ export function AccesoriosTab() {
       </Card>
 
       {cp.familia === "cartel_lleno" && r?.extra?.casoC?.aplica && (
-        <Card titulo="Caso C — direcciones de viento oblicuas"
+        <Card titulo="Caso C — direcciones de viento oblicuas" fig={FIGURAS["4.4-1c"]}
           desc="La nota 2 lo EXIGE cuando B/s ≥ 2. No es otro coeficiente: es otro reparto,
             con la fuerza concentrada cerca del borde de barlovento.">
           <PlantaCasoC casoC={r.extra.casoC} B={parseFloat(cp.B) || 1} fmt={fmt} tema={tema} />

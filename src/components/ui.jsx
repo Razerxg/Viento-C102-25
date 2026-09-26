@@ -20,10 +20,10 @@ import { c, t, SP, R, TONO, SOMBRA, TRANS, TAM } from './tokens.js';
 // sabe qué es el dato no lee nada, y el que no sabe lo tiene a un hover. En una app de
 // viento eso importa más que en otras: la mitad de los campos son clasificaciones del
 // reglamento —exposición, cerramiento, tipo de cubierta— cuya definición no se adivina.
-export function Campo({ label, unit, ayuda, children }) {
+export function Campo({ label, unit, ayuda, fig, children }) {
   return (
     <div style={s.row}>
-      <span style={s.lbl}>{label}{ayuda && <Ayuda>{ayuda}</Ayuda>}</span>
+      <span style={s.lbl}>{label}{ayuda && <Ayuda>{ayuda}</Ayuda>}{fig && <Figura fig={fig} />}</span>
       <div style={{ flexShrink: 0 }}>{children}</div>
       {unit && <span style={s.unit}>{unit}</span>}
     </div>
@@ -49,10 +49,10 @@ export function Sel({ v, set, opciones, w = 200 }) {
 
 // Valor calculado presentado como una fila de formulario, para que un dato derivado se
 // lea en la misma columna que el dato que lo produce.
-export function Salida({ label, v, unit, ayuda }) {
+export function Salida({ label, v, unit, ayuda, fig }) {
   return (
     <div style={s.row}>
-      <span style={s.lbl}>{label}{ayuda && <Ayuda>{ayuda}</Ayuda>}</span>
+      <span style={s.lbl}>{label}{ayuda && <Ayuda>{ayuda}</Ayuda>}{fig && <Figura fig={fig} />}</span>
       <span style={{ ...s.out, flexShrink: 0 }}>{v}</span>
       {unit && <span style={s.unit}>{unit}</span>}
     </div>
@@ -96,7 +96,30 @@ function Flotante({ children, anchoMax = ANCHO_MAX, contenido }) {
     cancelarCierre();
     cierre.current = setTimeout(() => { setAbierto(false); setFijo(false); }, 140);
   };
-  const abrir = () => { cancelarCierre(); setAbierto(true); };
+
+  // ── EL PANEL TAPA AL ÍCONO, Y AL CERRARSE EL PUNTERO «ENTRA» OTRA VEZ ──────────
+  //
+  // Un panel alto —una figura del reglamento mide 560 × 385 px— se clampea contra los
+  // bordes de la ventana y termina cubriendo al «?» que lo abrió. Cuando se cierra, el
+  // elemento bajo el cursor pasa a ser el ancla, el navegador dispara un `mouseenter`
+  // que nadie provocó, y `abrir()` lo vuelve a abrir: en pantalla, Escape no hacía nada.
+  //
+  // Se arregla bloqueando la reapertura hasta que el puntero SALGA de verdad del ancla.
+  // Un cierre deliberado —Escape o clic afuera— levanta la bandera; el `mouseleave` real
+  // la baja. Así el hover sigue funcionando y el fantasma no.
+  const bloqueado = useRef(false);
+  const abrir = () => {
+    if (bloqueado.current) return;
+    cancelarCierre();
+    setAbierto(true);
+  };
+  const cerrarYa = () => {
+    cancelarCierre();
+    bloqueado.current = true;
+    setAbierto(false);
+    setFijo(false);
+  };
+  const salir = () => { bloqueado.current = false; cerrarLuego(); };
   useEffect(() => cancelarCierre, []);
 
   useEffect(() => {
@@ -126,7 +149,7 @@ function Flotante({ children, anchoMax = ANCHO_MAX, contenido }) {
     // también del scroll de los contenedores internos, que no burbujea.
     window.addEventListener("scroll", ubicar, true);
     window.addEventListener("resize", ubicar);
-    const esc = (e) => { if (e.key === "Escape") { setAbierto(false); setFijo(false); } };
+    const esc = (e) => { if (e.key === "Escape") cerrarYa(); };
     window.addEventListener("keydown", esc);
     return () => {
       window.removeEventListener("scroll", ubicar, true);
@@ -139,7 +162,7 @@ function Flotante({ children, anchoMax = ANCHO_MAX, contenido }) {
     if (!abierto) return;
     const fuera = (e) => {
       if (!refAncla.current?.contains(e.target) && !refPanel.current?.contains(e.target)) {
-        setAbierto(false); setFijo(false);
+        cerrarYa();
       }
     };
     document.addEventListener("pointerdown", fuera);
@@ -166,8 +189,8 @@ function Flotante({ children, anchoMax = ANCHO_MAX, contenido }) {
   return (
     <>
       <span ref={refAncla} tabIndex={0} style={{ display: "inline-flex", cursor: "help" }}
-        onMouseEnter={abrir} onMouseLeave={cerrarLuego}
-        onFocus={abrir} onBlur={cerrarLuego}
+        onMouseEnter={abrir} onMouseLeave={salir}
+        onFocus={abrir} onBlur={salir}
         // El clic FIJA, no alterna: en un teléfono el toque dispara antes un mouseenter
         // sintético, así que alternar lo cerraba de inmediato.
         onClick={(e) => { e.stopPropagation(); cancelarCierre(); setAbierto(true); setFijo(true); }}>
@@ -194,6 +217,66 @@ export function Ayuda({ children }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// FIGURA DEL REGLAMENTO
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Un «?» que en vez de texto abre UNA FIGURA DEL REGLAMENTO.
+//
+// ── POR QUÉ NO ALCANZA CON LA AYUDA DE TEXTO ───────────────────────────────────
+// Media docena de campos de esta app piden un dato que el reglamento DEFINE CON UN DIBUJO:
+// «B, s, h y t» de un cartel, H contra h en un silo, el ángulo θ de un perfil. Describirlos
+// con palabras es lo que veníamos haciendo, y funciona hasta el momento en que el usuario
+// tiene que decidir si su H es la del cilindro o la del conjunto. Ahí no hay párrafo que
+// reemplace a la figura, y lo que pasa —siempre— es que se carga el que parece.
+//
+// ── POR QUÉ SE DISTINGUE DEL «?» NORMAL ────────────────────────────────────────
+// Va en el color de acento y con el marco más marcado. Si los dos íconos se vieran igual,
+// nadie abriría el que trae la figura: quien ya leyó tres ayudas de texto deja de abrirlas.
+export function Figura({ fig, children }) {
+  if (!fig) return null;
+  const contenido = (
+    <div>
+      <div style={{ ...t.bodyF, marginBottom: 2 }}>{fig.titulo}</div>
+      <div style={{ ...t.micro, marginBottom: SP.sm }}>{fig.ref}</div>
+      {/* FONDO BLANCO FIJO Y NO `c.surface`: son escaneos de tinta negra sobre papel, y en
+          tema oscuro sobre fondo oscuro no se leería ni una cota. Es la misma razón por la
+          que el mapa de velocidad básica lo lleva. */}
+      <img src={`figuras/${fig.archivo}.png`} alt={fig.titulo} loading="lazy"
+        style={{ width: "100%", display: "block", background: "#fff",
+          border: `1px solid ${c.border}`, borderRadius: R.sm }} />
+      {fig.nota && (
+        <div style={{ ...t.body, marginTop: SP.sm, lineHeight: 1.6 }}>{fig.nota}</div>
+      )}
+      {/* La figura completa, para leer una nota al pie o una cota chica. El tooltip la
+          muestra reducida a 560 px y eso alcanza para reconocerla, no siempre para leerla. */}
+      <a href={`figuras/${fig.archivo}.png`} target="_blank" rel="noreferrer"
+        style={{ ...t.micro, color: c.azulL, display: "inline-block", marginTop: SP.sm }}>
+        abrir en tamaño completo ↗
+      </a>
+    </div>
+  );
+  return (
+    <span style={{ marginLeft: 6, verticalAlign: "middle", display: "inline-flex" }}>
+      <Flotante contenido={contenido} anchoMax={560}>
+        {children ?? (
+          // ── EL ÍCONO DE FIGURA VA RELLENO, NO SÓLO DE OTRO COLOR ──────────────
+          // Muchos campos llevan los dos: el «?» gris dice QUÉ es el dato y el de figura
+          // muestra CÓMO lo define el reglamento. A 15 px, dos círculos huecos que sólo se
+          // diferencian por el tono se leen como el mismo ícono repetido, y el segundo no
+          // se abre nunca. Relleno se distingue de un vistazo y sigue siendo un «?».
+          <span aria-hidden title={`${fig.titulo} — ver la figura del reglamento`} style={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            width: 15, height: 15, borderRadius: R.full,
+            background: c.azul, border: `1.5px solid ${c.azul}`, color: "#fff",
+            fontSize: 10, fontWeight: 700, lineHeight: 1,
+          }}>?</span>
+        )}
+      </Flotante>
+    </span>
+  );
+}
+
 // Tooltip sobre cualquier contenido. `bloque` hace falta cuando lo envuelto es de nivel
 // bloque: el contenedor es `inline-flex` para ceñirse al texto, y sin esto una fila
 // completa se colapsa al ancho de su contenido.
@@ -214,7 +297,7 @@ export function Tip({ texto, children, bloque = false }) {
 
 // TARJETA: el título arriba, la descripción debajo del título y las acciones a la
 // derecha. Ese orden es fijo para que el ojo no tenga que buscarlas en cada tarjeta.
-export function Card({ titulo, desc, acciones, tono, pad = SP.lg - 4, children, style }) {
+export function Card({ titulo, desc, acciones, tono, fig, pad = SP.lg - 4, children, style }) {
   const T = tono ? TONO[tono] : null;
   return (
     <section className="vw-card" style={{
@@ -226,7 +309,7 @@ export function Card({ titulo, desc, acciones, tono, pad = SP.lg - 4, children, 
         <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between",
           gap: SP.md, marginBottom: desc ? SP.xs : SP.md }}>
           <div style={{ minWidth: 0 }}>
-            {titulo && <h3 style={{ ...t.h2, margin: 0 }}>{titulo}</h3>}
+            {titulo && <h3 style={{ ...t.h2, margin: 0 }}>{titulo}{fig && <Figura fig={fig} />}</h3>}
             {desc && <p style={{ ...t.body, margin: `${SP.xs}px 0 0` }}>{desc}</p>}
           </div>
           {acciones && <div style={{ display: "flex", gap: SP.sm, flexShrink: 0 }}>{acciones}</div>}
@@ -349,12 +432,12 @@ export function Divisor({ children }) {
 // escritos a mano y un ámbar distinto en cada lugar. Acá el tono sale de `TONO`, así que
 // un aviso, una advertencia y un error se distinguen entre sí y son iguales en toda la
 // aplicación.
-export function Aviso({ tono = "aviso", titulo, children }) {
+export function Aviso({ tono = "aviso", titulo, fig, children }) {
   const T = TONO[tono] ?? TONO.aviso;
   return (
     <div style={{ background: T.bg, border: `1px solid ${T.bd}`, borderLeft: `3px solid ${T.fg}`,
       borderRadius: R.md, padding: `${SP.sm + 2}px ${SP.md}px`, marginBottom: SP.md }}>
-      {titulo && <div style={{ ...t.bodyF, marginBottom: children ? 3 : 0 }}>{titulo}</div>}
+      {titulo && <div style={{ ...t.bodyF, marginBottom: children ? 3 : 0 }}>{titulo}{fig && <Figura fig={fig} />}</div>}
       {children && <div style={{ ...t.body, lineHeight: 1.65 }}>{children}</div>}
     </div>
   );
