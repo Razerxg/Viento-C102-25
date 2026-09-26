@@ -7,9 +7,14 @@
 // media luz del lado CORTO, y su largo es |a − b|. Sólo con a = b no hay cumbrera y la
 // pieza es una pirámide.
 //
-// Y el error NO era conservador. Declarando la cumbrera sobre el lado corto en un 20 × 30
-// con alero 6 m, exposición C, el corte baja hasta un 22 %, el vuelco hasta un 19 % y el
-// levantamiento sube hasta un 29 %. Además da vuelta qué dirección se trata en faldones.
+// Y el error NO era conservador: en la envolvente bajaba el corte y el vuelco y subía el
+// levantamiento. Las cifras medidas están en `docs/PLAN.md`, como registro y no como
+// test: comparar contra el código viejo exige emularlo, y una emulación que no reproduzca
+// TAMBIÉN sus paredes —el limatesa viejo usaba rectángulos donde un caballete tiene
+// hastial— da números que parecen confirmar y no confirman nada.
+//
+// Lo que protege la corrección son los tests de remonte, de reorientación de proyectos
+// guardados y de silueta: propiedades del motor, no comparaciones históricas.
 import { describe, it, expect } from 'vitest';
 import { normalizarGeo, remonte, longitudCumbrera, cumbreraLimatesa, modoCubierta,
   analizarDireccion, DIRECCIONES } from '../src/engine/edificio.js';
@@ -192,55 +197,6 @@ describe('la componente horizontal usa el área trapecial de los faldones', () =
       for (const parte of aporteCubierta({ analisis: mk(geo, "Wy+") }).partes) {
         expect(parte.factorH, `${geo.tipo} ${parte.id}`).toBe(1);
       }
-    }
-  });
-});
-
-describe('el efecto de la corrección, medido', () => {
-  // El caso del proyectista: 20 × 30, alero 6 m, exposición C. Se compara la geometría
-  // real contra la que salía de declarar la cumbrera sobre el lado CORTO, que es lo que
-  // hacía el código viejo. Esa versión se emula con un caballete de cumbrera X: mismo
-  // remonte —media luz del lado largo— y mismo reparto de faldones y franjas.
-  const env = (g) => DIRECCIONES
-    .map(d => resultantes(analizarDireccion(
-      { geo: g, sitio: SITIO, cerramiento: "cerrado", G: 0.85 }, d)))
-    .reduce((m, r) => ({
-      corte: Math.max(m.corte, Math.abs(r.cortante)),
-      vuelco: Math.max(m.vuelco, Math.abs(r.vuelco)),
-      levantamiento: Math.max(m.levantamiento, Math.abs(r.levantamiento)),
-    }), { corte: 0, vuelco: 0, levantamiento: 0 });
-
-  const mal = (theta) => normalizarGeo({ a: 20, b: 30, hAlero: 6, theta,
-    tipo: "dos_aguas", cumbrera: "X" });
-  const bien = (theta) => normalizarGeo({ a: 20, b: 30, hAlero: 6, theta,
-    tipo: "cuatro_aguas" });
-
-  it('la altura media baja al corregir el remonte', () => {
-    for (const theta of [15, 25, 35]) {
-      expect(bien(theta).h, `θ=${theta}`).toBeLessThan(mal(theta).h);
-      expect(bien(theta).hCumbre - 6)
-        .toBeCloseTo((20 / 2) * tan(theta), 9);       // media luz del lado CORTO
-    }
-  });
-
-  // ⚠ EL LEVANTAMIENTO ERA EL QUE MÁS SE IBA, Y HACIA ARRIBA. Declarar la cumbrera sobre
-  // el lado corto lo sobreestimaba un 12 %, 25 % y 29 % para θ = 15°, 25° y 35°: son
-  // exactamente las cifras que midió el proyectista por fuera.
-  it('el levantamiento sobreestimado, en las proporciones medidas', () => {
-    const esperado = { 15: 0.12, 25: 0.25, 35: 0.29 };
-    for (const theta of [15, 25, 35]) {
-      const exceso = env(mal(theta)).levantamiento / env(bien(theta)).levantamiento - 1;
-      expect(exceso, `θ=${theta}`).toBeCloseTo(esperado[theta], 2);
-    }
-  });
-
-  // El corte y el vuelco de la ENVOLVENTE se mueven en el otro sentido: con la cumbrera
-  // mal declarada salían MAYORES, no menores. Queda fijado lo medido, sin interpretarlo:
-  // si un cambio futuro da vuelta este signo, el test lo dice.
-  it('el corte y el vuelco de la envolvente bajan al corregir', () => {
-    for (const theta of [15, 25, 35]) {
-      expect(env(bien(theta)).corte, `θ=${theta}`).toBeLessThan(env(mal(theta)).corte);
-      expect(env(bien(theta)).vuelco, `θ=${theta}`).toBeLessThan(env(mal(theta)).vuelco);
     }
   });
 });

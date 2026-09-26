@@ -356,9 +356,15 @@ propio azul las hace parecer de proveedores distintos.
   · Un proyecto guardado con la cumbrera sobre el lado corto SE REORIENTA al abrir, con
     aviso en pantalla y paso propio en la traza. No es cosmético: da vuelta qué dirección
     se trata en faldones y cuál en franjas, y corrige el remonte.
-  · El error anterior NO era conservador. Sube `h` y con ella `q_h`, pero en la envolvente
-    baja el corte y el vuelco y SUBE el levantamiento: 12 %, 25 % y 29 % para θ = 15°, 25°
-    y 35° en un 20 × 30 con alero 6 m y exposición C. Hay test con esas cifras.
+  · El error anterior NO era conservador: en la envolvente bajaba el corte y el vuelco
+    —del lado inseguro— y subía el levantamiento. Las cifras medidas están en
+    `docs/PLAN.md` como REGISTRO, no como test.
+  · ⚠ **No se testea contra el código viejo.** Emularlo exige reproducir *también* sus
+    paredes: el limatesa viejo usaba rectángulos donde un caballete de cumbrera X tiene
+    hastial. Una emulación con caballete hace coincidir el levantamiento —que sólo ve la
+    cubierta, igual en los dos modelos— y eso PARECE confirmar la fidelidad sin
+    confirmarla; el corte y el vuelco salen con el signo cambiado. Lo que protege la
+    corrección son los tests de remonte, reorientación y silueta: propiedades del motor.
 - **CON EL LARGO DE CUMBRERA, LA SILUETA ES EXACTA.** Lo que el techo agrega sobre la
   línea de alero es siempre un trapecio de base `B` y tope la CUMBRERA PROYECTADA sobre la
   transversal al viento: `Lc = 0` con viento paralelo (triángulo), `Lc = B` en dos aguas

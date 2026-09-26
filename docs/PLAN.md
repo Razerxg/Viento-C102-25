@@ -171,6 +171,43 @@ transcribible exacto porque sus quiebres caen sobre líneas de grilla.
 
 ---
 
+## Registro — cuánto cambió la corrección de cuatro aguas
+
+Medido por el proyectista corriendo el código real de `17168a7` (cuatro aguas con la
+cumbrera declarada sobre el lado corto) contra `5ca74e9`. **20 × 30 m, alero 6 m,
+V = 45 m/s, exposición C, cerrado.** Formato **corte kN / vuelco kNm / levantamiento kN**;
+`Wx−` y `Wy−` iguales por simetría.
+
+| θ | Dir. | Viejo | Nuevo |
+|---|---|---|---|
+| 15° | Wx+ | franjas · 189,5 / 1.226,9 / 427,3 | faldones · 206,9 / 684,0 / 382,7 |
+| 15° | Wy+ | faldones · 149,6 / 375,4 / 369,0 | franjas · 115,4 / 1.284,5 / 356,9 |
+| 25° | Wx+ | 192,3 / 1.159,3 / 474,1 | 257,2 / 363,9 / 333,9 |
+| 25° | Wy+ | 225,8 / 359,5 / 332,3 | 116,4 / 1.356,7 / 379,9 |
+| 35° | Wx+ | 195,1 / 1.144,1 / 525,5 | 305,2 / 515,1 / 320,0 |
+| 35° | Wy+ | 302,1 / 457,0 / 309,2 | 117,5 / 1.414,4 / 406,8 |
+
+**Envolvente, viejo contra nuevo**, para θ = 15 / 25 / 35°:
+
+| Magnitud | Diferencia |
+|---|---|
+| Corte | −8 / −12 / −1 % |
+| Vuelco | −4 / −15 / −19 % |
+| Levantamiento | +12 / +25 / +29 % |
+
+La declaración errónea quedaba **del lado inseguro en corte y en vuelco**.
+
+> **Por qué esto es un registro y no un test.** Comparar contra el código viejo obliga a
+> emularlo, y una emulación que no reproduzca *también* sus paredes no sirve: el limatesa
+> viejo usaba paredes rectangulares de 180 m² donde un caballete de cumbrera X tiene
+> hastial —240 / 285 / 338 m² para θ = 15 / 25 / 35°—. Una primera emulación con caballete
+> hizo coincidir el levantamiento, que sólo ve la cubierta e igual en los dos modelos, y
+> eso pareció confirmar la fidelidad sin confirmarla: el corte y el vuelco salían con el
+> signo cambiado. Lo que protege la corrección son los tests de remonte, de reorientación
+> de proyectos guardados y de silueta, que son propiedades del motor.
+
+---
+
 ## Limitaciones declaradas del cálculo actual
 
 No son pendientes: son decisiones tomadas, conservadoras, que conviene tener presentes.
