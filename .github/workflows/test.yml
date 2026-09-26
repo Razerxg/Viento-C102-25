@@ -10,6 +10,10 @@ jobs:
       - uses: actions/setup-node@v5
         with: { node-version: 20 }
       - run: npm ci || npm install
+      # El lint va PRIMERO y es el más barato de los tres: un identificador sin
+      # importar rompe la pantalla en runtime, y ni el typecheck ni los tests de
+      # motor lo ven.
+      - run: npm run lint
       - run: npm run typecheck
       - run: npm test
       # El build se corre acá TAMBIÉN, y no sólo en Vercel: si el bundle deja de
