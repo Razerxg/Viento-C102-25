@@ -210,8 +210,8 @@ export function ResultantesTab() {
         {res.pisoSolidario && (
           <Aviso tono="aviso" titulo="Presión interna autoequilibrada">
             V y el vuelco salen sólo de las presiones EXTERNAS. En un contenedor de 40′ HC
-            —12,19 × 2,44 × 2,90 m— esto baja el levantamiento global entre 20 % y 43 % si
-            está cerrado, y entre 61 % y 132 % si es parcialmente cerrado. ⚠ Las chapas,
+            —12,19 × 2,44 × 2,90 m— esto baja el levantamiento global entre 17 % y 30 % si
+            está cerrado, y entre 38 % y 57 % si es parcialmente cerrado. ⚠ Las chapas,
             las correas y sus fijaciones siguen viendo externa ± interna: lo que se
             autoequilibra es la resultante global, no la carga local.
           </Aviso>

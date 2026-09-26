@@ -85,9 +85,28 @@ describe('modo de tratamiento de la cubierta', () => {
     expect(modoCubierta({ geo: g, dir: D["Wy-"] }).cara).toBe("barlovento");
   });
 
-  it('dos aguas y cuatro aguas comparten tratamiento, como en la figura', () => {
-    for (const t of ["dos_aguas", "cuatro_aguas"]) {
-      expect(modoCubierta({ geo: geo({ theta: 25, tipo: t }), dir: D["Wy+"] }).modo).toBe("faldones");
+  // ⚠ CUATRO AGUAS Y DOS AGUAS COMPARTEN EL TRATAMIENTO, PERO NO NECESARIAMENTE LA MISMA
+  // DIRECCIÓN. En dos aguas la cumbrera es dato; en cuatro aguas SALE DEL LADO LARGO, así
+  // que con a = 20 y b = 30 la cumbrera va según Y aunque el proyecto diga X. Con eso, la
+  // dirección que se trata en faldones se da vuelta: es Wx+, no Wy+.
+  it('los dos tipos se tratan en faldones cuando el viento es NORMAL a su cumbrera', () => {
+    const dos = geo({ theta: 25, tipo: "dos_aguas" });          // cumbrera declarada: X
+    expect(dos.cumbrera).toBe("X");
+    expect(modoCubierta({ geo: dos, dir: D["Wy+"] }).modo).toBe("faldones");
+    expect(modoCubierta({ geo: dos, dir: D["Wx+"] }).modo).toBe("franjas");
+
+    const cuatro = geo({ theta: 25, tipo: "cuatro_aguas" });    // a = 20 < b = 30
+    expect(cuatro.cumbrera).toBe("Y");                          // reorientada al lado largo
+    expect(cuatro.cumbreraReorientada).toBe(true);
+    expect(modoCubierta({ geo: cuatro, dir: D["Wx+"] }).modo).toBe("faldones");
+    expect(modoCubierta({ geo: cuatro, dir: D["Wy+"] }).modo).toBe("franjas");
+  });
+
+  it('la pirámide se trata en faldones en las cuatro direcciones', () => {
+    const p = normalizarGeo({ a: 25, b: 25, hAlero: 6, theta: 25, tipo: "cuatro_aguas" });
+    expect(p.piramide).toBe(true);
+    for (const d of DIRECCIONES) {
+      expect(modoCubierta({ geo: p, dir: d }).modo, d.id).toBe("faldones");
     }
   });
 

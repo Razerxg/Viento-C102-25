@@ -93,15 +93,30 @@ const rad2 = (g) => g * Math.PI / 180;
  * brazo en planta de la resultante vertical, que es lo que el vuelco necesita.
  */
 function partesCubierta(analisis, casoNota3) {
-  const { geo, L, modo } = analisis;
+  const { geo, L, B, modo } = analisis;
   const cub = analisis.superficies.filter(s => s.tipo === "cubierta");
   const buscar = (id) => cub.find(o => o.id === id);
+
+  // ── EN CUATRO AGUAS, SÓLO EL TRAPECIO EMPUJA EN LA DIRECCIÓN DEL VIENTO ───────
+  //
+  // Con viento normal a la cumbrera, la media planta de barlovento no es un solo plano:
+  // es el faldón TRAPECIAL —de bases B y longitud de cumbrera— más los dos triángulos de
+  // punta. Esos triángulos están inclinados TRANSVERSALMENTE al viento, así que su
+  // componente horizontal va según el otro eje y se cancela entre sí: no aportan H en
+  // esta dirección.
+  //
+  // El LEVANTAMIENTO, en cambio, sigue tomando la media planta ENTERA: la succión sobre
+  // los triángulos de punta también levanta.
+  const Lc = geo.longitudCumbrera;
+  const factorH = geo.tipo === "cuatro_aguas" && B > 0
+    ? ((geo.piramide ? 0 : (Lc ?? 0)) + B) / (2 * B)
+    : 1;
 
   if (modo === "faldones") {
     const bar = buscar(casoNota3 === "positivo" ? "cub_barlovento_pos" : "cub_barlovento_neg");
     return [
-      { s: bar, desde: 0, hasta: L / 2, sentido: +1 },
-      { s: buscar("cub_sotavento"), desde: L / 2, hasta: L, sentido: -1 },
+      { s: bar, desde: 0, hasta: L / 2, sentido: +1, factorH },
+      { s: buscar("cub_sotavento"), desde: L / 2, hasta: L, sentido: -1, factorH },
     ];
   }
   if (modo === "unica") {
@@ -111,7 +126,7 @@ function partesCubierta(analisis, casoNota3) {
       : buscar("cub_unica");
     // La superficie entera asciende con el viento si es a barlovento, y desciende si es a
     // sotavento: el mismo criterio de signo que los faldones.
-    return [{ s, desde: 0, hasta: L, sentido: esBar ? +1 : -1 }];
+    return [{ s, desde: 0, hasta: L, sentido: esBar ? +1 : -1, factorH }];
   }
 
   // FRANJAS. La zonificación se mide desde el borde de barlovento y no distingue faldones,
@@ -128,20 +143,20 @@ function partesCubierta(analisis, casoNota3) {
     const d = (s.zona?.desde ?? 0) * geo.h;
     const h2 = Math.min((s.zona?.hasta ?? L / geo.h) * geo.h, L);
     if (!(h2 > d)) continue;
-    if (!norm || geo.theta <= 0) { partes.push({ s, desde: d, hasta: h2, sentido: 0 }); continue; }
+    if (!norm || geo.theta <= 0) { partes.push({ s, desde: d, hasta: h2, sentido: 0, factorH }); continue; }
     if (xCumbrera == null) {
       // Vertiente única con θ < 10°: una sola pendiente en toda la luz.
       const pend = geo.pendienteHacia;
       const mismoEje = pend.slice(1) === analisis.dir.eje;
       const signoPend = pend[0] === "+" ? 1 : -1;
       const asciende = mismoEje && signoPend * analisis.dir.signo < 0;
-      partes.push({ s, desde: d, hasta: h2, sentido: mismoEje ? (asciende ? +1 : -1) : 0 });
+      partes.push({ s, desde: d, hasta: h2, sentido: mismoEje ? (asciende ? +1 : -1) : 0, factorH });
       continue;
     }
     const aBar = [d, Math.min(h2, xCumbrera)];
     const aSot = [Math.max(d, xCumbrera), h2];
-    if (aBar[1] > aBar[0]) partes.push({ s, desde: aBar[0], hasta: aBar[1], sentido: +1 });
-    if (aSot[1] > aSot[0]) partes.push({ s, desde: aSot[0], hasta: aSot[1], sentido: -1 });
+    if (aBar[1] > aBar[0]) partes.push({ s, desde: aBar[0], hasta: aBar[1], sentido: +1, factorH });
+    if (aSot[1] > aSot[0]) partes.push({ s, desde: aSot[0], hasta: aSot[1], sentido: -1, factorH });
   }
   return partes;
 }
@@ -163,9 +178,13 @@ export function aporteCubierta({ analisis, casoNota3 = "negativo",
   let V = 0, H = 0, Mv = 0;   // Mv = momento estático de V en planta, para el brazo
   const partes = [];
 
-  for (const { s, desde, hasta, sentido } of partesCubierta(analisis, casoNota3)) {
+  for (const { s, desde, hasta, sentido, factorH = 1 } of partesCubierta(analisis, casoNota3)) {
     if (!s || !(hasta > desde)) continue;
     const areaProy = (hasta - desde) * B;
+    // El área que empuja EN LA DIRECCIÓN DEL VIENTO puede ser menor que la proyectada:
+    // en cuatro aguas los triángulos de punta inclinan transversalmente. Para el
+    // levantamiento vale la proyectada entera.
+    const areaH = areaProy * factorH;
     // ── PISO SOLIDARIO A LA ESTRUCTURA ────────────────────────────────────────
     // La presión interna actúa sobre TODA la envolvente interior, piso incluido. Si el
     // piso es parte de la estructura —un contenedor, un shelter sobre skid, un módulo—
@@ -180,11 +199,11 @@ export function aporteCubierta({ analisis, casoNota3 = "negativo",
     const pInt = pisoSolidario ? s.externa : s[casoInterno];
     const pExt = s.externa;               // corte: sólo externa
     const v = -pInt * areaProy;           // p negativa (succión) ⇒ V positivo = levanta
-    const h = sentido * pExt * tan * areaProy;
+    const h = sentido * pExt * tan * areaH;
     V += v; H += h;
     Mv += v * (desde + hasta) / 2;
     partes.push({ id: s.id, nombre: s.nombre, cp: s.cp, p: pInt, externa: pExt,
-      desde, hasta, areaProy, vertical: v, horizontal: h, sentido });
+      desde, hasta, areaProy, areaH, factorH, vertical: v, horizontal: h, sentido });
   }
   // Punto de aplicación de la resultante vertical, medido desde el borde de barlovento.
   // Sin resultante no hay punto de aplicación: `null` y no un 0 que parezca una cota.

@@ -52,9 +52,39 @@ const num = (v, d = 0) => {
 export function remonte({ tipo, theta, a, b, cumbrera }) {
   const t = num(theta);
   if (t <= 0) return 0;
-  const luz = cumbrera === "X" ? num(b) : num(a);   // dimensión NORMAL a la cumbrera
   const tan = Math.tan(t * Math.PI / 180);
+  // ⚠ EN CUATRO AGUAS LA LUZ ES SIEMPRE LA DEL LADO CORTO, Y NO LA QUE DIGA `cumbrera`.
+  //
+  // Con UNA sola pendiente θ en los cuatro faldones, la cumbrera no puede ir donde uno
+  // quiera: los cuatro planos se cortan de una sola manera. La cumbrera queda según el
+  // LADO LARGO y sube sobre media luz del lado CORTO. Poner la cumbrera sobre el lado
+  // corto —que es lo que hacía este código si el usuario lo declaraba así— describe una
+  // pieza que con una sola θ no existe, y el error NO es conservador: sube h y con ella
+  // q_h, pero baja el corte y el vuelco, y encima invierte qué dirección va en faldones y
+  // cuál en franjas.
+  if (tipo === "cuatro_aguas") return (Math.min(num(a), num(b)) / 2) * tan;
+  const luz = cumbrera === "X" ? num(b) : num(a);   // dimensión NORMAL a la cumbrera
   return tipo === "vertiente_unica" ? luz * tan : (luz / 2) * tan;
+}
+
+/**
+ * EJE DE LA CUMBRERA EN CUATRO AGUAS — no es dato, es consecuencia.
+ *
+ * Sale del lado LARGO, por lo mismo que el remonte sale del corto. Si los dos lados son
+ * iguales no hay cumbrera: la pieza es una pirámide y las cuatro direcciones ven lo mismo.
+ */
+export const cumbreraLimatesa = (a, b) => (num(a) >= num(b) ? "X" : "Y");
+
+/**
+ * LARGO DE LA CUMBRERA. En cuatro aguas es la diferencia entre los lados: los faldones de
+ * punta se comen media luz corta de cada extremo. Vale 0 en la pirámide.
+ *
+ * Es el dato que faltaba para calcular la silueta exacta y el área en planta de los
+ * faldones trapeciales, que hasta ahora se acotaban por arriba.
+ */
+export function longitudCumbrera({ tipo, a, b }) {
+  if (tipo !== "cuatro_aguas") return null;
+  return Math.abs(num(a) - num(b));
 }
 
 // `h` es la ALTURA MEDIA DE CUBIERTA: el promedio entre el alero y el punto más alto.
@@ -81,10 +111,20 @@ export function normalizarGeo(g) {
   // dice 25°, uno de los dos miente, y gana el que el usuario eligió por su nombre. La
   // interfaz oculta el campo del ángulo en ese caso, para que la contradicción no exista.
   const theta = tipo === "plana" ? 0 : Math.max(0, Math.min(90, num(g?.theta, 0)));
-  const cumbrera = g?.cumbrera === "Y" ? "Y" : "X";
+  const declarada = g?.cumbrera === "Y" ? "Y" : "X";
+  // ⚠ EN CUATRO AGUAS LA CUMBRERA SE REORIENTA, no se respeta lo declarado. No es un dato
+  // del usuario sino una consecuencia de la geometría, y un proyecto guardado antes de
+  // esto puede traerla sobre el lado corto. Se corrige al abrir y queda anotado, porque
+  // cambia el resultado: qué dirección va en faldones y cuál en franjas depende de esto.
+  const cumbrera = tipo === "cuatro_aguas" ? cumbreraLimatesa(a, b) : declarada;
+  const cumbreraReorientada = tipo === "cuatro_aguas" && declarada !== cumbrera && a !== b;
   const pendienteHacia = g?.pendienteHacia ?? (cumbrera === "X" ? "+Y" : "+X");
   const h = alturaMedia({ hAlero, theta, a, b, cumbrera, tipo });
   return { a, b, hAlero, theta, cumbrera, tipo, pendienteHacia, h,
+    cumbreraDeclarada: declarada, cumbreraReorientada,
+    // Pirámide: cuatro faldones iguales sin cumbrera. Las cuatro direcciones ven lo mismo.
+    piramide: tipo === "cuatro_aguas" && a === b,
+    longitudCumbrera: longitudCumbrera({ tipo, a, b }),
     hCumbre: hAlero + remonte({ tipo, theta, a, b, cumbrera }) };
 }
 
@@ -97,7 +137,9 @@ export function normalizarGeo(g) {
 //   "faldones" — partida en barlovento y sotavento (dos o cuatro aguas, viento normal)
 //   "unica"    — una sola superficie, toda barlovento o toda sotavento (nota 4)
 export function modoCubierta({ geo, dir }) {
-  const normal = geo.cumbrera !== dir.eje;
+  // En la pirámide no hay cumbrera que pueda ser paralela al viento: las cuatro caras son
+  // iguales y cualquier dirección enfrenta un faldón. Se trata como viento NORMAL.
+  const normal = geo.piramide ? true : geo.cumbrera !== dir.eje;
   if (geo.theta < 10) {
     return { modo: "franjas", normal, motivo:
       `θ = ${geo.theta}° < 10°: la Figura 2.4-1 zonifica en franjas desde el borde de `
@@ -382,6 +424,26 @@ export function analizarDireccion({ geo, sitio, cerramiento, G = 0.85, modoG = "
     { paso: "Tratamiento de la cubierta", simbolo: "", valor: null, unidad: "",
       ref: "Figura 2.4-1", texto: mc.modo, detalle: mc.motivo },
   ];
+
+  // La reorientación de la cumbrera de un limatesa CAMBIA el resultado —qué dirección va
+  // en faldones y cuál en franjas, y el remonte— así que no puede pasar en silencio.
+  if (g.cumbreraReorientada) {
+    traza.push({ paso: "Cumbrera reorientada", simbolo: "", valor: null, unidad: "",
+      ref: "Geometría de la cubierta a cuatro aguas",
+      texto: `${g.cumbreraDeclarada} → ${g.cumbrera}`,
+      detalle: `El proyecto declaraba la cumbrera según ${g.cumbreraDeclarada}, que es el `
+        + `lado CORTO. Con una sola pendiente θ los cuatro faldones se cortan de una sola `
+        + `manera: la cumbrera va según el lado LARGO (${g.cumbrera}), con largo `
+        + `|a − b| = ${fc(g.longitudCumbrera)} m, y el remonte sube sobre media luz del `
+        + `lado corto. Se reorientó al abrir el proyecto.` });
+  }
+  if (g.piramide) {
+    traza.push({ paso: "Cubierta piramidal", simbolo: "", valor: null, unidad: "",
+      ref: "Geometría de la cubierta a cuatro aguas", texto: "a = b",
+      detalle: "Los dos lados son iguales, así que no hay cumbrera: los cuatro faldones "
+        + "concurren en un vértice. Las cuatro direcciones se tratan como viento NORMAL a "
+        + "la cumbrera." });
+  }
 
   const sup = [];
   const agregar = (o) => sup.push({ ...o, ...presion({ q: o.q, qi, G, Cp: o.cp, GCpi }) });

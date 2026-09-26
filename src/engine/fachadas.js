@@ -175,6 +175,26 @@ export function fachadasDe(geo, dir) {
 /** Un área con su baricentro en altura. `zBar` es `null` cuando el área es nula. */
 const trozo = (area, zBar) => ({ area, zBar: area > 1e-12 ? zBar : null });
 
+/**
+ * La silueta que hay POR ENCIMA DEL ALERO, como trapecio.
+ *
+ * Vista de frente, lo que el techo agrega sobre la línea de alero es siempre un trapecio:
+ * base `B` abajo, y arriba la CUMBRERA PROYECTADA sobre la dirección transversal al
+ * viento. Los tres casos son el mismo con distinta cumbrera proyectada:
+ *
+ *   · viento paralelo a la cumbrera → se proyecta en un punto, `Lc = 0` → triángulo
+ *   · dos aguas, viento normal ....... la cumbrera cruza todo el ancho, `Lc = B` → rectángulo
+ *   · cuatro aguas, viento normal .... `Lc = |a − b|` → trapecio propiamente dicho
+ *
+ * El baricentro de un trapecio de bases `B` y `Lc` y altura `r` está a
+ * `(r/3)·(B + 2·Lc)/(B + Lc)`: da `r/3` con `Lc = 0` y `r/2` con `Lc = B`, que son los dos
+ * casos conocidos.
+ */
+function trapecioSobreAlero(B, Lc, r, hAlero) {
+  const area = (B + Lc) / 2 * r;
+  return trozo(area, hAlero + (r / 3) * (B + 2 * Lc) / (B + Lc));
+}
+
 /** Resta de dos trozos, con el baricentro compuesto. */
 function restar(mayor, menor) {
   const area = mayor.area - menor.area;
@@ -189,34 +209,36 @@ export function siluetaProyectada(geo, dir) {
   const zBarPared = bar.area > 0 ? momentoHasta(bar, bar.z2) / bar.area : 0;
 
   if (!(r > 0)) {
-    return { pared: bar.area, zBarPared, cubierta: 0, zBarCubierta: null, B,
+    return { pared: bar.area, zBarPared, cubierta: 0, zBarCubierta: null, B, Lc: 0,
       nota: "Cubierta plana: la silueta es la pared." };
   }
 
-  // Cuánto ocupa la SILUETA COMPLETA por encima de la línea de alero. Son dos formas: una
-  // franja rectangular de altura r —cuando la cumbrera recorre todo el ancho— o un
-  // triángulo con vértice arriba, cuyo baricentro está a un tercio y no a la mitad.
-  const franja = trozo(B * r, geo.hAlero + r / 2);
-  const triangulo = trozo(B * r / 2, geo.hAlero + r / 3);
-
-  let silueta, nota;
-  const paralelaACumbrera = dir.eje === geo.cumbrera;
+  // ── LA CUMBRERA, PROYECTADA SOBRE LA TRANSVERSAL AL VIENTO ────────────────────
+  let Lc, nota;
+  const paralelaACumbrera = geo.piramide ? false : dir.eje === geo.cumbrera;
   if (geo.tipo === "vertiente_unica") {
-    const ejePend = geo.pendienteHacia.slice(1);
-    const segunPendiente = dir.eje === ejePend;
-    silueta = segunPendiente ? franja : triangulo;
+    const segunPendiente = dir.eje === geo.pendienteHacia.slice(1);
+    Lc = segunPendiente ? B : 0;
     nota = segunPendiente
       ? "Vertiente única con el viento según la pendiente: la silueta sube hasta la cota alta en todo el ancho."
       : "Vertiente única con el viento transversal a la pendiente: la silueta sobre el alero es el triángulo del talud.";
   } else if (paralelaACumbrera) {
-    silueta = triangulo;
-    nota = "Viento paralelo a la cumbrera: la silueta sobre el alero es el frontón triangular.";
+    Lc = 0;
+    nota = "Viento paralelo a la cumbrera: la cumbrera se proyecta en un punto y la silueta sobre el alero es un triángulo.";
+  } else if (geo.tipo === "cuatro_aguas") {
+    // Con el largo de cumbrera ya no hace falta acotar por arriba: la silueta es exacta.
+    Lc = geo.piramide ? 0 : (geo.longitudCumbrera ?? 0);
+    nota = geo.piramide
+      ? "Pirámide: sin cumbrera, la silueta sobre el alero es un triángulo en las cuatro direcciones."
+      : `Cuatro aguas con viento normal a la cumbrera: trapecio de bases B = ${B.toFixed(2)} m `
+        + `y cumbrera = ${Lc.toFixed(2)} m. Los faldones de punta recortan la silueta, y el `
+        + "largo de cumbrera |a − b| es lo que permite calcularlo exacto.";
   } else {
-    silueta = franja;
-    nota = geo.tipo === "cuatro_aguas"
-      ? "Cuatro aguas con viento normal a la cumbrera: se adopta B·r, cota superior, porque los faldones de punta recortan la silueta y la longitud de cumbrera no es dato."
-      : "Viento normal a la cumbrera: la cumbrera recorre todo el ancho y la silueta sube B·r sobre el alero.";
+    Lc = B;
+    nota = "Viento normal a la cumbrera: la cumbrera recorre todo el ancho y la silueta sube B·r sobre el alero.";
   }
+
+  const silueta = trapecioSobreAlero(B, Lc, r, geo.hAlero);
 
   // La PARED ya cubre parte de esa franja —el hastial, el trapecio, la pared alta—. La
   // cubierta sólo paga lo que sobra, y con el baricentro de lo que sobra.
@@ -225,5 +247,6 @@ export function siluetaProyectada(geo, dir) {
     : trozo(bar.area - B * geo.hAlero, geo.hAlero + r / 3);               // hastial o trapecio
   const cub = restar(silueta, paredSobreAlero);
 
-  return { pared: bar.area, zBarPared, cubierta: cub.area, zBarCubierta: cub.zBar, B, nota };
+  return { pared: bar.area, zBarPared, cubierta: cub.area, zBarCubierta: cub.zBar,
+    B, Lc, nota };
 }

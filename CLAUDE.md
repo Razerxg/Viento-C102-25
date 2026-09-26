@@ -346,6 +346,29 @@ propio azul las hace parecer de proveedores distintos.
   remonte`. Las tres formas son la misma con tres números —`W`, `z1`, `z2`— y por eso el
   área y el momento estático salen en forma cerrada. El perfil de `q_z` cierra en la cota
   real de la pared y no en `h`.
+- **EN CUATRO AGUAS LA CUMBRERA NO ES DATO: SALE DEL LADO LARGO.** Con una sola pendiente
+  θ los cuatro planos se cortan de una sola manera. La cumbrera va según el lado LARGO, el
+  remonte sube sobre media luz del lado CORTO y el largo de cumbrera es `|a − b|`. Sólo
+  con `a = b` no hay cumbrera y la pieza es una pirámide, y entonces las cuatro
+  direcciones se tratan como viento NORMAL a la cumbrera.
+  · El selector de cumbrera se OCULTA para este tipo, igual que el ángulo en cubierta
+    plana: ofrecerlo invita a declarar una pieza que no existe.
+  · Un proyecto guardado con la cumbrera sobre el lado corto SE REORIENTA al abrir, con
+    aviso en pantalla y paso propio en la traza. No es cosmético: da vuelta qué dirección
+    se trata en faldones y cuál en franjas, y corrige el remonte.
+  · El error anterior NO era conservador. Sube `h` y con ella `q_h`, pero en la envolvente
+    baja el corte y el vuelco y SUBE el levantamiento: 12 %, 25 % y 29 % para θ = 15°, 25°
+    y 35° en un 20 × 30 con alero 6 m y exposición C. Hay test con esas cifras.
+- **CON EL LARGO DE CUMBRERA, LA SILUETA ES EXACTA.** Lo que el techo agrega sobre la
+  línea de alero es siempre un trapecio de base `B` y tope la CUMBRERA PROYECTADA sobre la
+  transversal al viento: `Lc = 0` con viento paralelo (triángulo), `Lc = B` en dos aguas
+  con viento normal (rectángulo), `Lc = |a − b|` en cuatro aguas. Baricentro
+  `(r/3)·(B + 2·Lc)/(B + Lc)`, que da `r/3` y `r/2` en los dos extremos conocidos.
+- **LA COMPONENTE HORIZONTAL DE UN LIMATESA VA SOBRE EL ÁREA TRAPECIAL**, no sobre la
+  media planta entera: los triángulos de punta inclinan TRANSVERSALMENTE al viento y sus
+  componentes se cancelan entre sí. El factor es `(B + Lc)/(2B)`, y vale 1/2 en la
+  pirámide. El LEVANTAMIENTO sí toma la media planta completa: la succión sobre las puntas
+  también levanta.
 - **A cuatro aguas NO tiene hastial en ninguna pared.** Los cuatro faldones arrancan en el
   alero. Es la diferencia con dos aguas que más se pasa por alto, porque el remonte y la
   altura media son los mismos.

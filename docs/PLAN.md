@@ -87,7 +87,12 @@ construye sobre ellas.
 | ✅ | **Casos de la nota 3 consistentes**: terna completa por caso, envolvente sobre casos | ↓ |
 | ✅ | **Presión interna con piso solidario**, declarable y desactivada por defecto | ↓ |
 | ✅ | Cita de la excepción de la nota 7 corregida —está en la propia nota 7, no en el C 2.1.5— | ↓ |
-| ✅ | `cargaMinima()` con punto de aplicación y momento en la base | ↓ |
+| ✅ | `cargaMinima()` con punto de aplicación y momento en la base | `17168a7` |
+| ✅ | Cifras del aviso de piso solidario corregidas (17–30 % / 38–57 %) | ↓ |
+| ✅ | **Cuatro aguas**: cumbrera derivada del lado largo, remonte sobre el lado corto, largo `\|a − b\|` | ↓ |
+| ✅ | Silueta del limatesa EXACTA, por el trapecio `(B + Lc)/2·r` | ↓ |
+| ✅ | `H` de cuatro aguas sobre el área trapecial de los faldones | ↓ |
+| ✅ | Proyectos viejos con la cumbrera sobre el lado corto: se reorientan y avisan | ↓ |
 | ⏳ | **8** · Casos de carga de la Fig. 2.4-8 y exención del art. 2.4.7 | va con la envolvente de la Fase 2 |
 
 El punto 8 se integra a la envolvente de la Fase 2, por decisión del proyectista.
@@ -148,12 +153,6 @@ devuelve resultantes marcadas como no válidas.
 | ⏳ | `R_i`, expr. (1.11-1), reducción por gran volumen | `constants/presionInterna.js` — hoy 1,0, admisible y conservador |
 | ⏳ | Presión interna positiva a la altura de la abertura más alta, art. 2.4.1 | Hoy `q_h`, que es lo conservador que el propio artículo admite |
 
-## Hallazgos abiertos — esperando decisión
-
-| Estado | Qué |
-|---|---|
-| 📥 | **`remonte()` no topea el limatesa en la media luz del otro eje.** Calcula el remonte de una cubierta a cuatro aguas igual que el de un caballete, sobre media luz normal a la cumbrera. Con `a < b` y cumbrera según X eso da una cumbrera más alta de la que una pendiente uniforme permite: la pieza es en realidad una pirámide y su vértice está a `(a/2)·tanθ`, no a `(b/2)·tanθ`. Apareció al contrastar la silueta contra el contorno integrado. Es **conservador** en todo —sube `h`, sube `q_h`, sube la silueta— y por eso no se tocó: cambiarlo baja cargas, y esa es una decisión del proyectista. En el caso de prueba (20 × 30, θ = 25°) la silueta sale 1,56 veces la geométrica. |
-
 ## Sin leer del reglamento
 
 Capítulo 5 entero · Figs. 2.4-2 (cúpula) y 2.4-3 (abovedada) · Figs. 2.4-4 a 2.4-7
@@ -182,9 +181,6 @@ No son pendientes: son decisiones tomadas, conservadoras, que conviene tener pre
 - **`C_b = 1`** — conservador.
 - **`K_e` por la expresión y no por la tabla.** El art. 1.12 admite las dos; difieren hasta
   0,007 y hay test que lo fija.
-- **La silueta de un limatesa con viento normal a la cumbrera se adopta como `B·r`**, que
-  es cota superior: la cumbrera no recorre todo el largo y los faldones de punta la
-  recortan. Calcular el recorte exige la longitud de cumbrera, que hoy no es dato.
 - **Los dos casos de la nota 3 son ESTADOS DE CARGA completos.** La envolvente toma
   máximos sobre casos, no por componente, e informa cuál gobierna cada magnitud. Es la
   estructura que necesitan la envolvente de la Fase 2 y las reacciones de base de la
@@ -197,6 +193,11 @@ No son pendientes: son decisiones tomadas, conservadoras, que conviene tener pre
 - **`q_i` usa `q_h`.** El art. 2.4.1 permite evaluar la presión interna POSITIVA con `q_z`
   a la altura de la abertura más alta en parcialmente cerrados y parcialmente abiertos,
   pero eso exige declarar esa abertura. `q_h` es la opción conservadora de las dos.
+- **En cuatro aguas la cumbrera NO es dato**: sale del lado largo, el remonte sube sobre
+  media luz del lado corto y el largo de cumbrera es `|a − b|`. Con `a = b` es una
+  pirámide y las cuatro direcciones se tratan como viento normal. Un proyecto guardado con
+  la cumbrera sobre el lado corto se reorienta al abrir, con aviso en pantalla y en la
+  traza: el cambio da vuelta qué dirección va en faldones.
 - **Cuatro aguas con viento paralelo a la cumbrera**: la Figura 2.4-1 dibuja ese caso para
   dos aguas. Se mantiene la zonificación en franjas, que es la extensión razonable, con un
   aviso que dice que es una extensión y no una transcripción.
