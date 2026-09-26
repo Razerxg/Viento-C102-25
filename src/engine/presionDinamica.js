@@ -6,7 +6,6 @@
 // una constante de ajuste: `Ke` es justamente lo que corrige esa densidad con la altitud.
 import { TERRENO, KZ_MAX } from '../constants/exposicion.js';
 import { ke } from '../constants/altitud.js';
-import { FORMAS_TOPO, CONDICIONES_KZT, HLH_TOPE } from '../constants/topografia.js';
 
 export const RHO_MEDIO = 0.613;
 
@@ -30,52 +29,12 @@ export function kz(z, exposicion) {
   return KZ_MAX * Math.pow(zEf / t.zg, 2 / t.alfa);
 }
 
-// ── FACTOR TOPOGRÁFICO Kzt ──────────────────────────────────────────────────────
+// El FACTOR TOPOGRÁFICO Kzt vive en `engine/topografia.js`, no acá.
 //
-// Kzt = (1 + K1·K2·K3)², con
-//     K1 = (K1/(H/Lh)) · (H/Lh)    del cociente tabulado, que depende de la exposición
-//     K2 = 1 − |x|/(μ·Lh)          atenuación horizontal desde la cresta
-//     K3 = e^(−γ·z/Lh)             atenuación con la altura sobre el terreno local
-//
-// `x` se mide desde la cresta y su SIGNO importa sólo para elegir μ: la escarpa atenúa
-// mucho más lento a sotavento (μ = 4) que a barlovento (μ = 1,5), porque la estela de
-// aceleración se extiende hacia atrás. Tomar μ de barlovento en los dos lados subestimaría
-// el efecto justo donde suele estar el edificio.
-//
-// Devuelve `{ kzt, aplica, motivo }`. Cuando no se cumplen las tres condiciones del
-// art. 1.8.1 el resultado es 1,0 y el MOTIVO queda explícito: un 1,0 silencioso es
-// indistinguible de un 1,0 por descuido.
-export function kzt({ forma, H, Lh, x, z, exposicion, aSotavento = false }) {
-  const f = FORMAS_TOPO.find(o => o.id === forma);
-  const uno = (motivo) => ({ kzt: 1.0, aplica: false, motivo, K1: 0, K2: 0, K3: 0 });
-  if (!f) return uno("No se declaró una forma topográfica: se adopta terreno llano.");
-  const h = Number(H), lh = Number(Lh);
-  if (!(h > 0) || !(lh > 0)) return uno("Faltan H o Lh de la loma, escarpa o colina.");
-
-  const rel = h / lh;
-  if (rel < CONDICIONES_KZT.hLhMin) {
-    return uno(`H/Lh = ${rel.toFixed(2)} < 0,20: la pendiente es demasiado suave para `
-      + "acelerar el viento de forma significativa (art. 1.8.1).");
-  }
-  const hMin = CONDICIONES_KZT.hMin[exposicion];
-  if (h < hMin) {
-    return uno(`H = ${h} m < ${hMin} m, el mínimo para exposición ${exposicion} `
-      + "(art. 1.8.1).");
-  }
-
-  // Nota 2: por encima de H/Lh = 0,5 el efecto se independiza de la pendiente, y Lh se
-  // reemplaza por 2H en K2 y K3. Sin esto, una loma muy escarpada daría un Kzt creciente
-  // sin límite, que no es lo que muestran los ensayos.
-  const relEf = Math.min(rel, HLH_TOPE);
-  const lhEf = rel > HLH_TOPE ? 2 * h : lh;
-
-  const K1 = f.k1[exposicion] * relEf;
-  const mu = aSotavento ? f.muSot : f.muBar;
-  const K2 = Math.max(0, 1 - Math.abs(Number(x) || 0) / (mu * lhEf));
-  const K3 = Math.exp(-f.gamma * (Number(z) || 0) / lhEf);
-
-  return { kzt: Math.pow(1 + K1 * K2 * K3, 2), aplica: true, motivo: null, K1, K2, K3 };
-}
+// Se mudó al reescribirlo con los dos métodos del art. 1.8.2, las tres condiciones del
+// art. 1.8.1 reportadas una por una y la trazabilidad de la interpolación: son 250 líneas
+// con sus propias tablas, y mezclarlas con la presión dinámica hacía que este archivo
+// tratara dos temas distintos. `q()` lo recibe ya calculado, como un número.
 
 // ── PRESIÓN DINÁMICA ────────────────────────────────────────────────────────────
 //

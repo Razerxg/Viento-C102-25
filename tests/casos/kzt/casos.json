@@ -1,0 +1,9 @@
+[
+  { "id": "escarpa_sotavento",  "entrada": { "forma": "escarpa_2D", "exposicion": "C", "H_m": 30, "Lh_m": 100, "x_m": 150, "lado": "sotavento",  "z_m": 10, "cond1_confirmada": true, "metodo": "expresiones" }, "esperado": { "K1": null, "K2": null, "K3": null, "Kzt": null } },
+  { "id": "escarpa_barlovento", "entrada": { "forma": "escarpa_2D", "exposicion": "C", "H_m": 30, "Lh_m": 100, "x_m": 50,  "lado": "barlovento", "z_m": 10, "cond1_confirmada": true, "metodo": "expresiones" }, "esperado": { "K1": null, "K2": null, "K3": null, "Kzt": null } },
+  { "id": "HLh_mayor_0_5",      "entrada": { "forma": "loma_2D",    "exposicion": "C", "H_m": 40, "Lh_m": 50,  "x_m": 20,  "lado": "barlovento", "z_m": 8,  "cond1_confirmada": true, "metodo": "expresiones" }, "esperado": { "K1": null, "K2": null, "K3": null, "Kzt": null } },
+  { "id": "exposicion_D",       "entrada": { "forma": "colina_3D",  "exposicion": "D", "H_m": 25, "Lh_m": 80,  "x_m": 0,   "lado": "barlovento", "z_m": 6,  "cond1_confirmada": true, "metodo": "expresiones" }, "esperado": { "K1": null, "K2": null, "K3": null, "Kzt": null } },
+  { "id": "tabla_interpolada",  "entrada": { "forma": "escarpa_2D", "exposicion": "B", "H_m": 22, "Lh_m": 80,  "x_m": 30,  "lado": "barlovento", "z_m": 12, "cond1_confirmada": true, "metodo": "tabla" },       "esperado": { "K1": null, "K2": null, "K3": null, "Kzt": null } },
+  { "id": "H_bajo_minimo",      "entrada": { "forma": "loma_2D",    "exposicion": "B", "H_m": 15, "Lh_m": 50,  "x_m": 0,   "lado": "barlovento", "z_m": 5,  "cond1_confirmada": true, "metodo": "expresiones" }, "esperado": { "Kzt": 1.0 } },
+  { "id": "HLh_bajo_0_2",       "entrada": { "forma": "escarpa_2D", "exposicion": "C", "H_m": 10, "Lh_m": 60,  "x_m": 0,   "lado": "barlovento", "z_m": 5,  "cond1_confirmada": true, "metodo": "expresiones" }, "esperado": { "Kzt": 1.0 } }
+]
