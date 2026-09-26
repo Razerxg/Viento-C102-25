@@ -31,7 +31,11 @@ function Check({ label, v, set, ayuda }) {
 }
 
 export function AccesoriosTab() {
-  const { d, setCap4, accesorio, kdCap4, cap4Kd, sitio, G } = useProyecto();
+  // ⚠ EL MISMO G QUE USÓ EL MOTOR, no el de la dirección activa. Desde que el factor de
+  // ráfaga se calcula por dirección, `G` del contexto es el de la dirección seleccionada
+  // en el resto de la app: usarlo acá haría que la fuerza sobre un cartel cambie al girar
+  // el selector de dirección del edificio.
+  const { d, setCap4, accesorio, kdCap4, cap4Kd, sitio, gCap4 } = useProyecto();
   const { tema } = useUi();
   const cp = d.cap4;
   const fam = FAMILIAS.find(x => x.id === cp.familia) ?? FAMILIAS[0];
@@ -275,7 +279,7 @@ export function AccesoriosTab() {
                   <TdN>{f(reg.hasta, 2)}</TdN>
                   <TdN>{f(reg.cfTabla, 2)}</TdN>
                   <TdN peso={600}>{f(reg.cf, 3)}</TdN>
-                  <TdN>{U.n.fuerza(r.q * G * reg.cf * reg.ancho * num(cp.s), 2)}</TdN>
+                  <TdN>{U.n.fuerza(r.q * gCap4 * reg.cf * reg.ancho * num(cp.s), 2)}</TdN>
                 </tr>
               ))}
             </tbody>

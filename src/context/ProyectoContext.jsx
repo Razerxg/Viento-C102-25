@@ -22,7 +22,7 @@ import { resolverV } from '../engine/velocidad.js';
 import { clasificar, regionDetritus } from '../engine/cerramiento.js';
 import { ri as riDe, CERRAMIENTOS } from '../constants/presionInterna.js';
 import { gcpiDe } from '../constants/presionInterna.js';
-import { factorRafaga } from '../engine/factorRafaga.js';
+import { factorRafaga, dimensionesDe } from '../engine/factorRafaga.js';
 import { resultantes, barridoAlero, envolvente } from '../engine/resultantes.js';
 import { estadosDeCarga, envolventeCritica, exencion247 } from '../engine/envolvente.js';
 import { aplicabilidadDeTodas } from '../engine/aplicabilidad.js';
@@ -300,19 +300,37 @@ export function ProyectoProvider({ children }) {
   // El factor de ráfaga se calcula ANTES del análisis y lo alimenta: cuál de las tres
   // vías del art. 1.9 se adopta cambia TODAS las presiones, así que no puede quedar como
   // un bloque informativo al costado.
-  const rafaga = useMemo(() => factorRafaga({
-    h: geoN.h, B: Math.max(geoN.a, geoN.b), L: Math.min(geoN.a, geoN.b),
+  // ── FACTOR DE EFECTO DE RÁFAGA, POR DIRECCIÓN ──────────────────────────────
+  //
+  // ⚠ NO ES UNO SOLO PARA EL EDIFICIO. En (1.9-8), `B` es la dimensión NORMAL al viento y
+  // en (1.9-15), `L` la PARALELA: las dos se intercambian al girar el viento 90°. Antes
+  // esto se llamaba una vez con `B = max(a,b)` y ese G se aplicaba a las cuatro
+  // direcciones. Como Q baja cuando B crece, ésa es la elección que da el G MÁS CHICO: en
+  // una nave de 20 × 100 m daba 0,790 donde a la dirección que sopla contra la cara de
+  // 20 m le corresponde 0,854. Un 8 % de menos en todas las presiones de esa dirección,
+  // del lado inseguro, sin nada en el resultado que lo delate.
+  const rafagaPara = useCallback((dir, h = geoN.h, planta = geoN) => factorRafaga({
+    h, ...dimensionesDe(planta, dir),
     exposicion: d.exposicion, V, n1: num(d.n1), beta: num(d.beta, 0.02),
-  }), [geoN.h, geoN.a, geoN.b, d.exposicion, V, d.n1, d.beta]);
+  }), [geoN, d.exposicion, V, d.n1, d.beta]);
 
-  const G = rafaga.opciones.find(o => o.id === d.modoG)?.G ?? 0.85;
+  const rafagaTodas = useMemo(() => Object.fromEntries(
+    DIRECCIONES.map(dir => [dir.id, rafagaPara(dir)])), [rafagaPara]);
+  const gDe = useCallback((dir, r) =>
+    (r ?? rafagaTodas[dir.id]).opciones.find(o => o.id === d.modoG)?.G ?? 0.85,
+    [rafagaTodas, d.modoG]);
+
+  // La pantalla de Ráfaga muestra la dirección ACTIVA, igual que Presiones y Resultantes.
+  const rafaga = rafagaTodas[DIRECCIONES[Math.min(iDir, 3)].id];
+  const G = gDe(DIRECCIONES[Math.min(iDir, 3)], rafaga);
 
   const entrada = useMemo(() => ({ geo: d.geo, sitio, cerramiento, G,
     modoG: d.modoG }), [d.geo, sitio, cerramiento, G, d.modoG]);
 
   const todas = useMemo(
-    () => DIRECCIONES.map(dir => analizarDireccion({ ...entrada, sitio: sitioDe(dir) }, dir)),
-    [entrada, sitioDe]);
+    () => DIRECCIONES.map(dir => analizarDireccion(
+      { ...entrada, sitio: sitioDe(dir), G: gDe(dir) }, dir)),
+    [entrada, sitioDe, gDe]);
   const act = todas[Math.min(iDir, todas.length - 1)];
   // Dos DECLARACIONES del proyectista sobre el sistema estructural, que la app no puede
   // deducir de la geometría: la excepción de la nota 7 de la Figura 2.4-1, y si el piso
@@ -372,7 +390,15 @@ export function ProyectoProvider({ children }) {
   const curvas = useMemo(() => envolvente(DIRECCIONES.map(dir => barridoAlero({
     analizar: analizarDireccion, entrada, direccion: dir,
     desde: 3, hasta: 30, pasos: 27,
-  }))), [entrada]);
+    // ⚠ EL SITIO Y EL G SE REHACEN EN CADA PUNTO. La curva usaba el `entrada` pelado, así
+    // que ignoraba la exención topográfica por dirección y congelaba el G del alero
+    // actual. Con el G calculado o el de flexible eso hace que la curva no sea la
+    // continuación del número que muestran las otras pantallas.
+    preparar: (hAlero) => {
+      const g = normalizarGeo({ ...d.geo, hAlero });
+      return { sitio: sitioDe(dir), G: gDe(dir, rafagaPara(dir, g.h, g)) };
+    },
+  }))), [entrada, d.geo, sitioDe, gDe, rafagaPara]);
 
   // ── CAPÍTULO 4 ─────────────────────────────────────────────────────────────
   //
@@ -384,6 +410,13 @@ export function ProyectoProvider({ children }) {
   const cap4Kd = d.cap4.kd || familiaDe(d.cap4.familia).kd;
   const kdCap4 = kdDe(cap4Kd) ?? 0.85;
 
+  // ── EL G QUE VIAJA AL CAPÍTULO 4 ───────────────────────────────────────────
+  // Esas estructuras no son el edificio y su factor de ráfaga debería salir de su propia
+  // geometría; hoy arrastran el del edificio. Mientras siga siendo así, se les pasa el
+  // MAYOR de las cuatro direcciones y no el de la dirección activa: cambiar de dirección
+  // en el selector no puede mover la presión sobre un cartel.
+  const gCap4 = useMemo(() => Math.max(...DIRECCIONES.map(dir => gDe(dir))), [gDe]);
+
   const accesorio = useMemo(() => {
     const c = d.cap4;
     const datos = {
@@ -394,21 +427,21 @@ export function ProyectoProvider({ children }) {
                         seccionTorre: c.seccionTorre, redondos: c.redondos, diagonal: c.diagonal },
       equipo:         { Bedif: c.Bedif, hedif: c.hedif, Ledif: c.Ledif, Af: c.Af, Ar: c.Ar },
     }[c.familia];
-    return analizarAccesorio({ familia: c.familia, datos, sitio, kd: kdCap4, G });
-  }, [d.cap4, sitio, kdCap4, G]);
+    return analizarAccesorio({ familia: c.familia, datos, sitio, kd: kdCap4, G: gCap4 });
+  }, [d.cap4, sitio, kdCap4, gCap4]);
 
   const kdSilo = kdDe(d.silo.kd || "chim_redonda") ?? 1.0;
   const silo = useMemo(() => analizarSilo({
-    datos: d.silo, sitio, kd: kdSilo, G, gcpi: gcpiDe(cerramiento) ?? 0,
-  }), [d.silo, sitio, kdSilo, G, cerramiento]);
+    datos: d.silo, sitio, kd: kdSilo, G: gCap4, gcpi: gcpiDe(cerramiento) ?? 0,
+  }), [d.silo, sitio, kdSilo, gCap4, cerramiento]);
 
   const kdAnexo = kdDe(d.anexo.kd || "chim_redonda") ?? 1.0;
   const anexo = useMemo(() => analizarAnexo({
-    familia: d.anexo.familia, sitio, kd: kdAnexo, G,
+    familia: d.anexo.familia, sitio, kd: kdAnexo, G: gCap4,
     datos: { b: d.anexo.b, L: d.anexo.L, z: d.anexo.z, d: d.anexo.d, theta: d.anexo.theta,
       filaI1: d.anexo.filaI1, filaI2: d.anexo.filaI2, filaI5: d.anexo.filaI5,
       perfil: d.anexo.perfil, thetaPerfil: num(d.anexo.thetaPerfil) },
-  }), [d.anexo, sitio, kdAnexo, G]);
+  }), [d.anexo, sitio, kdAnexo, gCap4]);
 
   // ── APLICABILIDAD ──────────────────────────────────────────────────────────
   // En qué fila y en qué columna de la Figura 2.4-1 cayó cada dirección, y cuáles de esas
@@ -418,9 +451,9 @@ export function ProyectoProvider({ children }) {
 
   const avisos = useMemo(() => avisosDe({
     geoN, sitio, cerramiento: d.cerramiento, rafaga, modoG: d.modoG, n1: d.n1,
-    analisis: act, resultantes: res, accesorio, silo, anexo, topo, aplic,
+    analisis: act, resultantes: res, accesorio, silo, anexo, topo, aplic, rafagaTodas,
   }), [geoN, sitio, d.cerramiento, rafaga, d.modoG, d.n1, act, res, accesorio, silo, anexo,
-    topo, aplic]);
+    topo, aplic, rafagaTodas]);
 
   const irA = useCallback((nombre) => setTab(idxTab(nombre)), []);
 
@@ -463,7 +496,8 @@ export function ProyectoProvider({ children }) {
       proyecto: d.proyecto, setProyecto: set("proyecto"),
       tab, setTab, irA, nombreTab: TABS[tab] ?? TABS[0],
       iDir, setIDir, direcciones: DIRECCIONES,
-      V, vel, setSub, sitio, geoN, rafaga, G, todas, act, res, resDe, maxAbs, curvas,
+      V, vel, setSub, sitio, geoN, rafaga, rafagaTodas, gDe, gCap4, G,
+      todas, act, res, resDe, maxAbs, curvas,
       cerr, cerramiento, envCasos, setEnv, aplic,
       avisos, avisosPorTab: porTab(avisos), conteo: contar(avisos),
       guardadoEn, nuevo, exportar, importar, fileRef,

@@ -18,13 +18,18 @@ const rotulo = (e) => e == null ? "—" :
 
 export function ResumenTab() {
   const { todas, act, iDir, d, V, sitio, geoN, G, rafaga, conteo, resDe, cerramiento,
-    envCasos } = useProyecto();
+    envCasos, gDe, direcciones } = useProyecto();
   const resumen = rotuloConteo(conteo);
 
   const filas = [
     ["Presión dinámica en la cubierta q_h (N/m²)", t => f(t.qh, 0)],
     ["Relación en planta L/B", t => f(t.L / t.B, 2)],
     ["Relación de esbeltez h/L", t => f(t.hL, 2)],
+    // ⚠ G ES POR DIRECCIÓN. B es la dimensión normal al viento y L la paralela, así que
+    // se intercambian al girar 90°: con el calculado o el de flexible adoptados, las
+    // cuatro columnas no coinciden. Sin esta fila, la ficha de arriba mostraría UN factor
+    // de ráfaga y la tabla presiones que no salen de él.
+    ["Factor de efecto de ráfaga G", t => f(gDe(t.dir), 3)],
     ["Tratamiento de la cubierta",
       t => t.modo === "unica" ? `única · ${t.caraUnica}` : MODO[t.modo]],
     ["C_p pared a sotavento",
@@ -57,9 +62,17 @@ export function ResumenTab() {
           <Stat label="Cubierta"
             valor={geoN.theta > 0 ? `${f(geoN.theta, 1)}°` : "plana"}
             sub={geoN.theta > 0 ? `cumbrera según ${geoN.cumbrera}` : "θ = 0"} />
+          {/* El G de la dirección ACTIVA: con el calculado adoptado las cuatro no
+              coinciden, y el rango dice cuánto se mueve sin salir a buscarlo. */}
           <Stat label="Factor de ráfaga" valor={f(G, 3)}
             tono={rafaga.flexible && d.modoG !== "flexible" ? "error" : undefined}
-            sub={rafaga.opciones.find(o => o.id === d.modoG)?.label} />
+            sub={(() => {
+              const gs = direcciones.map(dir => gDe(dir));
+              const lo = Math.min(...gs), hi = Math.max(...gs);
+              const modo = rafaga.opciones.find(o => o.id === d.modoG)?.label;
+              return hi - lo < 5e-4 ? modo
+                : `${modo} · ${act.dir.id}; las cuatro van de ${f(lo, 3)} a ${f(hi, 3)}`;
+            })()} />
           <Stat label="Presión interna" valor={`±${f(Math.abs(act.GCpi), 2)}`}
             sub={cerramiento.replace("_", " ")} />
           <Stat label="Altitud" valor={f(sitio.altitud, 0)} unidad="m"

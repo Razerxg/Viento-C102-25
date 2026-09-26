@@ -5,7 +5,7 @@
 // proyectista, y esa decisión multiplica todas las presiones de todas las direcciones.
 // Puesta entre los resultados parecería algo que la app informa.
 import { useProyecto } from '../../context/ProyectoContext.jsx';
-import { FRECUENCIA_APROX, naDe } from '../../engine/factorRafaga.js';
+import { FRECUENCIA_APROX, naDe, dimensionesDe } from '../../engine/factorRafaga.js';
 import { Encabezado, Card, Campo, Num, Sel, Aviso, Nota, Tabla, Th, Td, TdN,
   Acordeon } from '../ui.jsx';
 import { c, t, SP, R, TONO, TRANS } from '../tokens.js';
@@ -34,7 +34,7 @@ function Opcion({ o, activo, onClick, rige }) {
 }
 
 export function RafagaTab() {
-  const { d, set, rafaga, geoN, G } = useProyecto();
+  const { d, set, rafaga, rafagaTodas, gDe, geoN, G, act, direcciones } = useProyecto();
   const { rig, flex, opciones, motivo, calculadoSupera, rige } = rafaga;
 
   const fila = (sim, desc, val, ref) => (
@@ -48,10 +48,11 @@ export function RafagaTab() {
 
   return (
     <>
-      <Encabezado titulo="Factor de efecto de ráfaga"
+      <Encabezado titulo={`Factor de efecto de ráfaga — ${act.dir.label}`}
         desc="Art. 1.9. El reglamento ofrece tres vías y no dice cuál usar salvo en un caso:
           con n₁ menor que 1 Hz el edificio es flexible y G_f es obligatorio. Las otras dos
-          son elección del proyectista." />
+          son elección del proyectista. Los números son los de la dirección seleccionada:
+          B y L se intercambian al girar el viento, así que G también cambia." />
 
       <Aviso tono={rafaga.flexible && d.modoG !== "flexible" ? "error" : "info"}
         titulo={`Rige: ${opciones.find(o => o.id === rige)?.label ?? "—"}`}>
@@ -72,6 +73,55 @@ export function RafagaTab() {
           (GC_p), (GC_pi) o (GC_pf) en tablas y figuras, el factor de ráfaga{" "}
           <b style={{ color: c.txt }}>no se puede separar</b> ni reemplazar por éste: ya
           está incluido en el producto.
+        </Nota>
+      </Card>
+
+      {/* ── G POR DIRECCIÓN ──────────────────────────────────────────────────────
+          ⚠ NO ES UNO SOLO PARA EL EDIFICIO. En (1.9-8) B es la dimensión NORMAL al viento
+          y en (1.9-15) L la PARALELA, y las dos se intercambian al girar 90°. La app
+          llamaba a esto una vez con B = max(a,b) y aplicaba ese G a las cuatro
+          direcciones; como Q baja cuando B crece, ésa es justo la elección que da el G más
+          chico. En una nave de 20 × 100 m eran 8 puntos porcentuales de menos. */}
+      <Card titulo="El factor cambia con la dirección"
+        desc="B es la dimensión normal al viento y L la paralela: al girar el viento 90° se
+          intercambian, y con ellas Q y el factor resonante. Sólo el valor por defecto de
+          0,85 es el mismo en las cuatro.">
+        <Tabla minWidth={560}>
+          <thead><tr>
+            <Th>Dirección</Th>
+            <Th alinear="right">B (m)</Th><Th alinear="right">L (m)</Th>
+            <Th alinear="right">Por defecto</Th>
+            <Th alinear="right">Calculado (1.9-6)</Th>
+            <Th alinear="right">Flexible (1.9-10)</Th>
+            <Th alinear="right">Adoptado</Th>
+          </tr></thead>
+          <tbody>
+            {direcciones.map(dir => {
+              const r = rafagaTodas[dir.id];
+              const dim = dimensionesDe(geoN, dir);
+              const cual = (id) => r.opciones.find(o => o.id === id)?.G;
+              const activa = dir.id === act.dir.id;
+              return (
+                <tr key={dir.id}>
+                  <Td nowrap peso={activa ? 700 : 400}
+                    fondo={activa ? c.azulBg : undefined}>{dir.id}</Td>
+                  <TdN tono={c.txt3}>{f(dim.B, 1)}</TdN>
+                  <TdN tono={c.txt3}>{f(dim.L, 1)}</TdN>
+                  <TdN tono={c.txt3}>{f(cual("defecto"), 3)}</TdN>
+                  <TdN tono={c.txt3}>{f(cual("calculado"), 3)}</TdN>
+                  <TdN tono={c.txt3}>{cual("flexible") == null ? "—" : f(cual("flexible"), 3)}</TdN>
+                  <TdN peso={700} fondo={activa ? c.azulBg : undefined}>{f(gDe(dir), 3)}</TdN>
+                </tr>
+              );
+            })}
+          </tbody>
+        </Tabla>
+        <Nota>
+          En negrita y con fondo, la dirección seleccionada en el resto de la aplicación.
+          El <b style={{ color: c.txt }}>valor por defecto de 0,85 no depende de la
+          geometría</b>, así que con esa opción las cuatro filas coinciden y la tabla no
+          aporta nada: la diferencia aparece recién al adoptar el calculado o el de
+          edificio flexible.
         </Nota>
       </Card>
 

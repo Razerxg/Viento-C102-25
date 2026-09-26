@@ -30,7 +30,7 @@ const MODO = {
 };
 
 export function SilosTab() {
-  const { d, setSilo, silo: r, kdSilo, G, cerramiento } = useProyecto();
+  const { d, setSilo, silo: r, kdSilo, cerramiento } = useProyecto();
   const s = d.silo;
   if (!r) return null;
 

@@ -15,6 +15,21 @@
 // vista. Elegir queda en manos del proyectista; ocultarle que existen, no.
 import { TERRENO } from '../constants/exposicion.js';
 
+// ⚠ `B` Y `L` SON POR DIRECCIÓN DE VIENTO, NO DIMENSIONES FIJAS DEL EDIFICIO.
+//
+//   B = dimensión horizontal NORMAL a la dirección del viento   — entra en Q, (1.9-8)
+//   L = dimensión horizontal PARALELA a la dirección del viento — entra en η_L, (1.9-15)
+//
+// Son las mismas que usa la Figura 2.4-1, y se INTERCAMBIAN al girar el viento 90°. Este
+// archivo no las deduce: las recibe, y quien lo llama tiene que pasarle las de la
+// dirección que está calculando.
+//
+// Durante un tiempo la app llamó a esto UNA sola vez con `B = max(a,b)` y `L = min(a,b)`,
+// y usó ese G en las cuatro direcciones. Como Q baja cuando B crece, esa elección da el G
+// MÁS CHICO de las dos, o sea el que menos presión produce: en una nave de 20 × 100 m el
+// G calculado salía 0,790 cuando en la dirección que sopla contra la cara de 20 m
+// corresponde 0,854 —un 8 % de menos, del lado inseguro— y nada en el resultado lo decía.
+
 export const G_POR_DEFECTO = 0.85;
 const G_PICO = 3.4;                    // gQ y gv, art. 1.9.4
 
@@ -42,6 +57,19 @@ export function gRigido(entrada) {
   const G = 0.925 * (1 + 1.7 * p.gQ * p.Iz * p.Q) / (1 + 1.7 * p.gv * p.Iz);
   return { ...p, G };
 }
+
+/**
+ * `B` y `L` de una dirección, a partir de la planta y del eje del viento.
+ *
+ * Vive acá y no en cada llamador para que haya UNA definición: mezclar la convención de
+ * este archivo con la de la Figura 2.4-1 es cómo se llega a un G calculado con la planta
+ * cruzada, que sigue siendo un número plausible.
+ *
+ * @param {{a:number,b:number}} planta
+ * @param {{eje:string}} dir
+ */
+export const dimensionesDe = (planta, dir) => dir.eje === "X"
+  ? { L: planta.a, B: planta.b } : { L: planta.b, B: planta.a };
 
 // ── FRECUENCIA NATURAL APROXIMADA — artículo 1.9.3 ──────────────────────────────
 //
@@ -101,28 +129,42 @@ export function factorRafaga({ h, B, L, exposicion, V, n1, beta = 0.02 }) {
 
   // ⚠ EL CALCULADO NO SIEMPRE ES MENOR QUE 0,85, aunque el comentario C 1.9 lo enuncie
   // como si lo fuera. Se ve en la propia expresión: como Q < 1, el cociente
-  // (1 + 1,7·g_Q·I_z̄·Q)/(1 + 1,7·g_v·I_z̄) crece hacia 1 cuando la turbulencia baja, y en
-  // el límite G → 0,925. Los terrenos lisos tienen poca turbulencia, así que en exposición
-  // C y D el calculado SUPERA al 0,85 —del orden de 0,85 a 0,88—, mientras que en B queda
-  // por debajo, entre 0,826 y 0,836.
+  // (1 + 1,7·g_Q·I_z̄·Q)/(1 + 1,7·g_v·I_z̄) crece hacia 1 cuando Q tiende a 1, y en el
+  // límite G → 0,925.
   //
-  // La consecuencia práctica: en terreno liso adoptar 0,85 no es más conservador sino
-  // MENOS. El art. 1.9.4 permite las dos vías igual, pero suponer que el 0,85 siempre
-  // protege es un error, y la app lo dice en vez de dejar que se asuma.
+  // ⚠ Y NO LO DECIDE LA EXPOSICIÓN SOLA, COMO DECÍA ACÁ. Q depende de (B + h)/L_z̄, así
+  // que también lo decide el TAMAÑO: un galpón chico tiene Q cerca de 1 y supera el 0,85
+  // hasta en exposición B, y una nave grande queda por debajo hasta en D. Medido con
+  // V = 55 m/s, sobre las DOS direcciones de cada planta:
+  //
+  //     20 × 30, h = 6     B 0,845–0,857   C 0,864–0,874   D 0,878–0,886
+  //     40 × 60, h = 9     B 0,815–0,831   C 0,842–0,855   D 0,863–0,873
+  //    100 × 60, h = 20    B 0,791–0,813   C 0,831–0,848   D 0,853–0,866
+  //    200 × 120, h = 30   B 0,764–0,790   C 0,809–0,828   D 0,834–0,850
+  //
+  // La versión anterior de este comentario afirmaba «en B queda por debajo, entre 0,826 y
+  // 0,836», y era una medición de UNA planta con B = max(a, b). Al calcular G por
+  // dirección apareció el otro extremo del mismo edificio, por encima de 0,85.
+  //
+  // La consecuencia práctica no cambia: adoptar 0,85 no siempre es más conservador. El
+  // art. 1.9.4 permite las dos vías igual, pero suponer que el 0,85 siempre protege es un
+  // error, y la app lo dice en vez de dejar que se asuma.
   const calculadoSupera = rig.G > G_POR_DEFECTO;
 
   const opciones = [
     { id: "defecto", label: "Por defecto, art. 1.9.1", G: G_POR_DEFECTO,
       nota: calculadoSupera
-        ? "⚠ En este terreno el calculado lo SUPERA: adoptar 0,85 acá no es más "
+        ? "⚠ En esta dirección el calculado lo SUPERA: adoptar 0,85 acá no es más "
           + "conservador. El art. 1.9.4 lo permite igual."
         : "Valor conservador para edificio rígido; no requiere ningún cálculo." },
     { id: "calculado", label: "Calculado, expresión (1.9-6)", G: rig.G,
       nota: calculadoSupera
-        ? "SUPERA al valor por defecto. Con poca turbulencia —exposición C y D— el "
-          + "cociente de (1.9-6) tiende a 1 y G tiende a 0,925."
-        : "Tiene en cuenta el tamaño del edificio y la turbulencia del terreno. En "
-          + "exposición B da entre 2 y 3 % menos que el valor por defecto." },
+        ? `SUPERA al valor por defecto. Con Q = ${rig.Q.toFixed(3).replace(".", ",")} el `
+          + "cociente de (1.9-6) tiende a 1 y G tiende a 0,925: pasa en edificios chicos "
+          + "o en terreno liso."
+        : "Tiene en cuenta el tamaño del edificio y la turbulencia del terreno. Con "
+          + `Q = ${rig.Q.toFixed(3).replace(".", ",")} queda por debajo del valor por `
+          + "defecto." },
   ];
   if (flex?.Gf != null) {
     opciones.push({ id: "flexible", label: "Flexible, expresión (1.9-10)", G: flex.Gf,

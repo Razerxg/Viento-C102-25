@@ -15,7 +15,7 @@ import { TEMAS, TONO, c, cssTemas } from '../src/components/tokens.js';
 import { NAV, TABS, idxTab, SIN_DIRECCION, SIN_FICHA, PASOS } from '../src/constants/tabs.js';
 import { avisosDe, porTab, contar, rotuloConteo } from '../src/lib/avisos.js';
 import { normalizarGeo, analizarDireccion, DIRECCIONES } from '../src/engine/edificio.js';
-import { factorRafaga } from '../src/engine/factorRafaga.js';
+import { factorRafaga, dimensionesDe } from '../src/engine/factorRafaga.js';
 import { resultantes } from '../src/engine/resultantes.js';
 import { kdDe } from '../src/constants/direccionalidad.js';
 import { CERRAMIENTOS, nombreCerramiento } from '../src/constants/presionInterna.js';
@@ -105,14 +105,18 @@ function escenario(over = {}) {
   const sitio = { V: d.V, exposicion: d.exposicion, kd: kdDe('edificio_sprfv'),
     Kzt: d.Kzt, altitud: d.altitud, usarKe: true, puntosPerfil: 6 };
   const geoN = normalizarGeo(d.geo);
-  const rafaga = factorRafaga({ h: geoN.h, B: Math.max(geoN.a, geoN.b),
-    L: Math.min(geoN.a, geoN.b), exposicion: d.exposicion, V: d.V,
-    n1: parseFloat(d.n1) || 0, beta: parseFloat(d.beta) || 0.02 });
+  // ⚠ EL FACTOR DE RÁFAGA ES POR DIRECCIÓN. B es la dimensión normal al viento y L la
+  // paralela, y se intercambian al girar 90°. El escenario tiene que armarlo igual que el
+  // contexto o el test estaría probando una app que no existe.
+  const rafagaTodas = Object.fromEntries(DIRECCIONES.map(dir => [dir.id, factorRafaga({
+    h: geoN.h, ...dimensionesDe(geoN, dir), exposicion: d.exposicion, V: d.V,
+    n1: parseFloat(d.n1) || 0, beta: parseFloat(d.beta) || 0.02 })]));
+  const rafaga = rafagaTodas[DIRECCIONES[0].id];
   const G = rafaga.opciones.find(o => o.id === d.modoG)?.G ?? 0.85;
   const analisis = analizarDireccion({ geo: d.geo, sitio, cerramiento: d.cerramiento, G },
     DIRECCIONES[0]);
-  return avisosDe({ geoN, sitio, cerramiento: d.cerramiento, rafaga, modoG: d.modoG,
-    n1: d.n1, analisis, resultantes: resultantes(analisis) });
+  return avisosDe({ geoN, sitio, cerramiento: d.cerramiento, rafaga, rafagaTodas,
+    modoG: d.modoG, n1: d.n1, analisis, resultantes: resultantes(analisis) });
 }
 
 describe('avisos del modelo', () => {
@@ -179,13 +183,50 @@ describe('avisos del modelo', () => {
     expect(escenario({ n1: '2.5' }).some(x => x.id === 'flexible')).toBe(false);
   });
 
-  it('el aviso de G calculado sólo aparece donde el calculado supera al 0,85', () => {
-    // El hallazgo que motiva el aviso: en exposición B el calculado queda POR DEBAJO de
-    // 0,85 y adoptar el valor por defecto sí es conservador; en C y D queda por encima.
-    // Si el aviso se disparara siempre, dejaría de significar algo.
-    expect(escenario({ exposicion: 'B' }).some(x => x.id === 'gSupera')).toBe(false);
-    expect(escenario({ exposicion: 'C' }).some(x => x.id === 'gSupera')).toBe(true);
-    expect(escenario({ exposicion: 'D' }).some(x => x.id === 'gSupera')).toBe(true);
+  // ⚠ NO LO DECIDE LA EXPOSICIÓN SOLA, COMO DECÍA ESTE TEST. Q depende de (B + h)/L_z̄,
+  // así que el tamaño pesa tanto como la turbulencia: el galpón chico de 20 × 30 supera
+  // el 0,85 hasta en exposición B, y una nave de 200 × 120 queda por debajo hasta en D.
+  // La versión anterior afirmaba «en B queda por debajo» y era cierta sólo para la planta
+  // por defecto medida con B = max(a, b), que era el único G que la app calculaba.
+  it('el aviso de G calculado aparece cuando el calculado supera al 0,85, y no siempre', () => {
+    const CHICO = { a: '20', b: '30', hAlero: '6', theta: '0', tipo: 'plana', cumbrera: 'X' };
+    const GRANDE = { a: '200', b: '120', hAlero: '30', theta: '0', tipo: 'plana', cumbrera: 'X' };
+    // Chico: lo supera en las TRES exposiciones.
+    for (const e of ['B', 'C', 'D'])
+      expect(escenario({ exposicion: e, geo: CHICO }).some(x => x.id === 'gSupera')).toBe(true);
+    // Grande: no lo supera en ninguna. Si el aviso se disparara siempre, dejaría de
+    // significar algo.
+    for (const e of ['B', 'C', 'D'])
+      expect(escenario({ exposicion: e, geo: GRANDE }).some(x => x.id === 'gSupera')).toBe(false);
+  });
+
+  it('el aviso no le echa la culpa a la exposición', () => {
+    // El texto tiene que decir de qué depende de verdad, porque la lectura intuitiva
+    // —«en terreno liso el calculado sube»— es la que hace fallar el caso del galpón
+    // chico en exposición B.
+    const CHICO = { a: '20', b: '30', hAlero: '6', theta: '0', tipo: 'plana', cumbrera: 'X' };
+    const av = escenario({ exposicion: 'B', geo: CHICO }).find(x => x.id === 'gSupera');
+    expect(av.detalle).toMatch(/No lo decide la exposición sola/);
+    expect(av.detalle).toMatch(/B \+ h/);
+  });
+
+  // ⚠ EL AVISO MIRA LAS CUATRO DIRECCIONES, NO LA ACTIVA. Desde que G se calcula por
+  // dirección, el calculado puede superar al 0,85 en una y no en otra; si el aviso
+  // dependiera de la seleccionada, aparecería y desaparecería al mover el selector.
+  it('el aviso de G calculado no depende de qué dirección esté seleccionada', () => {
+    // Nave muy alargada en exposición C: según el eje largo B = 20 y el calculado supera
+    // al 0,85; según el corto B = 120 y no.
+    const geo = { a: '120', b: '20', hAlero: '6', theta: '0', tipo: 'plana', cumbrera: 'X' };
+    const av = escenario({ exposicion: 'C', geo }).find(x => x.id === 'gSupera');
+    expect(av).toBeDefined();
+    expect(av.detalle).toMatch(/de las 4 direcciones/);
+    // Y el número informado es el MAYOR de las que lo superan, no el de la primera.
+    const geoN = normalizarGeo(geo);
+    const gs = DIRECCIONES.map(dir => factorRafaga({ h: geoN.h, ...dimensionesDe(geoN, dir),
+      exposicion: 'C', V: 55, n1: 0, beta: 0.02 }).rig.G);
+    expect(Math.max(...gs)).toBeGreaterThan(0.85);
+    expect(Math.min(...gs)).toBeLessThan(0.85);
+    expect(av.detalle).toContain(Math.max(...gs).toFixed(3).replace('.', ','));
   });
 
   it('no avisa del G calculado si no se está adoptando el 0,85', () => {

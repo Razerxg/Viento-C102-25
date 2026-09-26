@@ -23,7 +23,7 @@
 const ORDEN = { error: 0, aviso: 1, info: 2 };
 
 export function avisosDe({ geoN, sitio, cerramiento, rafaga, modoG, n1, analisis, resultantes,
-  accesorio, silo, anexo, topo, vel, cerr, aplic }) {
+  accesorio, silo, anexo, topo, vel, cerr, aplic, rafagaTodas }) {
   const av = [];
   const push = (o) => av.push(o);
 
@@ -161,12 +161,24 @@ export function avisosDe({ geoN, sitio, cerramiento, rafaga, modoG, n1, analisis
   // El hallazgo que motivó todo el bloque de ráfaga: en terreno liso el calculado SUPERA
   // al 0,85, así que la costumbre de adoptar el valor por defecto "porque es conservador"
   // es falsa fuera de exposición B.
-  if (rafaga?.calculadoSupera && modoG === "defecto") {
+  // ⚠ SE MIRAN LAS CUATRO DIRECCIONES, NO LA ACTIVA. Desde que G se calcula por
+  // dirección, el calculado puede superar al 0,85 en una y no en otra: avisar sólo por la
+  // seleccionada hace que la advertencia aparezca y desaparezca al mover el selector.
+  const todosRig = Object.values(rafagaTodas ?? {});
+  const superan = todosRig.filter(r => r.calculadoSupera);
+  if (superan.length > 0 && modoG === "defecto") {
+    const max = Math.max(...superan.map(r => r.rig.G));
     push({ id: "gSupera", tono: "aviso", tab: "Ráfaga",
       titulo: "El G calculado supera al 0,85 adoptado",
-      detalle: `En exposición ${sitio.exposicion} la turbulencia es baja y (1.9-6) da `
-        + `G = ${rafaga.rig.G.toFixed(3).replace(".", ",")}, por encima del valor por defecto. `
-        + "Adoptar 0,85 es admisible (art. 1.9.4) pero acá NO es lo conservador." });
+      detalle: `(1.9-6) da hasta G = ${max.toFixed(3).replace(".", ",")}, por encima del `
+        + "valor por defecto"
+        + (superan.length < todosRig.length
+          ? ` —en ${superan.length} de las ${todosRig.length} direcciones—. `
+          : ` —en las ${todosRig.length} direcciones—. `)
+        + "⚠ No lo decide la exposición sola: Q depende de (B + h)/L_z̄, así que un "
+        + "edificio chico lo supera hasta en exposición B y una nave grande queda por "
+        + `debajo hasta en D. Acá la exposición es ${sitio.exposicion}. Adoptar 0,85 es `
+        + "admisible (art. 1.9.4) pero acá NO es lo conservador." });
   }
 
   // ── RESULTANTES ──────────────────────────────────────────────────────────────

@@ -193,6 +193,43 @@ transcribible exacto porque sus quiebres caen sobre líneas de grilla.
 
 ---
 
+## Hallazgo — el factor de ráfaga se calculaba una vez para las cuatro direcciones
+
+Apareció al abrir el ítem de `n₁` de la Fase 2. **No estaba en la lista: es un error de
+cálculo, no una mejora.**
+
+En (1.9-8) `B` es la dimensión **normal** al viento y en (1.9-15) `L` la **paralela** —las
+mismas que usa la Figura 2.4-1, y se intercambian al girar el viento 90°—. La app llamaba
+a `factorRafaga` **una sola vez** con `B = max(a, b)` y `L = min(a, b)`, y aplicaba ese `G`
+a las cuatro direcciones. Como `Q` baja cuando `B` crece, ésa es exactamente la elección
+que da el **`G` más chico de las dos**, o sea la que menos presión produce.
+
+Medido en una nave de **20 × 100 m, h = 8, exposición B**, con el `G` calculado adoptado:
+
+| Dirección | B | L | `G` antes | `G` ahora |
+|---|---|---|---|---|
+| Wx± (sopla contra la cara de 100 m) | 100 | 20 | 0,790 | 0,790 |
+| Wy± (sopla contra la cara de 20 m) | 20 | 100 | 0,790 | **0,854** |
+
+**8,1 % de menos en todas las presiones de esas dos direcciones, del lado inseguro**, sin
+nada en el resultado que lo delatara. Sólo el 0,85 del art. 1.9.1 es igual en las cuatro
+—no depende de la geometría—, y por eso el error era invisible mientras nadie eligiera otra
+vía.
+
+Arreglado: `G` se calcula por dirección, `dimensionesDe(planta, dir)` es la única
+definición de la correspondencia, el barrido de altura lo recalcula en cada punto junto con
+el sitio, y al capítulo 4 le viaja el mayor de las cuatro.
+
+### Y de paso, la corrección de un hallazgo anterior
+
+La sección «el G calculado no siempre es menor que 0,85» de `CLAUDE.md` afirmaba que eso
+**sólo pasaba en exposición C y D**, y que en B quedaba entre 0,826 y 0,836. Era una
+medición de una planta con `B = max(a, b)`. `Q` depende de `(B + h)/L_z̄`, así que el
+**tamaño pesa tanto como la turbulencia**: un galpón de 20 × 30 con h = 6 supera el 0,85
+**hasta en exposición B** (0,857 en la dirección angosta) y una nave de 200 × 120 queda por
+debajo **hasta en D** (0,834). La tabla completa quedó en `CLAUDE.md` y en el comentario de
+`engine/factorRafaga.js`.
+
 ## Aplicabilidad de la Figura 2.4-1 ✅ — dónde cayó cada lectura
 
 `engine/aplicabilidad.js`. El motor lee las tablas con **los extremos congelados**, que es

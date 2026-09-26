@@ -7,7 +7,8 @@
 // z̄ → I_z̄ → L_z̄ → Q → G y la de N₁ → R_n → R → g_R → G_f son correctas.
 import { describe, it, expect } from 'vitest';
 import { parametrosRafaga, gRigido, gFlexible, factorRafaga, alturaEquivalente,
-  naDe, FRECUENCIA_APROX, G_POR_DEFECTO } from '../src/engine/factorRafaga.js';
+  naDe, FRECUENCIA_APROX, G_POR_DEFECTO, dimensionesDe } from '../src/engine/factorRafaga.js';
+import { analizarDireccion, DIRECCIONES } from '../src/engine/edificio.js';
 import { TERRENO } from '../src/constants/exposicion.js';
 
 // El caso de la Tabla C 1.9-1.
@@ -181,5 +182,90 @@ describe('qué factor rige', () => {
     const r = factorRafaga({ h: 20, B: 20, L: 30, exposicion: "C", V: 50 });
     expect(r.opciones.map(o => o.id)).toEqual(["defecto", "calculado"]);
     expect(r.opciones[0].G).toBe(G_POR_DEFECTO);
+  });
+});
+
+// ── EL FACTOR ES POR DIRECCIÓN ─────────────────────────────────────────────────
+//
+// ⚠ ES EL BUG QUE ENCONTRÓ ESTA SESIÓN. En (1.9-8) `B` es la dimensión NORMAL al viento y
+// en (1.9-15) `L` la PARALELA: las dos se intercambian al girar el viento 90°. La app
+// llamaba a `factorRafaga` UNA vez con `B = max(a, b)` y usaba ese G en las cuatro
+// direcciones. Como Q baja cuando B crece, ésa es justo la elección que da el G más chico,
+// o sea la que menos presión produce.
+describe('B y L son de la dirección, no del edificio', () => {
+  const PLANTA = { a: 20, b: 100 };
+  const COMUN = { h: 8, exposicion: "B", V: 55 };
+  const X = { eje: "X" }, Y = { eje: "Y" };
+
+  it('dimensionesDe pone la paralela en L y la normal en B', () => {
+    // El eje X es el de `a`: con viento según X, L = a y B = b.
+    expect(dimensionesDe(PLANTA, X)).toEqual({ L: 20, B: 100 });
+    expect(dimensionesDe(PLANTA, Y)).toEqual({ L: 100, B: 20 });
+    // Y la misma convención que la Figura 2.4-1, que es lo que evita la planta cruzada.
+    const an = analizarDireccion({ geo: { a: "20", b: "100", hAlero: "8", theta: "0",
+      tipo: "plana", cumbrera: "X" }, sitio: { V: 55, exposicion: "B", kd: 0.85, Kzt: 1,
+      altitud: 0, usarKe: false }, cerramiento: "cerrado", G: 0.85 }, DIRECCIONES[0]);
+    expect({ L: an.L, B: an.B }).toEqual(dimensionesDe(PLANTA, X));
+  });
+
+  it('el G calculado cambia con la dirección, y la diferencia no es despreciable', () => {
+    const gx = gRigido({ ...COMUN, ...dimensionesDe(PLANTA, X) }).G;
+    const gy = gRigido({ ...COMUN, ...dimensionesDe(PLANTA, Y) }).G;
+    // Con B = 100 el edificio es ancho frente al viento y Q baja: G sale menor.
+    expect(gx).toBeLessThan(gy);
+    expect(gy / gx - 1).toBeGreaterThan(0.05);   // más del 5 % en esta nave
+  });
+
+  it('tomar B = max(a,b) da SIEMPRE el menor de los dos, que es el lado inseguro', () => {
+    for (const planta of [{ a: 20, b: 100 }, { a: 40, b: 60 }, { a: 30, b: 30 },
+      { a: 120, b: 15 }]) {
+      const conMax = gRigido({ ...COMUN, B: Math.max(planta.a, planta.b),
+        L: Math.min(planta.a, planta.b) }).G;
+      const gs = [X, Y].map(d => gRigido({ ...COMUN, ...dimensionesDe(planta, d) }).G);
+      expect(conMax).toBeCloseTo(Math.min(...gs), 12);
+    }
+  });
+
+  it('también cambia el G de edificio flexible', () => {
+    const f = (d) => gFlexible({ ...COMUN, h: 60, ...dimensionesDe({ a: 10, b: 30 }, d),
+      n1: 0.7, beta: 0.02 }).Gf;
+    expect(f(X)).not.toBeCloseTo(f(Y), 3);
+  });
+
+  // ⚠ EL EJEMPLO DEL COMENTARIO NO PUEDE VERIFICAR ESTO. Su edificio es de 30 × 30, así
+  // que B = L y cruzarlos da lo mismo: los once valores de la Tabla C 1.9-1 seguirían
+  // reproduciéndose con η_B y η_L intercambiados. Hace falta una planta rectangular.
+  it('η_B va con la dimensión normal y η_L con la paralela', () => {
+    const r = gFlexible({ h: 60, B: 10, L: 30, exposicion: "B", V: 55, n1: 0.7, beta: 0.02 });
+    expect(r.etaB).toBeCloseTo(4.6 * 0.7 * 10 / r.Vz, 12);
+    expect(r.etaL).toBeCloseTo(15.4 * 0.7 * 30 / r.Vz, 12);
+    expect(r.etah).toBeCloseTo(4.6 * 0.7 * 60 / r.Vz, 12);
+    // Y los tres son distintos entre sí: si dos coincidieran, cruzarlos no se notaría.
+    expect(new Set([r.etaB, r.etaL, r.etah]).size).toBe(3);
+  });
+
+  // El único que NO cambia: el 0,85 del art. 1.9.1 no depende de la geometría. Es lo que
+  // hace que el bug fuera invisible mientras nadie eligiera otra vía.
+  it('el valor por defecto es el mismo en las cuatro direcciones', () => {
+    for (const d of [X, Y]) {
+      const r = factorRafaga({ ...COMUN, ...dimensionesDe(PLANTA, d) });
+      expect(r.opciones.find(o => o.id === "defecto").G).toBe(G_POR_DEFECTO);
+    }
+  });
+
+  // ⚠ Y TAMPOCO LO DECIDE LA EXPOSICIÓN SOLA. Q depende de (B + h)/L_z̄, así que el
+  // tamaño pesa tanto como la turbulencia.
+  it('el calculado supera al 0,85 en un edificio chico hasta en exposición B', () => {
+    for (const exp of ["B", "C", "D"]) {
+      const r = factorRafaga({ h: 6, B: 20, L: 30, exposicion: exp, V: 55 });
+      expect(r.calculadoSupera, `exposición ${exp}`).toBe(true);
+    }
+  });
+
+  it('y queda por debajo en una nave grande hasta en exposición D', () => {
+    for (const exp of ["B", "C", "D"]) {
+      const r = factorRafaga({ h: 30, B: 200, L: 120, exposicion: exp, V: 55 });
+      expect(r.calculadoSupera, `exposición ${exp}`).toBe(false);
+    }
   });
 });

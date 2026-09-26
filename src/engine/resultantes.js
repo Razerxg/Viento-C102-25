@@ -435,11 +435,22 @@ export function resultantes(analisis, opc = {}) {
 // Con qué crece cada resultante NO es evidente: el corte crece más que linealmente porque
 // `q_z` crece con la altura, el levantamiento apenas cambia porque la cubierta no crece, y
 // el vuelco es el que se dispara. Verlo en una curva es lo que permite elegir la altura.
-export function barridoAlero({ analizar, entrada, direccion, desde = 3, hasta = 30, pasos = 28 }) {
+/**
+ * @param {object} o
+ * @param {(entrada:any, dir:any)=>any} o.analizar @param {any} o.entrada @param {any} o.direccion
+ * @param {number} [o.desde] @param {number} [o.hasta] @param {number} [o.pasos]
+ * @param {(hAlero:number)=>object} [o.preparar]  campos que dependen de la altura y hay
+ *   que recalcular en cada punto. El factor de ráfaga es uno: `G` depende de `h` y de la
+ *   dirección, y congelarlo en el del alero actual hace que la curva mida otra cosa que
+ *   la que mide la pantalla.
+ */
+export function barridoAlero({ analizar, entrada, direccion, desde = 3, hasta = 30,
+  pasos = 28, preparar }) {
   const out = [];
   for (let i = 0; i <= pasos; i++) {
     const hAlero = desde + (hasta - desde) * i / pasos;
-    const r = analizar({ ...entrada, geo: { ...entrada.geo, hAlero } }, direccion);
+    const r = analizar({ ...entrada, ...(preparar ? preparar(hAlero) : null),
+      geo: { ...entrada.geo, hAlero } }, direccion);
     const res = resultantes(r);
     out.push({ hAlero, h: r.geo.h, ...res, qh: r.qh });
   }

@@ -607,25 +607,58 @@ continua, donde «cerca de cero» debe fundirse con la superficie— y eso oblig
 **cada cara lleva su valor escrito, hay leyenda y existe la tabla de superficies**. El
 color nunca es el único portador del dato.
 
-## Hallazgo: el G calculado no siempre es menor que 0,85
+## Factor de ráfaga — decisiones que no conviene revertir
+
+- ⚠ **`G` SE CALCULA POR DIRECCIÓN, NO UNA VEZ POR EDIFICIO.** En (1.9-8) `B` es la
+  dimensión **normal** al viento y en (1.9-15) `L` la **paralela**: las dos se
+  intercambian al girar el viento 90°, igual que en la Figura 2.4-1. La app llamaba a
+  `factorRafaga` una sola vez con `B = max(a, b)` y aplicaba ese `G` a las cuatro
+  direcciones. Como `Q` baja cuando `B` crece, ésa es justo la elección que da el **`G`
+  más chico**: en una nave de 20 × 100 m daba 0,790 donde a la dirección que sopla contra
+  la cara de 20 m le corresponde 0,854. **Un 8 % de menos en todas las presiones de esa
+  dirección, del lado inseguro**, y nada en el resultado lo decía. `dimensionesDe(planta,
+  dir)` es la única definición de esa correspondencia: mezclarla con la de la Figura 2.4-1
+  da un `G` con la planta cruzada, que sigue siendo un número plausible.
+- **Sólo el 0,85 del art. 1.9.1 es el mismo en las cuatro direcciones**, porque no depende
+  de la geometría. Por eso el bug fue invisible mientras nadie eligiera otra vía.
+- **El barrido de altura recalcula `G` y el sitio en cada punto.** La curva de Resultantes
+  usaba el `entrada` pelado: congelaba el `G` del alero actual e ignoraba la exención
+  topográfica por dirección, así que no era la continuación del número de las otras
+  pantallas.
+- **Al capítulo 4 le viaja el MAYOR de las cuatro**, no el de la dirección activa. Esas
+  estructuras deberían tener su propio factor de ráfaga y hoy arrastran el del edificio;
+  mientras siga así, cambiar de dirección en el selector no puede mover la presión sobre
+  un cartel.
+
+## Hallazgo: el G calculado no siempre es menor que 0,85 — y no lo decide la exposición
 
 El comentario C 1.9 dice que «el factor obtenido con el cálculo alternativo es 5-10 % más
 bajo que el valor de 0,85». **Con la expresión (1.9-6) y las constantes de la Tabla 1.9-1
-eso sólo se cumple en exposición B.** Medido:
+eso no siempre se cumple.** La razón está en la propia fórmula: como `Q < 1`, el cociente
+`(1 + 1,7·g_Q·I_z̄·Q)/(1 + 1,7·g_v·I_z̄)` crece hacia 1 cuando `Q` tiende a 1, y en el límite
+`G → 0,925`.
 
-| Exposición | `G` calculado |
-|---|---|
-| B | 0,826 – 0,836 — por debajo de 0,85 |
-| C | 0,852 – 0,864 — por encima |
-| D | 0,867 – 0,879 — por encima |
+⚠ **Una versión anterior de esta sección decía que sólo pasaba en exposición C y D, y que
+en B quedaba entre 0,826 y 0,836.** Era una medición de UNA planta con `B = max(a, b)`,
+que es el único `G` que la app calculaba. `Q` depende de `(B + h)/L_z̄`, así que el
+**tamaño pesa tanto como la turbulencia**. Medido con `V = 55 m/s`, sobre las **dos
+direcciones** de cada planta:
 
-La razón está en la propia fórmula: como `Q < 1`, el cociente
-`(1 + 1,7·g_Q·I_z̄·Q)/(1 + 1,7·g_v·I_z̄)` crece hacia 1 cuando la turbulencia baja, y en el
-límite `G → 0,925`. Los terrenos lisos tienen poca turbulencia.
+| Planta | Exp. B | Exp. C | Exp. D |
+|---|---|---|---|
+| 20 × 30, h = 6 | 0,845 – **0,857** | **0,864 – 0,874** | **0,878 – 0,886** |
+| 40 × 60, h = 9 | 0,815 – 0,831 | 0,842 – **0,855** | **0,863 – 0,873** |
+| 100 × 60, h = 20 | 0,791 – 0,813 | 0,831 – 0,848 | **0,853 – 0,866** |
+| 200 × 120, h = 30 | 0,764 – 0,790 | 0,809 – 0,828 | 0,834 – 0,850 |
 
-**Consecuencia práctica:** en exposición C o D adoptar 0,85 no es más conservador sino
-menos. El art. 1.9.4 permite las dos vías igual, pero suponer que el 0,85 siempre protege
-es un error. La app lo avisa cuando pasa. Conviene contrastarlo con la lectura del autor.
+En negrita, lo que **supera** al 0,85. Un galpón chico lo supera **hasta en exposición B**;
+una nave grande queda por debajo **hasta en D**.
+
+**Consecuencia práctica:** adoptar 0,85 no siempre es más conservador. El art. 1.9.4
+permite las dos vías igual, pero suponer que el 0,85 siempre protege es un error. La app
+lo avisa cuando pasa, mirando las cuatro direcciones y no la seleccionada —si mirara la
+activa, el aviso aparecería y desaparecería al mover el selector—. Conviene contrastarlo
+con la lectura del autor.
 
 ## Tres defectos que encontró el rediseño
 
