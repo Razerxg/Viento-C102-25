@@ -286,8 +286,8 @@ export function cargaMinima(analisis) {
  * magnitud. Es además la estructura que necesitan la envolvente de direcciones y las
  * reacciones de base: ahí cada caso viaja entero.
  */
-function estadoDeCarga({ analisis, par, casoNota3, exentoNota7, pisoSolidario }) {
-  const cub = aporteCubierta({ analisis, casoNota3, pisoSolidario });
+function estadoDeCarga({ analisis, par, casoNota3, exentoNota7, pisoSolidario, casoInterno }) {
+  const cub = aporteCubierta({ analisis, casoNota3, pisoSolidario, casoInterno });
 
   const conCubierta = par.F + cub.H;
   // NOTA 7 de la Figura 2.4-1: el corte no puede quedar por debajo del de las paredes
@@ -329,16 +329,19 @@ function estadoDeCarga({ analisis, par, casoNota3, exentoNota7, pisoSolidario })
  *   Por defecto NO, que es el piso aplicado.
  * @param {boolean} [opc.pisoSolidario]  el piso es parte de la estructura, así que la
  *   presión interna se autoequilibra en la resultante vertical global y en el vuelco.
+ * @param {string} [opc.casoInterno]  cuál de los dos signos de GC_pi. Por defecto el
+ *   positivo, que es el que agrava el levantamiento; la envolvente barre los dos.
  */
 export function resultantes(analisis, opc = {}) {
   const par = aporteParedes({ analisis });
   const exentoNota7 = opc.porticosCubierta === true;
   const pisoSolidario = opc.pisoSolidario === true;
+  const casoInterno = opc.casoInterno ?? "conInternaPos";
 
   // Los DOS casos de la nota 3, cada uno completo.
   const casos = ["negativo", "positivo"].map(c =>
     estadoDeCarga({ analisis, par, casoNota3: /** @type {any} */ (c),
-      exentoNota7, pisoSolidario }));
+      exentoNota7, pisoSolidario, casoInterno }));
 
   /** Máximo en VALOR ABSOLUTO sobre los casos, devolviendo el caso entero. */
   const gobierna = (f) => casos.reduce((a, b) => (Math.abs(f(b)) > Math.abs(f(a)) ? b : a));
@@ -391,7 +394,7 @@ export function resultantes(analisis, opc = {}) {
         + "corresponde usarlo.",
     cargaMinima: minimo,
     gobiernaMinimo: minimo.fuerza > Math.abs(cCorte.cortante),
-    exentoNota7, pisoSolidario,
+    exentoNota7, pisoSolidario, casoInterno,
 
     /**
      * Traza de las DECLARACIONES del proyectista: qué se declaró, qué artículo lo

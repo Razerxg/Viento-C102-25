@@ -423,6 +423,54 @@ propio azul las hace parecer de proveedores distintos.
   con los `C_N` de las Figuras 2.4-4 a 2.4-7, que no están implementados; mostrar los Cp
   de la 2.4-1 es mostrar los de otro edificio.
 
+## Casos de carga de la Fig. 2.4-8 — decisiones que no conviene revertir
+
+`engine/envolvente.js`. La app calculaba **una dirección por vez y con un signo de
+`GC_pi`**; la envolvente barre las 4 direcciones × 2 signos × 2 casos de la nota 3 × los
+casos de la figura, con los dos signos de la excentricidad en los torsionales.
+
+- **EN LOS CASOS 3 Y 4 LA CUBIERTA NO VA AL 75 %.** La nota 2 la deja al **100 % de la
+  mayor presión —del caso 1 para el 3, del caso 2 para el 4— SOBRE CADA ÁREA**,
+  considerando las dos direcciones principales. Leyendo «75 % en los dos ejes» uno le pone
+  0,75 a todo y subestima el levantamiento, que es justo la magnitud que decide una
+  cubierta liviana. Por eso `factorPared` y `factorCubierta` son campos SEPARADOS.
+- **La envolvente de cubierta es POR ÁREA, no el mayor de los dos totales.** Cada
+  dirección zonifica la planta en franjas desde **su propio** borde de barlovento, así que
+  las dos zonificaciones son ortogonales: la grilla es el producto y la integración es
+  exacta. Quedarse con el mayor de los dos totales la subestima.
+- **Los dos casos de la nota 3 ENTRAN AL BARRIDO.** Una primera versión elegía para la
+  cubierta el caso que gobernaba el CORTE y con ese armaba también el levantamiento y el
+  vuelco: el estado resultante no era ninguno de los dos.
+- **`M_T = f·F_paredes·e`.** El producto `(P_W + P_L)·B` integrado en altura **es** la
+  fuerza total de las paredes, así que el momento total sale de la fuerza total: no hace
+  falta integrar el torsor aparte. **En el caso 4 los dos ejes SUMAN** —es lo que le
+  faltaba al `momentoTorsor` viejo, que cubría un eje solo—.
+- **`CASOS_CARGA` y `momentoTorsor` SE SACARON DE `engine/edificio.js`.** Estaban
+  exportados y no los llamaba nadie más que sus propios tests, y su `factor` único por
+  caso es incorrecto. Dos definiciones del mismo caso de carga —una usada por el cálculo y
+  otra no— es cómo se llega a que la memoria informe un número que el motor nunca calculó.
+- **La exención del art. 2.4.7.2 se CONTRASTA con la geometría.** La condición `h ≤ 10 m`
+  la verifica la app: declarada en un edificio de 24 m se marca como desmentida y **no
+  exime**. Las otras dos —cantidad de plantas, entramado liviano— no son datos del modelo
+  y no se desmienten nunca. Una exención sin fundamento se marca con error: deja de
+  verificarse la mitad de los casos de carga.
+- **El texto de los art. 2.4.7.3 a 2.4.7.5 NO se transcribe.** Son condiciones sobre
+  rigideces y regularidad torsional, que dependen del modelo estructural y no de la
+  envolvente. Se registran como declaración con la cita del artículo y el fundamento;
+  poner un resumen del texto invitaría a tildar la casilla sin abrir el reglamento.
+- **La nota 4 cambia CÓMO se aplica `M_T`, no cuánto vale.** Con diafragma flexible o sin
+  diafragma se avisa que va como bloque de presión distribuida sobre las paredes con
+  presión normal; esa distribución **no la arma la app**, depende de los planos
+  resistentes. La **nota 3** —paredes laterales omitibles en los casos 1 y 2— no cambia
+  estas resultantes: son paralelas al viento.
+- **`flexible` sale del MISMO criterio que el factor de ráfaga** (n₁ < 1 Hz, art. 1.2), no
+  de una casilla aparte. Dos definiciones de «edificio flexible» en la misma app es cómo
+  se llega a un `G_f` de flexible con una excentricidad de rígido.
+- ⚠ **LA EXPRESIÓN (2.4-5) NO ESTÁ TRANSCRIPTA.** En flexibles la figura remite a ella
+  para la excentricidad y necesita `e_Q`, `e_R`, `g_Q`, `g_R` y los factores de respuesta
+  del art. 1.9.5, que hoy no son datos del modelo. Se adopta `e = ±0,15·B` —el valor de
+  **rígidas**— y se avisa en rojo: **puede quedar del lado inseguro**.
+
 ## Cerramiento — decisiones que no conviene revertir
 
 - **ES UNA PANTALLA PROPIA, después de Edificio.** La clasificación dejó de ser un
@@ -593,8 +641,8 @@ salieron de MIRAR LA PANTALLA RENDERIZADA, no de un test.
 - **Falta el factor `Ri`** de reducción por gran volumen: está implementado en
   `constants/presionInterna.js` pero no cableado a la interfaz.
 
-- **Los casos de carga de la Figura 2.4-8 no se aplican todavía a la salida.** Están
-  declarados en `engine/edificio.js` con sus factores y su momento torsor.
+- **La expresión (2.4-5) de la excentricidad no está transcripta.** Sólo afecta a
+  estructuras FLEXIBLES: se adopta el `e = ±0,15·B` de rígidas y se avisa en rojo.
 - Cubiertas en **cúpula** (Figura 2.4-2) y **abovedadas** (2.4-3): las constantes están
   leídas pero no implementadas. La 2.4-2 es un gráfico y hay que digitalizarlo.
 - **El croquis de `q(z)` desperdicia el ancho de su tarjeta.** `mkView` ajusta la escala al

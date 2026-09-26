@@ -93,9 +93,10 @@ construye sobre ellas.
 | ✅ | Silueta del limatesa EXACTA, por el trapecio `(B + Lc)/2·r` | ↓ |
 | ✅ | `H` de cuatro aguas sobre el área trapecial de los faldones | ↓ |
 | ✅ | Proyectos viejos con la cumbrera sobre el lado corto: se reorientan y avisan | ↓ |
-| ⏳ | **8** · Casos de carga de la Fig. 2.4-8 y exención del art. 2.4.7 | va con la envolvente de la Fase 2 |
+| ✅ | **8** · Casos de carga de la Fig. 2.4-8 y exención del art. 2.4.7 | `engine/envolvente.js` |
 
-El punto 8 se integra a la envolvente de la Fase 2, por decisión del proyectista.
+El punto 8 se integró a la envolvente de la Fase 2, por decisión del proyectista, y quedó
+cerrado con ella.
 
 ## Sitio — origen de V y cerramiento calculado 🔄
 
@@ -129,9 +130,7 @@ Decisiones tomadas para (2), ya implementadas:
 | ✅ | `unidades.js`: conversión **en el borde**, motor en N, m, N/m² | `lib/unidades.js`. Tres perfiles: pantalla, memoria (longitudes en mm, presiones en kN/m²) y datos (longitudes en m). El número y su unidad salen del MISMO objeto, y hay un test que recorre `src/components` y falla si reaparece una conversión a mano |
 | ⏳ | Avisos de aplicabilidad visibles, nunca silenciosos | h/L, h/B, pendientes, ángulos |
 | ⏳ | n₁ según art. 1.9.2 | Baja altura = rígido, no bloquear · `n_a` de 1.9.3 sólo con acero/hormigón/mampostería, h < 90 m y h < 4·L_ef · `G_f` obligatorio si n₁ < 1 Hz |
-| ⏳ | Envolvente automática: 4 direcciones × 2 signos de `GC_pi` | Con el caso torsional en el resumen de críticos |
-| ⏳ | **Casos de carga de la Fig. 2.4-8** (punto 8 del módulo edificios) | Caso 2: paredes y cubierta al 75 % del caso 1 · Casos 3 y 4 (nota 2): cubierta al 100 % de la mayor presión de los casos 1 y 2 sobre cada área, en las dos direcciones principales · Caso 4: `M_T = 0,563·(P_WX+P_LX)·B_X·e_X + 0,563·(P_WY+P_LY)·B_Y·e_Y` — hoy `momentoTorsor` cubre un solo eje · `e = ±0,15·B` en rígidas con el signo más desfavorable, expr. (2.4-5) en flexibles · nota 3: paredes laterales omitibles en los casos 1 y 2 con diafragma rígido continuo · nota 4: `M_T` sobre diafragmas rígidos; con diafragma flexible o sin diafragma, bloque de presión distribuida sobre las paredes con presión normal |
-| ⏳ | **Exención del art. 2.4.7** | Selector con las condiciones del 2.4.7.2 —una planta con h ≤ 10 m; hasta dos plantas de entramado liviano; hasta dos plantas con diafragmas flexibles— ⇒ sólo casos 1 y 3. Las del 2.4.7.3 a 2.4.7.5, como declaración del usuario con cita del artículo. Corregir el comentario de `CASOS_CARGA` |
+| ✅ | **Envolvente automática**, los casos de la Fig. 2.4-8 y la exención del art. 2.4.7 | `engine/envolvente.js`. Ver abajo qué quedó decidido y qué falta |
 | ✅ | Parseo de inputs | `lib/parseo.js`. Un solo separador = decimal · sin separador de miles · con más de uno se rechaza con el motivo · el valor interpretado al lado del campo · `type="text"` con `inputMode="decimal"`. Reemplaza los tres `num()` del motor, dos de los cuales usaban `parseFloat` pelado y leían «12,5» como 12 |
 
 ## Fase 3 — Salidas ⏳
@@ -173,7 +172,6 @@ devuelve resultantes marcadas como no válidas.
 |---|---|---|
 | ⏳ | `CP_VOLADIZO_INFERIOR`, art. 2.4.4 | `constants/presionesExternas.js` |
 | ⏳ | `GCPN_PARAPETO`, art. 2.4.5 | `constants/presionesExternas.js` |
-| ⏳ | `CASOS_CARGA` y `momentoTorsor`, Fig. 2.4-8 | `engine/edificio.js` — va con la envolvente de la Fase 2. `momentoTorsor` cubre un solo eje; el caso 4 necesita los dos |
 | ⏳ | `R_i`, expr. (1.11-1), reducción por gran volumen | `constants/presionInterna.js` — hoy 1,0, admisible y conservador |
 | ⏳ | Presión interna positiva a la altura de la abertura más alta, art. 2.4.1 | Hoy `q_h`, que es lo conservador que el propio artículo admite |
 
@@ -194,6 +192,40 @@ además necesita el `(GC_p)` del Capítulo 5, que no está en el repositorio. S�
 transcribible exacto porque sus quiebres caen sobre líneas de grilla.
 
 ---
+
+## Envolvente de la Figura 2.4-8 ✅ — qué quedó decidido
+
+`engine/envolvente.js`. El barrido es **4 direcciones × 2 signos de `GC_pi` × 2 casos de
+la nota 3 × los casos de la figura**, con los dos signos de la excentricidad en los
+torsionales: **144 estados** sin exención, 48 con ella. Cada estado viaja entero —corte,
+levantamiento, vuelco y `M_T` del MISMO estado— y la envolvente informa de qué combinación
+salió cada máximo.
+
+| Decisión | Por qué |
+|---|---|
+| **En los casos 3 y 4 la cubierta NO va al 75 %** | La nota 2 la deja al 100 % de la mayor presión —del caso 1 para el 3, del caso 2 para el 4— **sobre cada área**, considerando las dos direcciones. Leyendo «75 % en los dos ejes» uno le pone 0,75 a todo y subestima el levantamiento |
+| **La envolvente de cubierta es POR ÁREA, no el mayor de los dos totales** | Las dos direcciones zonifican la planta en franjas desde **su propio** borde de barlovento, así que son ortogonales: la grilla es el producto y la integración, exacta. En el galpón de control de 20 × 30 el levantamiento del caso 3 da 417,3 kN contra 373,6 del caso 1 |
+| **Los dos casos de la nota 3 entran al barrido** | Una primera versión elegía para la cubierta el caso que gobernaba el CORTE y con ese armaba también el levantamiento: el estado no era ninguno de los dos |
+| **`M_T = f·F_paredes·e`** | `(P_W + P_L)·B` integrado en altura **es** la fuerza total de las paredes, así que el momento total sale de la fuerza total. No hace falta integrar el torsor aparte |
+| **En el caso 4 los dos ejes SUMAN** | Es lo que le faltaba al `momentoTorsor` viejo, que cubría un eje solo |
+| **La exención del 2.4.7.2 se contrasta con la geometría** | `h ≤ 10 m` la verifica la app: una condición de una planta declarada en un edificio de 24 m se marca como desmentida y **no exime**. Las otras dos —plantas, entramado— no son datos del modelo y no se desmienten nunca |
+| **El texto de los art. 2.4.7.3 a 2.4.7.5 no se transcribe** | Son condiciones sobre rigideces y regularidad torsional, que dependen del modelo estructural. Se registran como declaración con la cita y el fundamento; poner un resumen invitaría a tildar la casilla sin abrir el reglamento |
+| **La nota 4 cambia cómo se aplica `M_T`, no cuánto vale** | Con diafragma flexible o sin diafragma se avisa que va como bloque de presión distribuida. **Esa distribución no la arma la app**: depende de los planos resistentes |
+| **La nota 3 no cambia estas resultantes** | Las paredes laterales son paralelas al viento y no tienen componente en la dirección analizada. Importa para el reparto entre planos resistentes, que es del modelo estructural |
+| **`flexible` sale del mismo criterio que `G`** | n₁ < 1 Hz, art. 1.2. Dos definiciones de «edificio flexible» en la misma app es cómo se llega a un `G_f` de flexible con una excentricidad de rígido |
+| **Fuera `CASOS_CARGA` y `momentoTorsor` de `engine/edificio.js`** | Estaban exportados y no los llamaba nadie más que sus tests, y su `factor` único por caso es incorrecto —paredes y cubierta no lo comparten—. Dos definiciones del mismo caso de carga, una usada y otra no, es cómo la memoria informa un número que el motor nunca calculó |
+
+Verificación: 39 tests en `tests/envolvente.test.js`, **28 mutaciones corridas y las 28
+mueren**. Verificado además en navegador sobre `vite preview`, sin errores de consola.
+
+### 📥 Lo que falta y es del proyectista
+
+**La expresión (2.4-5) no está transcripta.** En estructuras flexibles la Figura 2.4-8
+remite a ella para la excentricidad, y necesita `e_Q`, `e_R`, `g_Q`, `g_R` y los factores
+de respuesta de fondo y resonante del art. 1.9.5, que hoy no son datos del modelo.
+Mientras tanto se adopta `e = ±0,15·B`, que es el valor de estructuras **rígidas**, y la
+app lo avisa en rojo en Resultantes y en Resumen: **puede quedar del lado inseguro**. Con
+el edificio rígido —que es el caso de casi todo lo que esta app calcula— no cambia nada.
 
 ## Registro — cuánto cambió la corrección de cuatro aguas
 

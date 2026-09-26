@@ -8,10 +8,12 @@ import { useProyecto } from '../../context/ProyectoContext.jsx';
 import { useUi } from '../../context/UiContext.jsx';
 import { CurvasAltura } from '../svg/CurvasAltura.jsx';
 import { Encabezado, Card, Stat, Stats, Aviso, Nota, Tabla, Divisor, Salida,
-  Acordeon, Th, Td, TdN } from '../ui.jsx';
+  Acordeon, Campo, Sel, Th, Td, TdN } from '../ui.jsx';
 import { c, SP, t } from '../tokens.js';
 import { U, unidades, PERFILES } from '../../lib/unidades.js';
 import { f, fmt } from '../../lib/formato.js';
+import { CASOS_CARGA, CONDICIONES_247_2, ARTICULOS_247_DECLARADOS,
+  DIAFRAGMAS } from '../../engine/envolvente.js';
 
 // ⚠ EL ART. 2.1.5 ESCRIBE SUS MÍNIMOS EN kN/m², y la pantalla usa N/m² en el resto. Un
 // formateador propio para esa tabla, con el ENCABEZADO SALIENDO DEL MISMO OBJETO que el
@@ -20,9 +22,42 @@ import { f, fmt } from '../../lib/formato.js';
 // exactamente el error que el módulo existe para hacer imposible.
 const Umin = unidades({ ...PERFILES.pantalla, presion: "kN/m²" });
 
+const estiloTexto = { padding: "6px 8px", borderRadius: 6 };
+
+/** Una casilla de declaración, con su texto al lado. Es el patrón de toda la app. */
+function Casilla({ marcada, set, children }) {
+  return (
+    <label style={{ display: "flex", gap: SP.sm + 2, alignItems: "flex-start",
+      padding: `${SP.sm}px 0`, cursor: "pointer" }}>
+      <input type="checkbox" checked={!!marcada} onChange={e => set(e.target.checked)}
+        style={{ width: 16, height: 16, marginTop: 2, accentColor: c.azul, cursor: "pointer" }} />
+      <span style={{ ...t.body, lineHeight: 1.6 }}>{children}</span>
+    </label>
+  );
+}
+
+/** Cómo se lee un estado de carga en una celda: caso, dirección y qué lo define. */
+const rotulo = (e) => e == null ? "—" :
+  `Caso ${e.caso} · ${e.dirs.join("+")} · GC_pi ${e.casoInterno === "conInternaPos" ? "+" : "−"}`
+  + ` · nota 3 ${e.casoNota3}${e.eSigno ? ` · e ${e.eSigno > 0 ? "+" : "−"}` : ""}`;
+
 export function ResultantesTab() {
-  const { act, res, resDe, curvas, todas, geoN, d, set } = useProyecto();
+  const { act, res, resDe, curvas, todas, geoN, d, set, envCasos, setEnv } = useProyecto();
   const { tema } = useUi();
+
+  // Marcar y desmarcar una condición de una lista de ids declarados.
+  const alterna = (campo) => (id) => (marcada) => setEnv(campo)(
+    marcada ? [...d.env[campo], id] : d.env[campo].filter(x => x !== id));
+
+  // El máximo de cada magnitud DENTRO de cada caso. Es la tabla que contesta la pregunta
+  // que uno se hace mirando la figura: ¿cuál de los cuatro casos gobierna qué?
+  const porCaso = CASOS_CARGA.map(cs => {
+    const es = envCasos.estados.filter(e => e.caso === cs.n);
+    const mx = (k) => es.length ? Math.max(...es.map(e => Math.abs(e[k]))) : null;
+    return { n: cs.n, label: cs.label, corrido: es.length,
+      cortante: mx("cortante"), levantamiento: mx("levantamiento"),
+      vuelco: mx("vuelco"), MT: mx("MT") };
+  });
 
   return (
     <>
@@ -115,6 +150,172 @@ export function ResultantesTab() {
               así que el valor informado es ese mínimo.
             </Aviso>
           </div>
+        )}
+      </Card>
+
+      {/* ── CASOS DE CARGA — FIGURA 2.4-8 ─────────────────────────────────────────
+          Hasta acá la pantalla mostraba UNA dirección con UN signo de GC_pi, y recorrer
+          el resto era trabajo del proyectista con el selector. Esto barre todo lo que el
+          reglamento exige considerar y dice qué combinación gobierna cada magnitud. */}
+      <Card titulo="Casos de carga — Figura 2.4-8"
+        desc="Envolvente de 4 direcciones × 2 signos de GC_pi × 2 casos de la nota 3 × los
+          casos de la figura, con los dos signos de la excentricidad en los torsionales.
+          Cada número de abajo sale de UN estado de carga completo, que se identifica
+          debajo del valor.">
+        <Stats min={170}>
+          <Stat label="Corte máximo" valor={U.n.fuerza(Math.abs(envCasos.cortante.valor), 1)}
+            unidad={U.u.fuerza} sub={rotulo(envCasos.cortante.estado)}
+            ayuda="En los casos simultáneos las dos componentes son ortogonales y se componen por Pitágoras: el corte de la envolvente puede superar al de cualquier dirección sola." />
+          <Stat label="Levantamiento máximo"
+            valor={U.n.fuerza(Math.abs(envCasos.levantamiento.valor), 1)}
+            unidad={U.u.fuerza} sub={rotulo(envCasos.levantamiento.estado)}
+            ayuda="En los casos 3 y 4 la cubierta NO va al 75 %: la nota 2 la deja al 100 % de la mayor presión sobre cada área, considerando las dos direcciones." />
+          <Stat label="Vuelco máximo" valor={U.n.momento(Math.abs(envCasos.vuelco.valor), 1)}
+            unidad={U.u.momento} sub={rotulo(envCasos.vuelco.estado)} />
+          <Stat label="Momento torsor máximo"
+            valor={envCasos.conTorsion ? U.n.momento(Math.abs(envCasos.torsion.valor), 1) : "exento"}
+            unidad={envCasos.conTorsion ? U.u.momento : undefined}
+            tono={envCasos.conTorsion ? undefined : "aviso"}
+            sub={envCasos.conTorsion ? rotulo(envCasos.torsion.estado)
+              : "casos 2 y 4 exceptuados por el art. 2.4.7"}
+            ayuda="M_T = f·(P_W + P_L)·B·e integrado en altura, que es f por la fuerza total de las paredes por la excentricidad. En el caso 4 suman los dos ejes." />
+        </Stats>
+
+        <Divisor>Qué caso gobierna qué</Divisor>
+        <Tabla minWidth={620}>
+          <thead><tr>
+            <Th>Caso</Th>
+            <Th alinear="right">Corte ({U.u.fuerza})</Th>
+            <Th alinear="right">Levantamiento ({U.u.fuerza})</Th>
+            <Th alinear="right">Vuelco ({U.u.momento})</Th>
+            <Th alinear="right">M_T ({U.u.momento})</Th>
+          </tr></thead>
+          <tbody>
+            {porCaso.map(x => {
+              // El máximo de cada COLUMNA se marca: es el caso que gobierna esa magnitud.
+              const gob = (k) => x[k] != null
+                && x[k] === Math.max(...porCaso.filter(y => y[k] != null).map(y => y[k]));
+              const celda = (k, fn) => (
+                <TdN peso={gob(k) ? 700 : 400} tono={gob(k) ? c.txt : c.txt2}>
+                  {x[k] == null ? "no se verifica" : fn(x[k], 1)}
+                </TdN>
+              );
+              return (
+                <tr key={x.n}>
+                  <Td>{x.label}</Td>
+                  {celda("cortante", U.n.fuerza)}
+                  {celda("levantamiento", U.n.fuerza)}
+                  {celda("vuelco", U.n.momento)}
+                  {celda("MT", U.n.momento)}
+                </tr>
+              );
+            })}
+          </tbody>
+        </Tabla>
+        <Nota>
+          Cada celda es el máximo en valor absoluto dentro de ese caso, sobre todas las
+          direcciones, los dos signos de GC_pi y los dos casos de la nota 3. Se barrieron{" "}
+          <b style={{ color: c.txt }}>{envCasos.estados.length} estados</b> de carga. El
+          caso 4 no es «el 3 más chico»: el 56,3 % baja las paredes pero la cubierta queda
+          al 75 % del caso 2, y encima aparece la torsión de los dos ejes a la vez.
+        </Nota>
+
+        {/* ── EXENCIÓN DEL ART. 2.4.7 ─────────────────────────────────────────── */}
+        <Divisor>Exención de los casos torsionales — art. 2.4.7</Divisor>
+        <Nota>
+          ⚠ Los casos torsionales aplican <b style={{ color: c.txt }}>a edificios de todas
+          las alturas</b>. En el CIRSOC 102-2005 estaban limitados a h &gt; 20 m, así que
+          omitirlos en un galpón bajo era correcto con la edición anterior y ya no lo es:
+          hoy hace falta la exención de este artículo.
+        </Nota>
+        {CONDICIONES_247_2.map(cd => (
+          <Casilla key={cd.id} marcada={d.env.cond247.includes(cd.id)}
+            set={alterna("cond247")(cd.id)}>
+            {cd.label} <span style={{ color: c.txt3 }}>({cd.ref})</span>
+          </Casilla>
+        ))}
+        {envCasos.exen.desmentidas.map(x => (
+          <Aviso key={x.id} tono="error" titulo="La geometría desmiente la condición">
+            {x.contra} La altura media de cubierta del modelo es {f(geoN.h, 2)} m.
+          </Aviso>
+        ))}
+        <Nota>
+          ⚠ El texto de los art. 2.4.7.3 a 2.4.7.5 <b style={{ color: c.txt }}>no está
+          transcripto</b>: son condiciones sobre la distribución de rigideces y la
+          regularidad torsional, que dependen del modelo estructural y no de la envolvente
+          que esta app calcula. Se registran como declaración, con el artículo y el
+          fundamento, para que quien revise la memoria sepa contra qué contrastar.
+        </Nota>
+        {ARTICULOS_247_DECLARADOS.map(a => (
+          <Casilla key={a.id} marcada={d.env.arts247.includes(a.id)}
+            set={alterna("arts247")(a.id)}>
+            {a.label} <span style={{ color: c.txt3 }}>({a.ref})</span>
+          </Casilla>
+        ))}
+        <Campo label="Fundamento de la exención"
+          ayuda="Una exención sin fundamento es una casilla tildada: no se puede revisar ni rehacer. Va al reporte junto con el artículo invocado.">
+          <input className="vw-in" type="text" style={{ ...estiloTexto, width: 340 }}
+            value={d.env.fundamento247} placeholder="p. ej. verificación de regularidad torsional, cálculo XX"
+            onChange={e => setEnv("fundamento247")(e.target.value)} />
+        </Campo>
+        {envCasos.exen.sinFundamento && (
+          <Aviso tono="error" titulo="Falta el fundamento">
+            Se declaró la exención del art. 2.4.7 y con eso dejan de verificarse dos de los
+            cuatro casos de carga. Hay que decir en qué se funda.
+          </Aviso>
+        )}
+        <Aviso tono={envCasos.exen.exento ? "aviso" : "info"}
+          titulo={envCasos.exen.exento ? "Casos 2 y 4 NO verificados"
+            : "Se verifican los cuatro casos"}>
+          {envCasos.exen.exento
+            ? "Con la exención declarada sólo se barren los casos 1 y 3. Si la condición "
+              + "no se cumpliera, la torsión quedaría sin verificar y no hay nada en el "
+              + "resultado que lo delate."
+            : "No se declaró ninguna exención, así que se barren los cuatro casos, los "
+              + "dos torsionales incluidos. Es lo conservador."}
+        </Aviso>
+
+        {/* ── NOTA 4: CÓMO SE APLICA M_T ──────────────────────────────────────── */}
+        <Divisor>Diafragma — nota 4</Divisor>
+        <Campo label="Comportamiento del diafragma"
+          ayuda="No cambia cuánto vale M_T: cambia si se puede aplicar como momento concentrado o hay que repartirlo como bloque de presión sobre las paredes.">
+          <Sel v={d.env.diafragma} set={setEnv("diafragma")} w={240}
+            opciones={DIAFRAGMAS.map(x => [x.id, x.label])} />
+        </Campo>
+        <Nota>{DIAFRAGMAS.find(x => x.id === d.env.diafragma)?.nota}</Nota>
+        {envCasos.comoBloque && (
+          <Aviso tono="aviso" titulo="M_T no se aplica como momento concentrado">
+            El valor informado arriba es correcto como magnitud, pero con este diafragma la
+            nota 4 pide aplicarlo como bloque de presión distribuida sobre las paredes con
+            presión normal. ⚠ Esa distribución <b style={{ color: c.txt }}>no la arma esta
+            app</b>: el reparto depende de los planos resistentes, que son del modelo
+            estructural.
+          </Aviso>
+        )}
+        <Nota>
+          La <b style={{ color: c.txt }}>nota 3</b> permite omitir las paredes laterales en
+          los casos 1 y 2 con diafragma rígido continuo. No cambia estas resultantes: las
+          paredes laterales son paralelas al viento y su presión no tiene componente en la
+          dirección analizada. Importa para el reparto entre planos resistentes, que es
+          del modelo estructural.
+        </Nota>
+
+        {/* ── EXCENTRICIDAD ───────────────────────────────────────────────────── */}
+        <Divisor>Excentricidad</Divisor>
+        <Salida label="Estructura" v={envCasos.flexible ? "flexible (n₁ < 1 Hz)" : "rígida"}
+          ayuda="Sale del MISMO criterio que el factor de ráfaga —art. 1.2, n₁ < 1 Hz—, no de una casilla aparte." />
+        <Salida label="e según X" unit="m" v={f(0.15 * (act.dir.eje === "X" ? act.B : act.L), 2)} />
+        <Salida label="e según Y" unit="m" v={f(0.15 * (act.dir.eje === "X" ? act.L : act.B), 2)} />
+        {envCasos.flexible && (
+          <Aviso tono="error" titulo="La expresión (2.4-5) no está transcripta">
+            En estructuras flexibles la Figura 2.4-8 remite a la expresión (2.4-5), que
+            combina la excentricidad elástica con la resonante y necesita e_Q, e_R, g_Q,
+            g_R y los factores de respuesta de fondo y resonante del art. 1.9.5 —que hoy no
+            son datos del modelo—. Mientras tanto se adopta{" "}
+            <b style={{ color: c.txt }}>e = ±0,15·B</b>, que es el valor de estructuras
+            rígidas. <b style={{ color: c.txt }}>PUEDE QUEDAR DEL LADO INSEGURO</b>: hay que
+            calcular la (2.4-5) aparte y contrastar.
+          </Aviso>
         )}
       </Card>
 

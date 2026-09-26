@@ -24,6 +24,7 @@ import { ri as riDe, CERRAMIENTOS } from '../constants/presionInterna.js';
 import { gcpiDe } from '../constants/presionInterna.js';
 import { factorRafaga } from '../engine/factorRafaga.js';
 import { resultantes, barridoAlero, envolvente } from '../engine/resultantes.js';
+import { estadosDeCarga, envolventeCritica, exencion247 } from '../engine/envolvente.js';
 import { velocidadDe } from '../constants/velocidades.js';
 import { kdDe } from '../constants/direccionalidad.js';
 import { TABS, idxTab } from '../constants/tabs.js';
@@ -94,6 +95,13 @@ export const INICIAL = {
   // presión interna se autoequilibra. Desactivado por defecto: lo conservador.
   pisoSolidario: false,
 
+  // ── CASOS DE CARGA DE LA FIGURA 2.4-8 ───────────────────────────────────────
+  // Por defecto NO se declara ninguna exención del art. 2.4.7: se verifican los cuatro
+  // casos, los dos torsionales incluidos. Es lo conservador y es lo que el reglamento
+  // pide salvo que se demuestre lo contrario. El diafragma arranca en rígido, que es lo
+  // que hace aplicable el momento torsor tal cual sale de la figura.
+  env: { cond247: [], arts247: [], fundamento247: "", diafragma: "rigido" },
+
   // ── CAPÍTULO 4 ──────────────────────────────────────────────────────────────
   // Un caso cargado por defecto, igual que el edificio: abrir en blanco obliga a inventar
   // un cartel antes de poder ver qué hace la pantalla.
@@ -137,6 +145,7 @@ const leer = () => {
       geo: { ...INICIAL.geo, ...(v.geo || {}) },
       topo: { ...INICIAL.topo, ...(v.topo || {}) },
       cerr: { ...INICIAL.cerr, ...(v.cerr || {}) },
+      env: { ...INICIAL.env, ...(v.env || {}) },
       // Un proyecto guardado no trae `cerrModo` ni aberturas: queda en «declarado»,
       // que es la clasificación que su autor eligió a mano.
       cerrModo: v.cerrModo ?? "declarado",
@@ -170,6 +179,7 @@ export function ProyectoProvider({ children }) {
   const setCap4 = useCallback((k) => (v) => setD(x => ({ ...x, cap4: { ...x.cap4, [k]: v } })), []);
   const setSilo = useCallback((k) => (v) => setD(x => ({ ...x, silo: { ...x.silo, [k]: v } })), []);
   const setAnexo = useCallback((k) => (v) => setD(x => ({ ...x, anexo: { ...x.anexo, [k]: v } })), []);
+  const setEnv = useCallback((k) => (v) => setD(x => ({ ...x, env: { ...x.env, [k]: v } })), []);
 
   // AUTOGUARDADO. Diferido medio segundo: sin la demora se escribe en `localStorage` en
   // cada tecla de cada campo numérico.
@@ -314,6 +324,39 @@ export function ProyectoProvider({ children }) {
   // las cuatro aplicaba el piso de la nota 7 aunque el usuario lo hubiera eximido.
   const resDe = useCallback((t) => resultantes(t, opcRes), [opcRes]);
 
+  // ── CASOS DE CARGA DE LA FIGURA 2.4-8 ──────────────────────────────────────
+  //
+  // La envolvente barre 4 direcciones × 2 signos de GC_pi × 2 casos de la nota 3 × los
+  // casos de la figura, con los dos signos de la excentricidad en los torsionales. Es lo
+  // que reemplaza a mirar una dirección por vez: hasta acá la pantalla mostraba la
+  // dirección seleccionada y el proyectista tenía que recorrer el selector a mano.
+  //
+  // ⚠ ES LA MISMA `entrada` QUE `todas`, PERO SIN `sitioDe`. La exención topográfica por
+  // dirección se resuelve adentro de `analizar`, así que se le pasa una función que ya la
+  // aplica: sin eso, la envolvente usaría K_zt en las cuatro direcciones aunque el
+  // proyectista lo hubiera limitado a algunas.
+  const analizarConSitio = useCallback((ent, dir) =>
+    analizarDireccion({ ...ent, sitio: sitioDe(dir) }, dir), [sitioDe]);
+
+  // `flexible` sale del MISMO criterio que el factor de ráfaga —n₁ < 1 Hz, art. 1.2—, no
+  // de una casilla aparte: dos definiciones de «edificio flexible» en la misma app es
+  // cómo se llega a un G_f de flexible con una excentricidad de rígido.
+  const esFlexible = rafaga.flexible || d.modoG === "flexible";
+
+  const exen = useMemo(() => exencion247({
+    cond247: d.env.cond247, arts247: d.env.arts247,
+    fundamento: d.env.fundamento247, h: geoN.h,
+  }), [d.env.cond247, d.env.arts247, d.env.fundamento247, geoN.h]);
+
+  const envCasos = useMemo(() => {
+    const estados = estadosDeCarga({ analizar: analizarConSitio, entrada, opc: {
+      ...opcRes, exentoArt247: exen.exento, flexible: esFlexible,
+      diafragma: d.env.diafragma,
+    } });
+    return { ...envolventeCritica(estados), exen, flexible: esFlexible,
+      diafragma: d.env.diafragma };
+  }, [analizarConSitio, entrada, opcRes, exen, esFlexible, d.env.diafragma]);
+
   // El máximo se toma sobre TODO el edificio y TODAS las direcciones. Si se normalizara
   // por dirección, cada croquis usaría su propia escala y dos croquis lado a lado dirían
   // cosas distintas con el mismo color.
@@ -413,7 +456,7 @@ export function ProyectoProvider({ children }) {
       tab, setTab, irA, nombreTab: TABS[tab] ?? TABS[0],
       iDir, setIDir, direcciones: DIRECCIONES,
       V, vel, setSub, sitio, geoN, rafaga, G, todas, act, res, resDe, maxAbs, curvas,
-      cerr, cerramiento,
+      cerr, cerramiento, envCasos, setEnv,
       avisos, avisosPorTab: porTab(avisos), conteo: contar(avisos),
       guardadoEn, nuevo, exportar, importar, fileRef,
     }}>{children}</Ctx.Provider>

@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { normalizarGeo, alturaMedia, cpCubiertaBarlovento, cpCubiertaSotavento,
   cpCubiertaParalelo, perfilBarlovento, analizarDireccion, analizarEdificio,
-  DIRECCIONES, CASOS_CARGA, momentoTorsor } from '../src/engine/edificio.js';
+  DIRECCIONES } from '../src/engine/edificio.js';
 import { CP_CUBIERTA_BARLOVENTO, CP_CUBIERTA_SOTAVENTO, ANG_BARLOVENTO } from '../src/constants/presionesExternas.js';
 
 const SITIO = { V: 55.1, exposicion: "B", kd: 0.85, Kzt: 1.0, altitud: 0, usarKe: false };
@@ -295,22 +295,5 @@ describe('análisis por dirección', () => {
     const todas = analizarEdificio(ENT);
     expect(todas).toHaveLength(4);
     expect(todas.map(t => t.dir.id)).toEqual(["Wx+", "Wx-", "Wy+", "Wy-"]);
-  });
-});
-
-describe('casos de carga de la Figura 2.4-8', () => {
-  it('son cuatro, con los factores de la figura', () => {
-    expect(CASOS_CARGA.map(c => c.factor)).toEqual([1.0, 0.75, 0.75, 0.563]);
-    expect(CASOS_CARGA.filter(c => c.torsion).map(c => c.n)).toEqual([2, 4]);
-  });
-
-  it('la excentricidad de los casos torsionales es 0,15·B', () => {
-    for (const c of CASOS_CARGA.filter(c => c.torsion)) expect(c.e).toBe(0.15);
-  });
-
-  // M_T = 0,75·(P_W + P_L)·B·e con e = 0,15·B
-  it('el momento torsor sigue la expresión de la figura', () => {
-    const mt = momentoTorsor({ pW: 800, pL: -500, B: 30, factor: 0.75, e: 0.15 });
-    expect(mt).toBeCloseTo(0.75 * (800 + 500) * 30 * (0.15 * 30), 6);
   });
 });

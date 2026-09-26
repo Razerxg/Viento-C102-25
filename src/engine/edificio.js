@@ -546,16 +546,10 @@ export const analizarEdificio = (entrada) =>
 
 // ── CASOS DE CARGA DE LA FIGURA 2.4-8 ───────────────────────────────────────────
 //
-// Cuatro casos, y los dos torsionales aplican AHORA A EDIFICIOS DE TODAS LAS ALTURAS: en
-// el CIRSOC 102-2005 estaban limitados a h > 20 m. Omitirlos en un galpón bajo era
-// correcto con la edición anterior y ya no lo es.
-export const CASOS_CARGA = [
-  { n: 1, label: "Caso 1 — presión total, cada eje por separado", factor: 1.0, torsion: false },
-  { n: 2, label: "Caso 2 — 75 % con torsión", factor: 0.75, torsion: true, e: 0.15 },
-  { n: 3, label: "Caso 3 — 75 % en los dos ejes simultáneos", factor: 0.75, torsion: false },
-  { n: 4, label: "Caso 4 — 56,3 % en los dos ejes con torsión", factor: 0.563, torsion: true, e: 0.15 },
-];
-
-// M_T por unidad de altura, expresiones de la Figura 2.4-8.
-export const momentoTorsor = ({ pW, pL, B, factor, e = 0.15 }) =>
-  factor * (Math.abs(pW) + Math.abs(pL)) * B * (e * B);
+// ⚠ VIVEN EN `engine/envolvente.js`, NO ACÁ. Había una `CASOS_CARGA` en este archivo con
+// un `factor` único por caso y un `momentoTorsor` por unidad de altura; los dos estaban
+// exportados y no los llamaba nadie más que sus propios tests. El `factor` único es
+// además incorrecto: en los casos 3 y 4 la nota 2 deja la CUBIERTA al 100 % de la presión
+// del caso base sobre cada área, así que paredes y cubierta no comparten factor. Dos
+// definiciones del mismo caso de carga —una usada por el cálculo y otra no— es cómo se
+// llega a que la memoria informe un número que el motor nunca calculó.

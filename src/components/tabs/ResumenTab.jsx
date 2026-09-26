@@ -3,7 +3,7 @@
 // Es la pantalla que se imprime o se copia a la memoria. Va sin ficha de estado al costado
 // porque la ficha duplicaría columnas que la propia tabla ya lista.
 import { useProyecto } from '../../context/ProyectoContext.jsx';
-import { Encabezado, Card, Tabla, Th, Td, TdN, Nota, Stat, Stats, Badge } from '../ui.jsx';
+import { Encabezado, Card, Tabla, Th, Td, TdN, Nota, Aviso, Stat, Stats, Badge } from '../ui.jsx';
 import { c, SP } from '../tokens.js';
 import { U } from '../../lib/unidades.js';
 import { f, fmt } from '../../lib/formato.js';
@@ -11,8 +11,14 @@ import { rotuloConteo } from '../../lib/avisos.js';
 
 const MODO = { faldones: "faldones", unica: "única", franjas: "franjas" };
 
+/** Cómo se lee un estado de carga en una celda: caso, dirección y qué lo define. */
+const rotulo = (e) => e == null ? "—" :
+  `Caso ${e.caso} · ${e.dirs.join("+")} · GC_pi ${e.casoInterno === "conInternaPos" ? "+" : "−"}`
+  + ` · nota 3 ${e.casoNota3}${e.eSigno ? ` · e ${e.eSigno > 0 ? "+" : "−"}` : ""}`;
+
 export function ResumenTab() {
-  const { todas, act, iDir, d, V, sitio, geoN, G, rafaga, conteo, resDe, cerramiento } = useProyecto();
+  const { todas, act, iDir, d, V, sitio, geoN, G, rafaga, conteo, resDe, cerramiento,
+    envCasos } = useProyecto();
   const resumen = rotuloConteo(conteo);
 
   const filas = [
@@ -87,16 +93,66 @@ export function ResumenTab() {
         </Nota>
       </Card>
 
-      <Card titulo="Qué falta para que esto sea una memoria">
+      {/* ── CASOS CRÍTICOS ────────────────────────────────────────────────────────
+          La tabla de arriba es por dirección, que es cómo se calcula. Esto es por
+          MAGNITUD, que es cómo se diseña: de todo lo que el reglamento exige considerar,
+          cuál es el número que hay que llevar al modelo y de qué combinación sale. */}
+      <Card titulo="Casos críticos — envolvente de la Figura 2.4-8"
+        desc="Lo que hay que transcribir al modelo estructural. Cada fila sale de UN estado
+          de carga completo, identificado en la última columna."
+        acciones={<Badge tono={envCasos.exen.exento ? "aviso" : "ok"}>
+          {envCasos.estados.length} estados barridos</Badge>}>
+        <Tabla minWidth={640}>
+          <thead><tr>
+            <Th>Magnitud</Th><Th alinear="right">Valor</Th><Th>Unidad</Th>
+            <Th>Combinación que gobierna</Th>
+          </tr></thead>
+          <tbody>
+            {[["Corte total", envCasos.cortante, U.n.fuerza, U.u.fuerza],
+              ["Levantamiento", envCasos.levantamiento, U.n.fuerza, U.u.fuerza],
+              ["Vuelco", envCasos.vuelco, U.n.momento, U.u.momento],
+              ["Momento torsor M_T", envCasos.torsion, U.n.momento, U.u.momento],
+            ].map(([nom, g, fn, un]) => (
+              <tr key={nom}>
+                <Td>{nom}</Td>
+                <TdN peso={600}>{fn(Math.abs(g.valor), 1)}</TdN>
+                <Td tono={c.txt3}>{un}</Td>
+                <Td tono={c.txt3}>{rotulo(g.estado)}</Td>
+              </tr>
+            ))}
+          </tbody>
+        </Tabla>
+        {/* El caso torsional es el que se olvida: no aparece en ninguna tabla por
+            dirección, porque no ES una dirección. Por eso va en esta lista y no aparte. */}
+        {!envCasos.conTorsion && (
+          <Aviso tono="aviso" titulo="Los casos torsionales no se verificaron">
+            Se declaró la exención del art. 2.4.7, así que sólo se barrieron los casos 1 y
+            3. El M_T informado es el de los casos corridos —cero— y no significa que el
+            edificio no torsione: significa que no se verificó.
+          </Aviso>
+        )}
+        {envCasos.comoBloque && (
+          <Aviso tono="aviso" titulo="M_T va como bloque de presión distribuida">
+            Con diafragma flexible o sin diafragma, la nota 4 no admite aplicar M_T como
+            momento concentrado. El valor de la tabla es correcto como magnitud; la
+            distribución sobre las paredes la arma el modelo estructural.
+          </Aviso>
+        )}
+        {envCasos.flexible && (
+          <Aviso tono="error" titulo="Excentricidad aproximada en estructura flexible">
+            La expresión (2.4-5) no está transcripta y se adoptó e = ±0,15·B, que es el
+            valor de estructuras rígidas. El M_T de esta tabla PUEDE QUEDAR DEL LADO
+            INSEGURO.
+          </Aviso>
+        )}
         <Nota>
-          Los cuatro casos de carga de la Figura 2.4-8 —presión total, 75 % con torsión,
-          75 % en los dos ejes y 56,3 % en los dos ejes con torsión— están declarados en el
-          motor con su momento torsor, pero todavía no se aplican a estos resultados. Los
-          dos casos torsionales aplican AHORA a edificios de todas las alturas: en el
-          102-2005 estaban limitados a h &gt; 20 m, así que omitirlos en un galpón bajo era
-          correcto con la edición anterior y ya no lo es.
+          En los casos 3 y 4 la cubierta no va al 75 %: la nota 2 de la figura la deja al
+          100 % de la mayor presión sobre CADA ÁREA, considerando las dos direcciones
+          principales. Por eso el levantamiento de la envolvente puede superar al de
+          cualquier dirección sola.
         </Nota>
       </Card>
+
     </>
   );
 }
