@@ -25,6 +25,7 @@ import { gcpiDe } from '../constants/presionInterna.js';
 import { factorRafaga } from '../engine/factorRafaga.js';
 import { resultantes, barridoAlero, envolvente } from '../engine/resultantes.js';
 import { estadosDeCarga, envolventeCritica, exencion247 } from '../engine/envolvente.js';
+import { aplicabilidadDeTodas } from '../engine/aplicabilidad.js';
 import { velocidadDe } from '../constants/velocidades.js';
 import { kdDe } from '../constants/direccionalidad.js';
 import { TABS, idxTab } from '../constants/tabs.js';
@@ -409,10 +410,17 @@ export function ProyectoProvider({ children }) {
       perfil: d.anexo.perfil, thetaPerfil: num(d.anexo.thetaPerfil) },
   }), [d.anexo, sitio, kdAnexo, G]);
 
+  // ── APLICABILIDAD ──────────────────────────────────────────────────────────
+  // En qué fila y en qué columna de la Figura 2.4-1 cayó cada dirección, y cuáles de esas
+  // lecturas la figura no escribe. Es lo que convierte «el número salió» en «el número
+  // salió de acá y se puede controlar contra el papel».
+  const aplic = useMemo(() => aplicabilidadDeTodas(todas), [todas]);
+
   const avisos = useMemo(() => avisosDe({
     geoN, sitio, cerramiento: d.cerramiento, rafaga, modoG: d.modoG, n1: d.n1,
-    analisis: act, resultantes: res, accesorio, silo, anexo, topo,
-  }), [geoN, sitio, d.cerramiento, rafaga, d.modoG, d.n1, act, res, accesorio, silo, anexo, topo]);
+    analisis: act, resultantes: res, accesorio, silo, anexo, topo, aplic,
+  }), [geoN, sitio, d.cerramiento, rafaga, d.modoG, d.n1, act, res, accesorio, silo, anexo,
+    topo, aplic]);
 
   const irA = useCallback((nombre) => setTab(idxTab(nombre)), []);
 
@@ -456,7 +464,7 @@ export function ProyectoProvider({ children }) {
       tab, setTab, irA, nombreTab: TABS[tab] ?? TABS[0],
       iDir, setIDir, direcciones: DIRECCIONES,
       V, vel, setSub, sitio, geoN, rafaga, G, todas, act, res, resDe, maxAbs, curvas,
-      cerr, cerramiento, envCasos, setEnv,
+      cerr, cerramiento, envCasos, setEnv, aplic,
       avisos, avisosPorTab: porTab(avisos), conteo: contar(avisos),
       guardadoEn, nuevo, exportar, importar, fileRef,
     }}>{children}</Ctx.Provider>

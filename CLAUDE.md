@@ -423,6 +423,34 @@ propio azul las hace parecer de proveedores distintos.
   con los `C_N` de las Figuras 2.4-4 a 2.4-7, que no están implementados; mostrar los Cp
   de la 2.4-1 es mostrar los de otro edificio.
 
+## Aplicabilidad de la Fig. 2.4-1 — decisiones que no conviene revertir
+
+`engine/aplicabilidad.js`. Dice, magnitud por magnitud, en qué fila y en qué columna de la
+figura cayó el edificio. No calcula ninguna presión: lee un análisis ya hecho.
+
+- **«EN EL EXTREMO» NO ES UN AVISO, ES INFORMACIÓN.** Las filas de la figura dicen «≤» y
+  «≥»: adoptar el extremo es lo que manda, no una licencia del motor. Marcarlo en amarillo
+  llenaría de alertas cualquier galpón largo y haría que se dejen de leer las reales. Lo
+  que SÍ avisa es una lectura **extendida**: una que la figura no escribe.
+- **Las dos lecturas extendidas que hay hoy** son `45° < θ < 60°` —la figura escribe el
+  nodo de 60° como expresión `0,01·θ` y no como número, y se interpola hacia el valor FIJO
+  0,60— y `θ > 80°`, donde el faldón a barlovento pasa a `Cp = 0,80` de pared mientras el
+  de sotavento se sigue leyendo de la tabla de CUBIERTA. La figura no resuelve esa
+  contradicción; se adopta la lectura literal y queda dicho.
+- **`h/B` se informa y se dice que NO indexa nada.** El Cp de sotavento va por `L/B` y el
+  de cubierta por `h/L`; donde `h` y `B` entran juntos es en el `Q` del art. 1.9. Alguien
+  que cambia `B` y no ve moverse ningún Cp tiene derecho a sospechar que la app no lo lee.
+- **La baja altura del art. 1.2 se informa aunque no cambie ningún número acá.** Si
+  `h ≤ 18 m` y `h ≤` la menor dimensión en planta, existe ADEMÁS el método de la
+  envolvente, que da otras cargas y no está implementado. Callarlo haría creer que el
+  camino que la app recorre es el único disponible.
+- **El rótulo de la tarjeta cuenta los extremos APARTE del tono.** Como los extremos son
+  «info» a propósito, mirando sólo el tono una nave con dos filas leídas en el extremo se
+  anunciaba «todo dentro de tabla». Lo encontró la verificación en navegador, no los tests.
+- **Las filas que no leen tabla traen su propia etiqueta** (`no interviene`, `cumple`,
+  `informativa`) y van marcadas con `deTabla: false`. Rotular «dentro de la tabla» algo que
+  no indexa ninguna tabla es afirmar algo que no es cierto.
+
 ## Casos de carga de la Fig. 2.4-8 — decisiones que no conviene revertir
 
 `engine/envolvente.js`. La app calculaba **una dirección por vez y con un signo de

@@ -5,9 +5,27 @@
 // el número; puesto arriba, se lee antes.
 import { useProyecto } from '../../context/ProyectoContext.jsx';
 import { TablaCargas } from './TablaCargas.jsx';
-import { Encabezado, Card, Campo, Num, Aviso, Nota, Tabla, Th, Td, TdN, Acordeon } from '../ui.jsx';
+import { Encabezado, Card, Campo, Num, Aviso, Nota, Tabla, Th, Td, TdN, Acordeon,
+  Badge } from '../ui.jsx';
 import { c, t, MONO } from '../tokens.js';
 import { f } from '../../lib/formato.js';
+import { ESTADOS } from '../../engine/aplicabilidad.js';
+
+/**
+ * Rótulo de la tarjeta.
+ *
+ * ⚠ «EN EL EXTREMO» TIENE QUE APARECER. Antes el rótulo miraba sólo el tono, y como los
+ * extremos son «info» a propósito, una nave con L/B = 5 y h/L = 0,06 —las dos filas
+ * leídas en el extremo— se anunciaba como «todo dentro de tabla». Es exactamente lo que
+ * esta tarjeta existe para no hacer.
+ */
+const rotulo = (ap) => {
+  const n = ap.extendidas.length, m = ap.extremos.length;
+  const plural = (k, sing, pl) => `${k} ${k === 1 ? sing : pl}`;
+  if (n > 0) return { tono: "aviso", txt: plural(n, "lectura extendida", "lecturas extendidas") };
+  if (m > 0) return { tono: "neutro", txt: plural(m, "lectura en el extremo", "lecturas en el extremo") };
+  return { tono: "ok", txt: "todo dentro de tabla" };
+};
 
 const MODO_TXT = {
   faldones: "dos faldones — barlovento y sotavento con coeficientes distintos",
@@ -16,7 +34,8 @@ const MODO_TXT = {
 };
 
 export function PresionesTab() {
-  const { act, d, set } = useProyecto();
+  const { act, d, set, aplic, todas, iDir } = useProyecto();
+  const ap = aplic.porDir[iDir] ?? aplic.porDir[0];
 
   return (
     <>
@@ -54,6 +73,49 @@ export function PresionesTab() {
             ))}
           </tbody>
         </Tabla>
+      </Card>
+
+      {/* ── APLICABILIDAD ────────────────────────────────────────────────────────
+          Un Cp leído en el extremo de una tabla y uno interpolado entre dos filas dan los
+          dos un número plausible, y sólo el segundo se puede controlar contra el papel
+          reproduciendo la interpolación. La tarjeta dice cuál es cuál, y marca aparte las
+          lecturas que la figura no escribe. */}
+      <Card titulo="Dónde cayó este edificio en la Figura 2.4-1"
+        desc="Cada relación con el rango que la figura tabula y dónde cayó la de este caso.
+          «En el extremo» no es un error: las filas de la figura dicen ≤ y ≥, y adoptar el
+          extremo es lo que manda. Lo que sí hay que mirar es una lectura extendida."
+        acciones={<Badge tono={rotulo(ap).tono} punto={rotulo(ap).tono !== "ok"}>
+          {rotulo(ap).txt}</Badge>}>
+        <Tabla minWidth={680}>
+          <thead><tr>
+            <Th>Magnitud</Th><Th alinear="right">Valor</Th><Th>Rango tabulado</Th>
+            <Th>Lectura</Th><Th>Qué significa</Th>
+          </tr></thead>
+          <tbody>
+            {ap.items.map(x => (
+              <tr key={x.id}>
+                <Td nowrap>{x.magnitud}</Td>
+                <TdN peso={600}>{x.texto}</TdN>
+                <Td tono={c.txt3} nowrap>{x.rango}</Td>
+                <Td nowrap tono={x.estado === "dentro" ? c.txt3 : c.txt}
+                  peso={x.estado === "dentro" ? 400 : 600}>{x.etiqueta}</Td>
+                <Td tono={c.txt3}>{x.detalle}</Td>
+              </tr>
+            ))}
+          </tbody>
+        </Tabla>
+        {ap.extendidas.map(x => (
+          <Aviso key={x.id} tono="aviso" titulo={`${x.titulo} — lectura extendida`}>
+            {x.detalle}
+          </Aviso>
+        ))}
+        <Nota>
+          Las cuatro direcciones no comparten estas filas: al girar el viento, L y B se
+          intercambian y la cubierta puede ir en faldones en un eje y en franjas en el
+          otro.{" "}
+          {todas.map((td, i) => `${td.dir.id} ${ESTADOS[aplic.porDir[i].items
+            .find(y => y.id === "theta").estado].label}`).join(" · ")}.
+        </Nota>
       </Card>
 
       <Card titulo="Tabla de carga de viento"

@@ -128,7 +128,7 @@ Decisiones tomadas para (2), ya implementadas:
 | Estado | Ítem | Nota |
 |---|---|---|
 | ✅ | `unidades.js`: conversión **en el borde**, motor en N, m, N/m² | `lib/unidades.js`. Tres perfiles: pantalla, memoria (longitudes en mm, presiones en kN/m²) y datos (longitudes en m). El número y su unidad salen del MISMO objeto, y hay un test que recorre `src/components` y falla si reaparece una conversión a mano |
-| ⏳ | Avisos de aplicabilidad visibles, nunca silenciosos | h/L, h/B, pendientes, ángulos |
+| ✅ | **Avisos de aplicabilidad visibles, nunca silenciosos** | `engine/aplicabilidad.js` + tarjeta en Presiones. Ver abajo qué distingue cada estado |
 | ⏳ | n₁ según art. 1.9.2 | Baja altura = rígido, no bloquear · `n_a` de 1.9.3 sólo con acero/hormigón/mampostería, h < 90 m y h < 4·L_ef · `G_f` obligatorio si n₁ < 1 Hz |
 | ✅ | **Envolvente automática**, los casos de la Fig. 2.4-8 y la exención del art. 2.4.7 | `engine/envolvente.js`. Ver abajo qué quedó decidido y qué falta |
 | ✅ | Parseo de inputs | `lib/parseo.js`. Un solo separador = decimal · sin separador de miles · con más de uno se rechaza con el motivo · el valor interpretado al lado del campo · `type="text"` con `inputMode="decimal"`. Reemplaza los tres `num()` del motor, dos de los cuales usaban `parseFloat` pelado y leían «12,5» como 12 |
@@ -192,6 +192,49 @@ además necesita el `(GC_p)` del Capítulo 5, que no está en el repositorio. S�
 transcribible exacto porque sus quiebres caen sobre líneas de grilla.
 
 ---
+
+## Aplicabilidad de la Figura 2.4-1 ✅ — dónde cayó cada lectura
+
+`engine/aplicabilidad.js`. El motor lee las tablas con **los extremos congelados**, que es
+lo que la figura manda —sus filas dicen «≤ 0,25», «≥ 1,0», «L/B ≥ 4»—. El problema no era
+el número: era que una lectura interpolada y una leída en el extremo salían escritas
+igual, y sólo la primera se puede controlar contra el papel reproduciendo la
+interpolación.
+
+**Cuatro estados, que no son grados de un mismo eje:**
+
+| Estado | Tono | Qué significa |
+|---|---|---|
+| `dentro` | info | cayó entre dos filas tabuladas y se interpoló |
+| `extremo` | **info** | quedó fuera del rango y se adoptó el extremo, que es lo que la figura manda. **No es un aviso**: marcarlo en amarillo llenaría de alertas cualquier galpón largo y haría que se dejen de leer las reales |
+| `extendido` | **aviso** | el motor hizo una lectura que la figura NO escribe |
+| `fuera` | error | el caso no está cubierto por lo implementado |
+
+**Las dos lecturas extendidas que hay hoy:**
+
+- **45° < θ < 60°.** La figura escribe el nodo de 60° como EXPRESIÓN (`0,01·θ`) y no como
+  número. Se interpola hacia `0,01·60 = 0,60` —el valor fijo del nodo, no el `0,01·θ` del
+  ángulo que se está calculando— y el caso de succión vale 0 en todo el tramo.
+- **θ > 80°.** La nota manda tratar la cubierta como PARED y el faldón a barlovento toma
+  `Cp = 0,80`, pero **el faldón a sotavento se sigue leyendo de la tabla de cubierta**
+  (−0,60) en vez de la de pared a sotavento (−0,50 a −0,20). La figura no resuelve esa
+  contradicción; se adopta la lectura literal y queda dicho.
+
+**Lo que se informa además:** `h/B`, que **no indexa ninguna fila** de la figura —el Cp de
+sotavento va por `L/B` y el de cubierta por `h/L`— y sólo entra en el factor de respuesta
+de fondo `Q` del art. 1.9; y si el edificio es **de baja altura** (art. 1.2: `h ≤ 18 m` y
+`h ≤` la menor dimensión en planta), porque entonces existe además el **método de la
+envolvente**, que da otras cargas y NO está implementado acá. Callarlo haría creer que el
+camino que la app recorre es el único disponible.
+
+El rótulo de la tarjeta **cuenta los extremos aparte del tono**. Es un bug que encontró la
+verificación en navegador y no los tests: como los extremos son «info» a propósito, una
+nave de 100 × 20 con `L/B = 5` y `h/L = 0,06` —las dos filas leídas en el extremo— se
+anunciaba como «todo dentro de tabla».
+
+Verificación: 26 tests en `tests/aplicabilidad.test.js`, **31 mutaciones corridas y las 31
+mueren**, con control de línea de base —sin él, una suite ya en rojo da «0 sobrevivientes»
+sin haber probado nada—. Verificado en navegador sobre cinco geometrías.
 
 ## Envolvente de la Figura 2.4-8 ✅ — qué quedó decidido
 

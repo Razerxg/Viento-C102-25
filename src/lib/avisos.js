@@ -23,7 +23,7 @@
 const ORDEN = { error: 0, aviso: 1, info: 2 };
 
 export function avisosDe({ geoN, sitio, cerramiento, rafaga, modoG, n1, analisis, resultantes,
-  accesorio, silo, anexo, topo, vel, cerr }) {
+  accesorio, silo, anexo, topo, vel, cerr, aplic }) {
   const av = [];
   const push = (o) => av.push(o);
 
@@ -182,6 +182,26 @@ export function avisosDe({ geoN, sitio, cerramiento, rafaga, modoG, n1, analisis
       titulo: "Cubierta zonificada en franjas pese a tener pendiente",
       detalle: "En esta dirección el viento es paralelo a la cumbrera, y para viento paralelo "
         + "la Figura 2.4-1 zonifica en franjas cualquiera sea θ." });
+  }
+
+  // ── APLICABILIDAD DE LA FIGURA 2.4-1 ─────────────────────────────────────────
+  //
+  // Las lecturas EXTENDIDAS son las que el motor hace sin que la figura las escriba: la
+  // interpolación hacia el nodo de 60°, o la pendiente de más de 80° que trata el faldón
+  // a barlovento como pared y el de sotavento como cubierta. Un valor leído en el extremo
+  // de una tabla NO entra acá —la figura dice «≥» y adoptar el extremo es lo que manda—;
+  // lo que no puede quedar en silencio es una lectura que no está en el papel.
+  for (const x of aplic?.extendidas ?? []) {
+    push({ id: `aplic-${x.id}`, tono: "aviso", tab: "Presiones",
+      titulo: `${x.titulo} — lectura extendida`, detalle: x.detalle });
+  }
+  // Que exista OTRO método aplicable, y que esta app no lo tenga, es del mismo orden que
+  // un coeficiente fuera de tabla: cambia lo que el proyectista puede hacer con el
+  // resultado. Se informa sólo cuando el método alternativo aplica.
+  if (aplic?.bajaAltura?.cumple) {
+    push({ id: "bajaAltura", tono: "info", tab: "Edificio",
+      titulo: "Edificio de baja altura — hay un segundo método aplicable",
+      detalle: aplic.bajaAltura.detalle });
   }
 
   // ── CAPÍTULO 4 ───────────────────────────────────────────────────────────────
