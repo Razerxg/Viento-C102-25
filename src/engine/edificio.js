@@ -18,6 +18,7 @@ import { CP_PARED, CP_CUBIERTA_BARLOVENTO, CP_CUBIERTA_SOTAVENTO, CP_CUBIERTA_PA
   FACTOR_AREA } from '../constants/presionesExternas.js';
 import { interp, cpSotavento, presion, MINIMOS } from './presiones.js';
 import { gcpiDe } from '../constants/presionInterna.js';
+import { fachadasDe, areaHasta, momentoHasta } from './fachadas.js';
 import { tipoDe } from '../constants/cubiertas.js';
 
 export const DIRECCIONES = [
@@ -209,14 +210,19 @@ export function cpCubiertaParalelo(hL) {
 //
 // El perfil se corta además en las alturas TABULADAS de la Tabla 1.13-1, porque es como se
 // lo verifica a mano contra la norma.
-export function perfilBarlovento({ h, sitio, hAlero, hCumbre, puntos = 10 }) {
+export function perfilBarlovento({ h, sitio, hAlero, hCumbre, puntos = 10, zTope }) {
+  // ⚠ EL PERFIL CIERRA EN LA COTA REAL DE LA PARED, NO EN `h`. Con viento paralelo a la
+  // cumbrera la pared a barlovento es el HASTIAL y su punto más alto es la cumbrera, que
+  // está por encima de la altura media. Cerrar en `h` dejaba el frontón sin q_z: el
+  // pedazo de pared donde q_z es mayor y el brazo de vuelco más largo.
+  const zMax = Number.isFinite(zTope) && zTope > 0 ? zTope : h;
   const cortes = new Map();
   // ⚠ LAS MARCAS SE ACUMULAN, no se pisan. En una cubierta plana el alero, la cumbrera y
   // la altura media son LA MISMA cota, y quedarse con la última haría que la tabla dijera
   // «altura media h» y callara que ahí también está el alero. Coincidir no es lo mismo que
   // no existir.
   const poner = (z, marca) => {
-    if (!(z >= 0) || z > h + 1e-9) return;
+    if (!(z >= 0) || z > zMax + 1e-9) return;
     const k = Math.round(z * 1e6) / 1e6;
     const previo = cortes.get(k);
     const marcas = new Set(previo?.marcas ?? []);
@@ -226,21 +232,22 @@ export function perfilBarlovento({ h, sitio, hAlero, hCumbre, puntos = 10 }) {
 
   // N puntos equiespaciados de 0 a h, como en la planilla
   const n = Math.max(2, Math.min(26, Math.round(puntos)));
-  for (let i = 0; i < n; i++) poner(h * i / (n - 1));
+  for (let i = 0; i < n; i++) poner(zMax * i / (n - 1));
   // los cortes de la Tabla 1.13-1 que caigan dentro
   for (const z of ALTURAS_KZ) poner(z);
   // y las tres cotas con nombre
   poner(0, "base");
   if (hAlero != null) poner(hAlero, "alero");
-  if (hCumbre != null) poner(Math.min(hCumbre, h), hCumbre <= h + 1e-9 ? "cumbrera" : null);
+  if (hCumbre != null) poner(Math.min(hCumbre, zMax), hCumbre <= zMax + 1e-9 ? "cumbrera" : null);
   poner(h, "altura media h");
+  poner(zMax, zMax > h + 1e-9 ? "tope de la pared" : null);
 
   // EL MÁXIMO DE K_z·K_zt, CUANDO CAE ENTRE DOS CORTES. Con topografía el producto sube
   // y después baja, así que puede tener su máximo en el medio de un tramo, donde la regla
   // de los dos extremos no lo ve. Agregarlo como corte lo convierte en extremo. Se busca
   // desde los 5 m —abajo de eso K_z está congelado y el producto sólo decrece, con lo que
   // el máximo es z = 0, que ya es un corte—.
-  if (h > 5) for (const zc of alturasCriticasKzt(sitio, 5, h)) poner(zc, "máx. de K_z·K_zt");
+  if (zMax > 5) for (const zc of alturasCriticasKzt(sitio, 5, zMax)) poner(zc, "máx. de K_z·K_zt");
 
   const lista = [...cortes.values()].sort((a, b) => a.z - b.z);
   let previo = 0;
@@ -330,21 +337,32 @@ export function analizarDireccion({ geo, sitio, cerramiento, G = 0.85 }, dir) {
   const sup = [];
   const agregar = (o) => sup.push({ ...o, ...presion({ q: o.q, qi, G, Cp: o.cp, GCpi }) });
 
+  // ── LA FORMA REAL DE CADA PARED ───────────────────────────────────────────────
+  // Rectángulo hasta el alero, hastial con viento paralelo a la cumbrera, o trapecio en
+  // vertiente única. Antes todas se integraban como rectángulos de B × altura de alero,
+  // cualquiera fuera la dirección y la cubierta.
+  const fach = fachadasDe(g, dir);
+
   const perfil = perfilBarlovento({ h: g.h, sitio, hAlero: g.hAlero, hCumbre: g.hCumbre,
-    puntos: sitio.puntosPerfil ?? 10 });
+    puntos: sitio.puntosPerfil ?? 10, zTope: fach.barlovento.zTope });
   sup.push({
     id: "pared_barlovento", nombre: "Pared a barlovento", tipo: "pared", usar: "qz",
-    cp: CP_PARED.barlovento.cp, perfil,
+    cp: CP_PARED.barlovento.cp, perfil, fachada: fach.barlovento,
     cpRef: "Figura 2.4-1 — pared a barlovento, todos los valores de L/B",
+    // El ÁREA de cada tramo sale de la forma de la pared, no de `B·dz`: en el frontón de
+    // un hastial el ancho se va cerrando y multiplicar por B de más sobreestima la franja
+    // más alta, que es la de mayor q_z y mayor brazo.
     tramos: perfil.map(t => ({ ...t,
+      area: areaHasta(fach.barlovento, t.hasta) - areaHasta(fach.barlovento, t.desde),
+      momento: momentoHasta(fach.barlovento, t.hasta) - momentoHasta(fach.barlovento, t.desde),
       ...presion({ q: t.q, qi, G, Cp: CP_PARED.barlovento.cp, GCpi }) })),
   });
   agregar({ id: "pared_sotavento", nombre: "Pared a sotavento", tipo: "pared", usar: "qh",
-    cp: cpSotavento(L, B), q: qh, relacion: `L/B = ${fc(L / B)}`,
+    cp: cpSotavento(L, B), q: qh, relacion: `L/B = ${fc(L / B)}`, fachada: fach.sotavento,
     cpRef: `Figura 2.4-1 — pared a sotavento, interpolado en L/B = ${fc(L / B)} `
       + "entre los puntos 0–1 (−0,5), 2 (−0,3) y ≥4 (−0,2)" });
   agregar({ id: "pared_lateral", nombre: "Paredes laterales", tipo: "pared", usar: "qh",
-    cp: CP_PARED.lateral.cp, q: qh,
+    cp: CP_PARED.lateral.cp, q: qh, fachada: fach.lateral,
     cpRef: "Figura 2.4-1 — paredes laterales, todos los valores de L/B" });
 
   const refFila = `h/L = ${fc(hL)}, interpolado entre las filas 0,25 · 0,5 · 1,0`;
@@ -394,7 +412,7 @@ export function analizarDireccion({ geo, sitio, cerramiento, G = 0.85 }, dir) {
     });
   }
 
-  return { dir, geo: g, L, B, hL, qh, GCpi, G, cerramiento, sitio,
+  return { dir, geo: g, L, B, hL, qh, GCpi, G, cerramiento, sitio, fachadas: fach,
     modo: mc.modo, motivoModo: mc.motivo, caraUnica: mc.cara,
     normalACumbrera: mc.normal, superficies: sup, perfil, traza };
 }

@@ -83,9 +83,15 @@ describe('la pared a barlovento se integra escalonada', () => {
   // cómo el motor construye el perfil.
   it('con presión uniforme el centroide cae exactamente en h/2', () => {
     const h = 20, B = 30, G = 0.85, q = 1000;
-    const tramos = [0, 5, 10, 15].map(z => ({ desde: z, hasta: z + 5, q }));
+    // Pared rectangular: el área de un tramo es B·dz y su momento estático B·(z₂²−z₁²)/2.
+    // Se escriben a mano, no se piden a `fachadas.js`, para que la entrada siga siendo
+    // independiente de cómo el motor arma la geometría.
+    const tramos = [0, 5, 10, 15].map(z => ({ desde: z, hasta: z + 5, q,
+      area: B * 5, momento: B * ((z + 5) ** 2 - z ** 2) / 2 }));
+    const pared = { W: B, z1: h, z2: h, area: B * h, zTope: h, forma: "rectangulo" };
     const falso = { geo: { hAlero: h }, B, L: 20, qh: q, G,
-      superficies: [{ id: "pared_barlovento", tramos }] };
+      fachadas: { barlovento: pared, sotavento: pared, lateral: pared, lateral2: pared },
+      superficies: [{ id: "pared_barlovento", tramos, fachada: pared }] };
     const par = aporteParedes({ analisis: falso });
     const mBar = par.M - par.sotavento * h / 2;
     expect(mBar / par.barlovento).toBeCloseTo(h / 2, 9);

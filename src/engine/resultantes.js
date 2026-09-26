@@ -22,98 +22,210 @@
 //    piso, informando cuál gobernó.
 import { CP_PARED } from '../constants/presionesExternas.js';
 import { cpSotavento } from './presiones.js';
-
-const rad = (g) => g * Math.PI / 180;
+import { momentoHasta } from './fachadas.js';
 
 // ── APORTE DE LAS PAREDES ───────────────────────────────────────────────────────
 //
 // Devuelve fuerza horizontal y su momento respecto de la base. Sólo presiones externas:
 // ver la sutileza 1.
 export function aporteParedes({ analisis }) {
-  const { geo, B, L, qh, G } = analisis;
+  const { L, B, qh, G, fachadas } = analisis;
   const bar = analisis.superficies.find(s => s.id === "pared_barlovento");
 
-  // barlovento: se integra tramo a tramo, cada uno con su q_z
+  // ── BARLOVENTO ────────────────────────────────────────────────────────────────
+  // Se integra tramo a tramo, cada uno con su q_z Y CON SU ÁREA REAL. El área y el
+  // momento estático de cada franja salen de la forma de la pared en forma cerrada: en un
+  // hastial el ancho se va cerrando hacia la cumbrera, y tomar `B·dz` sobreestima
+  // justamente la franja de mayor q_z y mayor brazo.
   let F = 0, M = 0;
   for (const t of bar.tramos) {
     const p = t.q * G * CP_PARED.barlovento.cp;      // externa
-    const dz = t.hasta - t.desde;
-    const f = p * B * dz;
-    F += f;
-    M += f * (t.desde + t.hasta) / 2;                // brazo al centro del tramo
+    F += p * t.area;
+    M += p * t.momento;                              // ∫ p·z·ancho(z) dz, exacto
   }
-  // sotavento: presión constante en toda la altura. Succiona, o sea que empuja al edificio
-  // en el MISMO sentido que el viento: su aporte al corte se suma en valor absoluto.
-  const pSot = qh * G * cpSotavento(L, B);
-  const fSot = Math.abs(pSot) * B * geo.hAlero;
-  F += fSot;
-  M += fSot * geo.hAlero / 2;
+  const fBar = F;
 
-  return { F, M, barlovento: F - fSot, sotavento: fSot };
+  // ── SOTAVENTO ─────────────────────────────────────────────────────────────────
+  // q_h constante sobre el ÁREA REAL de la pared, que con viento paralelo a la cumbrera
+  // incluye el frontón. Succiona, o sea que empuja al edificio en el MISMO sentido que el
+  // viento: su aporte al corte se suma en valor absoluto.
+  const sot = fachadas.sotavento;
+  const pSot = qh * G * cpSotavento(L, B);
+  const fSot = Math.abs(pSot) * sot.area;
+  F += fSot;
+  M += Math.abs(pSot) * momentoHasta(sot, sot.z2);
+
+  return { F, M, barlovento: fBar, sotavento: fSot,
+    areaBarlovento: bar.fachada.area, areaSotavento: sot.area };
 }
 
 // ── APORTE DE LA CUBIERTA ───────────────────────────────────────────────────────
 //
-// La presión actúa NORMAL a la superficie. Sobre un faldón de pendiente θ eso da:
-//   · componente vertical   = p · (área proyectada en planta)
-//   · componente horizontal = p · tanθ · (área proyectada en planta) · sentido
+// La presión actúa NORMAL a la superficie. Sobre un faldón de pendiente θ, con `p`
+// positiva HACIA la superficie, la fuerza vale p·A_inclinada en la dirección −n, con n el
+// normal exterior. Con A_inclinada = A_planta/cosθ eso da:
 //
-// El `sentido` sale de hacia dónde mira la cara: un faldón que asciende en la dirección
-// del viento tiene su normal inclinada hacia atrás, y su succión tira del edificio HACIA
-// BARLOVENTO. Por eso los dos faldones de un caballete simétrico se cancelan cuando sus
-// coeficientes son iguales, y sólo la diferencia entre ellos deja corte.
-export function aporteCubierta({ analisis, casoInterno = "conInternaPos" }) {
-  const { geo, B, L, modo } = analisis;
-  const th = rad(geo.theta);
-  const cub = analisis.superficies.filter(s => s.tipo === "cubierta");
+//   · componente vertical   V = −p · A_planta            (positiva hacia arriba)
+//   · componente horizontal H = ±p · tanθ · A_planta     (positiva a favor del viento)
+//
+// ⚠ EL SIGNO DE H ESTABA INVERTIDO. Un faldón a BARLOVENTO asciende en el sentido del
+// viento, así que su normal exterior tiene componente horizontal CONTRA el viento —para
+// z = x·tanθ, n ∝ (−senθ, 0, cosθ)— y la fuerza, que va según −n, empuja A FAVOR:
+//
+//   barlovento:  H = +p·tanθ·A_planta
+//   sotavento:   H = −p·tanθ·A_planta
+//
+// El código tenía −1 en barlovento y +1 en sotavento. En un caballete simétrico los dos
+// faldones se cancelan y el error no se ve; aparece apenas los Cp difieren, que es
+// siempre, y cambia el signo del aporte de la cubierta al corte.
+//
+// ⚠ H SE CALCULA SÓLO CON PRESIONES EXTERNAS. La presión interna actúa sobre las dos
+// caras de la envolvente y su resultante horizontal se cancela; dejarla entrar hacía que
+// el corte dependiera del signo de GC_pi, que es un dato de la ENVOLVENTE y no del
+// empuje. En el levantamiento no se cancela y ahí sí entra.
+const rad2 = (g) => g * Math.PI / 180;
 
-  let V = 0, H = 0;      // vertical (positivo = hacia arriba) y horizontal (positivo = a favor del viento)
+/**
+ * Las partes de cubierta que ve esta dirección, con su extensión en planta.
+ *
+ * `desde` y `hasta` se miden DESDE EL BORDE DE BARLOVENTO, en metros. Se usan para el
+ * brazo en planta de la resultante vertical, que es lo que el vuelco necesita.
+ */
+function partesCubierta(analisis, casoNota3) {
+  const { geo, L, modo } = analisis;
+  const cub = analisis.superficies.filter(s => s.tipo === "cubierta");
+  const buscar = (id) => cub.find(o => o.id === id);
+
+  if (modo === "faldones") {
+    const bar = buscar(casoNota3 === "positivo" ? "cub_barlovento_pos" : "cub_barlovento_neg");
+    return [
+      { s: bar, desde: 0, hasta: L / 2, sentido: +1 },
+      { s: buscar("cub_sotavento"), desde: L / 2, hasta: L, sentido: -1 },
+    ];
+  }
+  if (modo === "unica") {
+    const esBar = analisis.caraUnica === "barlovento";
+    const s = esBar
+      ? buscar(casoNota3 === "positivo" ? "cub_unica_pos" : "cub_unica_neg")
+      : buscar("cub_unica");
+    // La superficie entera asciende con el viento si es a barlovento, y desciende si es a
+    // sotavento: el mismo criterio de signo que los faldones.
+    return [{ s, desde: 0, hasta: L, sentido: esBar ? +1 : -1 }];
+  }
+
+  // FRANJAS. La zonificación se mide desde el borde de barlovento y no distingue faldones,
+  // así que el sentido de cada franja lo decide dónde cae respecto de la cumbrera.
+  //
+  // Con viento PARALELO a la cumbrera la pendiente es transversal al viento y no deja
+  // componente horizontal: `sentido = 0` es exacto, no una simplificación. Con viento
+  // normal y θ < 10° sí la hay, chica pero real, y se reparte partiendo cada franja en la
+  // cumbrera.
+  const norm = analisis.normalACumbrera;
+  const xCumbrera = analisis.geo.tipo === "vertiente_unica" ? null : L / 2;
+  const partes = [];
+  for (const s of cub.filter(o => (casoNota3 === "positivo" ? o.caso === "positivo" : o.caso !== "positivo"))) {
+    const d = (s.zona?.desde ?? 0) * geo.h;
+    const h2 = Math.min((s.zona?.hasta ?? L / geo.h) * geo.h, L);
+    if (!(h2 > d)) continue;
+    if (!norm || geo.theta <= 0) { partes.push({ s, desde: d, hasta: h2, sentido: 0 }); continue; }
+    if (xCumbrera == null) {
+      // Vertiente única con θ < 10°: una sola pendiente en toda la luz.
+      const pend = geo.pendienteHacia;
+      const mismoEje = pend.slice(1) === analisis.dir.eje;
+      const signoPend = pend[0] === "+" ? 1 : -1;
+      const asciende = mismoEje && signoPend * analisis.dir.signo < 0;
+      partes.push({ s, desde: d, hasta: h2, sentido: mismoEje ? (asciende ? +1 : -1) : 0 });
+      continue;
+    }
+    const aBar = [d, Math.min(h2, xCumbrera)];
+    const aSot = [Math.max(d, xCumbrera), h2];
+    if (aBar[1] > aBar[0]) partes.push({ s, desde: aBar[0], hasta: aBar[1], sentido: +1 });
+    if (aSot[1] > aSot[0]) partes.push({ s, desde: aSot[0], hasta: aSot[1], sentido: -1 });
+  }
+  return partes;
+}
+
+/**
+ * @param {object} o
+ * @param {any} o.analisis
+ * @param {"negativo"|"positivo"} [o.casoNota3]  cuál de los dos valores del faldón a
+ *   barlovento se adopta. La nota 3 exige calcular los dos.
+ * @param {string} [o.casoInterno]  qué caso de presión interna gobierna el LEVANTAMIENTO.
+ */
+export function aporteCubierta({ analisis, casoNota3 = "negativo", casoInterno = "conInternaPos" }) {
+  const { geo, B } = analisis;
+  const tan = Math.tan(rad2(geo.theta));
+
+  let V = 0, H = 0, Mv = 0;   // Mv = momento estático de V en planta, para el brazo
   const partes = [];
 
-  // Para el levantamiento se toma el caso de presión interna que lo AGRAVA, que es el
-  // positivo: empuja la cubierta desde adentro hacia afuera.
-  const casos = modo === "faldones"
-    ? [["cub_barlovento_neg", L / 2, -1], ["cub_sotavento", L / 2, +1]]
-    : modo === "unica"
-      ? [[cub.find(s => s.caso !== "positivo")?.id, L, analisis.caraUnica === "barlovento" ? -1 : +1]]
-      : cub.filter(s => s.caso !== "positivo").map(s => {
-          const d = (s.zona?.desde ?? 0) * geo.h, h2 = Math.min((s.zona?.hasta ?? L / geo.h) * geo.h, L);
-          return [s.id, Math.max(0, h2 - d), 0];      // franjas: θ < 10° o viento paralelo ⇒ sin componente horizontal apreciable
-        });
-
-  for (const [id, largo, sentido] of casos) {
-    const s = cub.find(o => o.id === id);
-    if (!s || !(largo > 0)) continue;
-    const areaProy = largo * B;
-    const p = s[casoInterno];
-    V += -p * areaProy;                       // p negativo (succión) ⇒ V positivo = levanta
-    H += sentido * p * Math.tan(th) * areaProy;
-    partes.push({ id, nombre: s.nombre, cp: s.cp, p, areaProy,
-      vertical: -p * areaProy, horizontal: sentido * p * Math.tan(th) * areaProy });
+  for (const { s, desde, hasta, sentido } of partesCubierta(analisis, casoNota3)) {
+    if (!s || !(hasta > desde)) continue;
+    const areaProy = (hasta - desde) * B;
+    const pInt = s[casoInterno];          // levantamiento: con presión interna
+    const pExt = s.externa;               // corte: sólo externa
+    const v = -pInt * areaProy;           // p negativa (succión) ⇒ V positivo = levanta
+    const h = sentido * pExt * tan * areaProy;
+    V += v; H += h;
+    Mv += v * (desde + hasta) / 2;
+    partes.push({ id: s.id, nombre: s.nombre, cp: s.cp, p: pInt, externa: pExt,
+      desde, hasta, areaProy, vertical: v, horizontal: h, sentido });
   }
-  return { V, H, partes };
+  // Punto de aplicación de la resultante vertical, medido desde el borde de barlovento.
+  // Sin resultante no hay punto de aplicación: `null` y no un 0 que parezca una cota.
+  const xV = Math.abs(V) > 1e-12 ? Mv / V : null;
+  return { V, H, xV, partes, casoNota3 };
 }
 
 // ── RESULTANTES ─────────────────────────────────────────────────────────────────
+//
+// ── EL VUELCO INCLUYE LA RESULTANTE VERTICAL ───────────────────────────────────
+// Antes el vuelco eran sólo las fuerzas horizontales. La succión de la cubierta es una
+// fuerza vertical con brazo en planta, y en un edificio bajo y largo es el término que
+// más pesa: con L = 40 m el brazo llega a 20 m, más que la altura.
+//
+// Convención: momento POSITIVO = el que tiende a levantar el borde de BARLOVENTO. Una
+// fuerza horizontal a favor del viento, a la cota z, aporta F·z —el brazo es la altura,
+// cualquiera sea el punto de la base respecto del que se tome, porque la fuerza es
+// horizontal—. Un levantamiento V aplicado a la abscisa x aporta V·(x_ref − x).
 export function resultantes(analisis) {
   const par = aporteParedes({ analisis });
-  const cub = aporteCubierta({ analisis });
 
-  // Nota 7: el corte no puede quedar por debajo del de paredes solas.
+  // Nota 3 de la Figura 2.4-1: el faldón a barlovento está sujeto a presión positiva y
+  // negativa a la vez, y hay que calcular las dos. Gobierna el corte la que dé mayor.
+  const casos = ["negativo", "positivo"].map(c =>
+    aporteCubierta({ analisis, casoNota3: /** @type {any} */ (c) }));
+  const cub = casos.reduce((a, b) => (par.F + b.H > par.F + a.H ? b : a));
+
   const conCubierta = par.F + cub.H;
   const gobiernaNota7 = conCubierta < par.F;
   const cortante = Math.max(conCubierta, par.F);
 
-  // Momento de vuelco respecto de la base, por las fuerzas horizontales. El aporte de la
-  // cubierta actúa a la altura media de cubierta.
-  const mCub = cub.H * analisis.geo.h;
-  const vuelco = par.M + (gobiernaNota7 ? 0 : mCub);
+  // El levantamiento se toma como la envolvente de los dos casos de la nota 3.
+  const levCaso = casos.reduce((a, b) => (b.V > a.V ? b : a));
+
+  const L = analisis.L;
+  const mCub = cub.H * analisis.geo.h;           // horizontal de cubierta, a la cota h
+  const mHoriz = par.M + (gobiernaNota7 ? 0 : mCub);
+  const momentoDe = (xRef) => mHoriz
+    + (levCaso.xV == null ? 0 : levCaso.V * (xRef - levCaso.xV));
 
   return {
-    cortante, vuelco,
-    levantamiento: cub.V,
-    gobiernaNota7,
-    detalle: { paredes: par, cubierta: cub, corteParedes: par.F, corteCubierta: cub.H },
+    cortante,
+    // El vuelco de referencia es el tomado respecto del CENTRO de la base.
+    vuelco: momentoDe(L / 2),
+    momentos: {
+      centro: momentoDe(L / 2),
+      bordeBarlovento: momentoDe(0),
+      bordeSotavento: momentoDe(L),
+      horizontal: mHoriz,
+      vertical: levCaso.xV == null ? 0 : levCaso.V * (L / 2 - levCaso.xV),
+    },
+    levantamiento: levCaso.V,
+    verticalCubierta: { V: levCaso.V, xV: levCaso.xV, casoNota3: levCaso.casoNota3 },
+    gobiernaNota7, casoNota3: cub.casoNota3,
+    detalle: { paredes: par, cubierta: cub, casos,
+      corteParedes: par.F, corteCubierta: cub.H },
   };
 }
 

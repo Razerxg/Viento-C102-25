@@ -7,7 +7,8 @@
 import { useProyecto } from '../../context/ProyectoContext.jsx';
 import { useUi } from '../../context/UiContext.jsx';
 import { CurvasAltura } from '../svg/CurvasAltura.jsx';
-import { Encabezado, Card, Stat, Stats, Aviso, Nota, Tabla, Th, Td, TdN } from '../ui.jsx';
+import { Encabezado, Card, Stat, Stats, Aviso, Nota, Tabla, Divisor, Salida,
+  Th, Td, TdN } from '../ui.jsx';
 import { c, SP } from '../tokens.js';
 import { f, fmt } from '../../lib/formato.js';
 import { resultantes } from '../../engine/resultantes.js';
@@ -30,10 +31,48 @@ export function ResultantesTab() {
           <Stat label="Levantamiento" valor={f(Math.abs(res.levantamiento / 1000), 1)} unidad="kN"
             ayuda="Resultante vertical hacia arriba. Acá la presión interna NO se cancela, y es donde gobierna: con GC_pi positivo empuja la cubierta desde adentro." />
           <Stat label="Vuelco" valor={f(Math.abs(res.vuelco / 1000), 1)} unidad="kN·m"
-            ayuda="Momento respecto del nivel de fundación. Cada tramo de pared aporta con el brazo de su punto medio, no con el de su borde superior." />
+            sub="respecto del centro de la base"
+            ayuda="Momento al nivel de fundación: las fuerzas horizontales por su altura, más el levantamiento de cubierta por su brazo EN PLANTA. Positivo = tiende a levantar el borde de barlovento." />
           <Stat label="Altura de alero" valor={f(geoN.hAlero, 2)} unidad="m"
             sub={`altura media h = ${f(geoN.h, 2)} m`} />
         </Stats>
+
+        {/* ── LA RESULTANTE VERTICAL Y SU BRAZO ───────────────────────────────────
+            El vuelco no es sólo las fuerzas horizontales. La succión de cubierta tiene
+            brazo EN PLANTA, y en un edificio bajo y largo es el término que más pesa: con
+            L = 40 m el brazo llega a 20 m, más que la altura del edificio. */}
+        <Divisor>Resultante vertical de cubierta</Divisor>
+        <Salida label="Levantamiento V" v={fmt.kN(res.verticalCubierta.V / 1000)}
+          ayuda="Envolvente de los dos casos que exige la nota 3 de la Figura 2.4-1 para el faldón a barlovento." />
+        <Salida label="Punto de aplicación x_V" unit="m"
+          v={res.verticalCubierta.xV == null ? "—" : f(res.verticalCubierta.xV, 2)}
+          ayuda="Medido DESDE EL BORDE DE BARLOVENTO. Es el centroide de las componentes verticales, no el centro geométrico de la cubierta: cada zona tiene su propio Cp." />
+        <Salida label="Centro de la base" unit="m" v={f(act.L / 2, 2)}
+          ayuda="A la misma escala que x_V: si x_V queda a barlovento del centro, el levantamiento SUMA al vuelco." />
+
+        <Tabla minWidth={520}>
+          <thead><tr>
+            <Th>Momento respecto de</Th><Th alinear="right">Horizontales</Th>
+            <Th alinear="right">Vertical</Th><Th alinear="right">Total (kN·m)</Th>
+          </tr></thead>
+          <tbody>
+            {[["Borde de barlovento", "bordeBarlovento", 0],
+              ["Centro de la base", "centro", act.L / 2],
+              ["Borde de sotavento", "bordeSotavento", act.L]].map(([nom, k, xRef]) => (
+              <tr key={k}>
+                <Td nowrap>{nom}</Td>
+                <TdN tono={c.txt3}>{f(res.momentos.horizontal / 1000, 1)}</TdN>
+                <TdN tono={c.txt3}>{f((res.momentos[k] - res.momentos.horizontal) / 1000, 1)}</TdN>
+                <TdN peso={600}>{f(res.momentos[k] / 1000, 1)}</TdN>
+              </tr>
+            ))}
+          </tbody>
+        </Tabla>
+        <Nota>
+          El término horizontal es el mismo en las tres filas: el brazo de una fuerza
+          horizontal es su altura, cualquiera sea el punto de la base respecto del que se
+          tome el momento. Lo único que cambia es el brazo en planta del levantamiento.
+        </Nota>
 
         {res.gobiernaNota7 && (
           <div style={{ marginTop: SP.md }}>
