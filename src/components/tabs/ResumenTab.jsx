@@ -12,7 +12,7 @@ import { rotuloConteo } from '../../lib/avisos.js';
 const MODO = { faldones: "faldones", unica: "única", franjas: "franjas" };
 
 export function ResumenTab() {
-  const { todas, act, iDir, d, V, sitio, geoN, G, rafaga, conteo, resDe } = useProyecto();
+  const { todas, act, iDir, d, V, sitio, geoN, G, rafaga, conteo, resDe, cerramiento } = useProyecto();
   const resumen = rotuloConteo(conteo);
 
   const filas = [
@@ -55,7 +55,7 @@ export function ResumenTab() {
             tono={rafaga.flexible && d.modoG !== "flexible" ? "error" : undefined}
             sub={rafaga.opciones.find(o => o.id === d.modoG)?.label} />
           <Stat label="Presión interna" valor={`±${f(Math.abs(act.GCpi), 2)}`}
-            sub={d.cerramiento.replace("_", " ")} />
+            sub={cerramiento.replace("_", " ")} />
           <Stat label="Altitud" valor={f(sitio.altitud, 0)} unidad="m"
             sub={`K_e = ${f(Math.exp(-0.000119 * sitio.altitud), 4)}`} />
         </Stats>

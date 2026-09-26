@@ -30,7 +30,7 @@ const MODO = {
 };
 
 export function SilosTab() {
-  const { d, setSilo, silo: r, kdSilo, G } = useProyecto();
+  const { d, setSilo, silo: r, kdSilo, G, cerramiento } = useProyecto();
   const s = d.silo;
   if (!r) return null;
 
@@ -149,7 +149,7 @@ export function SilosTab() {
               : `con θ < 10° el ancho de la Zona 1 depende de H/D (${r.zonas?.expr}), interpolable linealmente.`}
           {" "}Las dos últimas columnas son los <b style={{ color: c.txt }}>dos casos de
           presión interna</b> que exige la nota 3 de la Tabla 1.11-1, con GC_pi = ±{f(Math.abs(r.gcpi), 2)}{" "}
-          ({CERRAMIENTOS.find(x => x.id === d.cerramiento)?.label.toLowerCase() ?? "—"}), que
+          ({CERRAMIENTOS.find(x => x.id === cerramiento)?.label.toLowerCase() ?? "—"}), que
           se toma de la clasificación declarada en Sitio.
         </Nota>
       </Card>

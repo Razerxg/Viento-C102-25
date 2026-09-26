@@ -22,6 +22,7 @@ import { SIN_DIRECCION, SIN_FICHA } from "./constants/tabs.js";
 import { GuiaTab } from "./components/tabs/GuiaTab.jsx";
 import { SitioTab } from "./components/tabs/SitioTab.jsx";
 import { EdificioTab } from "./components/tabs/EdificioTab.jsx";
+import { CerramientoTab } from "./components/tabs/CerramientoTab.jsx";
 import { RafagaTab } from "./components/tabs/RafagaTab.jsx";
 import { PresionesTab } from "./components/tabs/PresionesTab.jsx";
 import { CroquisTab } from "./components/tabs/CroquisTab.jsx";
@@ -35,7 +36,8 @@ import { SeccionesTab } from "./components/tabs/SeccionesTab.jsx";
 // contexto y lo importarán los tests, y no tiene por qué arrastrar ocho componentes de
 // React —ni el motor de croquis— para responder en qué orden van las pantallas.
 const PANTALLAS = {
-  "Guía": GuiaTab, "Sitio": SitioTab, "Edificio": EdificioTab, "Ráfaga": RafagaTab,
+  "Guía": GuiaTab, "Sitio": SitioTab, "Edificio": EdificioTab,
+  "Cerramiento": CerramientoTab, "Ráfaga": RafagaTab,
   "Presiones": PresionesTab, "Croquis": CroquisTab, "Resultantes": ResultantesTab,
   "Resumen": ResumenTab,
   "Accesorios": AccesoriosTab, "Silos y tanques": SilosTab,

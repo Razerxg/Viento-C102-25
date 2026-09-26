@@ -85,10 +85,9 @@ describe('todas las pantallas renderizan sin errores de consola', () => {
     });
   }
 
-  // Y las once son pantallas DISTINTAS. Sin esto, una navegación rota que dejara siempre
-  // la misma pantalla en el `<main>` pasaría los once casos de arriba sin tocar diez de
-  // las once pantallas.
-  it('las once muestran contenidos distintos entre sí', () => {
+  // Y son pantallas DISTINTAS. Sin esto, una navegación rota que dejara siempre la misma
+  // pantalla en el `<main>` pasaría todos los casos de arriba sin tocar ninguna otra.
+  it('todas muestran contenidos distintos entre sí', () => {
     render(<App />);
     const textos = TABS.map(t => abrir(t).slice(0, 400));
     expect(new Set(textos).size).toBe(TABS.length);

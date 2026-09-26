@@ -105,9 +105,9 @@ Adelantado al resto de la Fase 2, por pedido del proyectista.
 |---|---|---|
 | ✅ | **(0)** Parseo de inputs | `bc4f593` · `lib/parseo.js` |
 | ✅ | **(1)** Origen de V: tabla, interpolación entre isotacas, valor adoptado con fundamento, conversión desde V₅₀ | ↓ · `engine/velocidad.js` |
-| ⏳ | **(2)** Cerramiento calculado a partir de aberturas | pantalla propia «Cerramiento», en Definición y después de Edificio |
+| ✅ | **(2)** Cerramiento calculado a partir de aberturas | pantalla propia «Cerramiento», en Definición y después de Edificio · `engine/cerramiento.js` |
 
-Decisiones tomadas para (2), a implementar:
+Decisiones tomadas para (2), ya implementadas:
 - **`A_g` de la cubierta = `a·b/cosθ`** en dos aguas, cuatro aguas y vertiente única, y
   `a·b` en plana. Con una sola pendiente, las proyecciones de los faldones cubren la
   planta exactamente, así que no hace falta sumar faldón por faldón. Hay que verificarlo
@@ -158,7 +158,6 @@ la Fase 2 y no antes.
 | Estado | Ítem | Qué incluye |
 |---|---|---|
 | ⏳ | **Cubiertas aisladas**, Figs. 2.4-4 a 2.4-7 | Exposición más desfavorable (art. 1.7.4.1) · flujo libre y obstruido, calculando AMBOS si el uso bajo cubierta es incierto · cenefas y parapetos con `q_p = q_h` y fricción según la Tabla 2.4-1 (art. 2.4.3.1) · mínimo de 0,75 kN/m² × A_f |
-| ⏳ | **Clasificación de cerramiento calculada** | Con `A_o`, `A_g`, `A_oi` y `A_gi` por pared, definiciones del art. 1.2 y art. 1.10.5, y de ahí `GC_pi` y `R_i` |
 | ⏳ | **Parapetos**, art. 2.4.5 | `p_p = q_p·GC_pn`, con +1,5 a barlovento y −1,0 a sotavento, `q_p` evaluado en el borde superior |
 | ⏳ | **Voladizos**, art. 2.4.4 | `C_p = +0,8` en la cara inferior a barlovento, combinado con la superior |
 | ⏳ | **Exposición por sector** | 8 sectores, C 1.7-8 |

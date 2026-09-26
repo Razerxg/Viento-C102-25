@@ -23,7 +23,7 @@
 const ORDEN = { error: 0, aviso: 1, info: 2 };
 
 export function avisosDe({ geoN, sitio, cerramiento, rafaga, modoG, n1, analisis, resultantes,
-  accesorio, silo, anexo, topo, vel }) {
+  accesorio, silo, anexo, topo, vel, cerr }) {
   const av = [];
   const push = (o) => av.push(o);
 
@@ -85,19 +85,43 @@ export function avisosDe({ geoN, sitio, cerramiento, rafaga, modoG, n1, analisis
   }
 
   // ── PRESIÓN INTERNA ──────────────────────────────────────────────────────────
+  // Los avisos de cerramiento apuntan a su PROPIA pantalla: la clasificación dejó de ser
+  // un desplegable en Sitio y pasó a calcularse a partir de las aberturas.
   if (cerramiento === "parc_cerrado") {
-    push({ id: "parcCerrado", tono: "aviso", tab: "Sitio",
+    push({ id: "parcCerrado", tono: "aviso", tab: "Cerramiento",
       titulo: "Parcialmente cerrado — GC_pi = ±0,55",
-      detalle: "Es tres veces la presión interna de un edificio cerrado. La clasificación "
-        + "depende del área de aberturas y es lo que más cambia el levantamiento de la "
-        + "cubierta: conviene verificar las condiciones del art. 1.10 antes de adoptarla." });
+      detalle: "Es tres veces la presión interna de un edificio cerrado, y es lo que más "
+        + "cambia el levantamiento de la cubierta. "
+        + (cerr?.modo === "calculado" && cerr?.gobierna
+          ? `Sale de suponer a barlovento la ${cerr.filas.find(x => x.id === cerr.gobierna)
+            ?.nombre ?? cerr.gobierna}: ahí se cumplen las dos condiciones del art. 1.2.`
+          : "Está DECLARADA, no calculada: conviene cargar las aberturas y verificar las "
+            + "condiciones del art. 1.10.") });
+  }
+
+  // Las dos lecturas del mismo edificio no pueden discrepar en silencio: una está mal.
+  if (cerr?.discrepa) {
+    push({ id: "cerrDiscrepa", tono: "aviso", tab: "Cerramiento",
+      titulo: "La clasificación declarada no coincide con la calculada",
+      detalle: `Las aberturas cargadas dan «${cerr.calculada}» y la clasificación declarada `
+        + "dice otra cosa. Son dos lecturas del mismo edificio, y conviene resolverlo "
+        + "antes de seguir: entre una y otra puede haber un factor de tres en GC_pi." });
+  }
+
+  // En modo declarado, el fundamento es obligatorio.
+  if (cerr?.modo === "declarado" && !String(cerr?.fundamento ?? "").trim()) {
+    push({ id: "cerrSinFundamento", tono: "error", tab: "Cerramiento",
+      titulo: "Cerramiento declarado sin fundamento",
+      detalle: "La clasificación está declarada a mano y no dice en qué se funda. Entre "
+        + "«cerrado» y «parcialmente cerrado» hay un factor de tres en la presión "
+        + "interna: no puede quedar sin justificar." });
   }
   // ⚠ ESTO ERA UN AVISO «info» Y NO LO ES. Un edificio abierto no se resuelve con los Cp
   // de la Figura 2.4-1 sino con los C_N de las Figuras 2.4-4 a 2.4-7, que no están
   // implementados. Los números que la app muestra en ese caso son los de OTRO edificio
   // —uno cerrado— y presentarlos como una nota al pie hacía que se pudieran usar.
   if (cerramiento === "abierto") {
-    push({ id: "abierto", tono: "error", tab: "Resultantes",
+    push({ id: "abierto", tono: "error", tab: "Cerramiento",
       titulo: "Edificio abierto — los resultados NO son válidos",
       detalle: "El capítulo 2 resuelve los edificios abiertos con los coeficientes C_N de "
         + "las Figuras 2.4-4 a 2.4-7, que todavía no están implementados. Lo que se muestra "

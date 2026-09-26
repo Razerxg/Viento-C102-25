@@ -14,7 +14,7 @@ export const NAV = [
   // «Ráfaga» está entre los DATOS y no entre los resultados a propósito: G es una decisión
   // del proyectista —cuál de las tres vías del art. 1.9 se adopta— y esa decisión cambia
   // todas las presiones. Puesto entre los resultados parecería algo que la app informa.
-  { grupo: "Definición", items: ["Sitio", "Edificio", "Ráfaga"] },
+  { grupo: "Definición", items: ["Sitio", "Edificio", "Cerramiento", "Ráfaga"] },
   { grupo: "Resultados", items: ["Presiones", "Croquis", "Resultantes", "Resumen"] },
   // CAPÍTULO 4 APARTE, Y NO ENTRE LOS RESULTADOS DEL EDIFICIO. No es otra salida del mismo
   // cálculo: es OTRO objeto. El capítulo 2 reparte presiones sobre las superficies de un
@@ -42,7 +42,7 @@ export const idxTab = (nombre) => Math.max(0, TABS.indexOf(nombre));
 // Las pantallas del capítulo 4 tampoco lo llevan: el procedimiento direccional del
 // capítulo 2 reparte Cp por dirección, pero un coeficiente de fuerza ya contempla la
 // dirección más desfavorable dentro del propio C_f y de sus casos A, B y C.
-export const SIN_DIRECCION = new Set(["Guía", "Sitio", "Edificio", "Ráfaga", "Resumen",
+export const SIN_DIRECCION = new Set(["Guía", "Sitio", "Edificio", "Cerramiento", "Ráfaga", "Resumen",
   "Accesorios", "Silos y tanques", "Secciones uniformes"]);
 
 // Pantallas que NO llevan la ficha de estado al costado. Los croquis y el resumen usan
@@ -60,6 +60,9 @@ export const PASOS = [
   { tab: "Sitio", t: "Definir el sitio",
     d: "Localidad y categoría de riesgo —de ahí sale V—, categoría de exposición del "
       + "terreno, altitud y clasificación de cerramiento." },
+  { tab: "Cerramiento", t: "Clasificar el cerramiento",
+    d: "Las aberturas de cada pared y de la cubierta. De acá sale GC_pi, que entre "
+      + "«cerrado» y «parcialmente cerrado» cambia por un factor de tres." },
   { tab: "Edificio", t: "Definir la geometría",
     d: "Las dos dimensiones en planta, la altura de alero y el tipo de cubierta con su "
       + "ángulo. De acá sale la altura media h, que es la que gobierna q_h." },

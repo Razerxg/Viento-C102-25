@@ -19,6 +19,8 @@ import { analizarAnexo } from '../engine/anexo1.js';
 import { kzt as calcularKzt } from '../engine/topografia.js';
 import { num, opt } from '../lib/parseo.js';
 import { resolverV } from '../engine/velocidad.js';
+import { clasificar, regionDetritus } from '../engine/cerramiento.js';
+import { ri as riDe, CERRAMIENTOS } from '../constants/presionInterna.js';
 import { gcpiDe } from '../constants/presionInterna.js';
 import { factorRafaga } from '../engine/factorRafaga.js';
 import { resultantes, barridoAlero, envolvente } from '../engine/resultantes.js';
@@ -51,7 +53,21 @@ export const INICIAL = {
   exposicion: "B",
   altitud: "0",
   usarKe: true,
+  // ── CERRAMIENTO ─────────────────────────────────────────────────────────────
+  // `cerramiento` es la clasificación DECLARADA. Sigue existiendo porque es lo que traen
+  // los proyectos guardados, y porque el modo «declarado» la usa tal cual.
   cerramiento: "cerrado",
+  // ⚠ LOS PROYECTOS GUARDADOS MIGRAN A «declarado». Un proyecto viejo no tiene aberturas
+  // cargadas, así que calcularlo daría «cerrado» y pisaría en silencio la clasificación
+  // que el proyectista había elegido a mano. Los proyectos NUEVOS arrancan en «calculado».
+  cerrModo: "calculado",
+  cerrFundamento: "",
+  aberturas: [],
+  cerr: {
+    esSalud: false, distanciaCosta: "", detritusDeclarada: false,
+    // Vacío = automático: se precarga con el volumen geométrico exacto.
+    Vi: "",
+  },
   // ── TOPOGRAFÍA, art. 1.8 ────────────────────────────────────────────────────
   // Por defecto SIN accidente declarado, que es terreno llano y K_zt = 1,0. No es lo
   // mismo que «se supone 1,0»: acá el 1,0 sale de que el usuario no declaró ninguna loma,
@@ -120,6 +136,11 @@ const leer = () => {
     return v && typeof v === "object" ? { ...INICIAL, ...v,
       geo: { ...INICIAL.geo, ...(v.geo || {}) },
       topo: { ...INICIAL.topo, ...(v.topo || {}) },
+      cerr: { ...INICIAL.cerr, ...(v.cerr || {}) },
+      // Un proyecto guardado no trae `cerrModo` ni aberturas: queda en «declarado»,
+      // que es la clasificación que su autor eligió a mano.
+      cerrModo: v.cerrModo ?? "declarado",
+      aberturas: Array.isArray(v.aberturas) ? v.aberturas : [],
       vInterp: { ...INICIAL.vInterp, ...(v.vInterp || {}) },
       vManual: { ...INICIAL.vManual, ...(v.vManual || {}) },
       vConv: { ...INICIAL.vConv, ...(v.vConv || {}) },
@@ -224,6 +245,47 @@ export function ProyectoProvider({ children }) {
   }, [sitio, topo.aplica, d.topo.todasLasDirecciones, d.topo.direcciones]);
 
 
+  // ── CERRAMIENTO ─────────────────────────────────────────────────────────────
+  // La región con detritus se evalúa acá porque necesita V y la categoría de riesgo, que
+  // son datos de Sitio; la clasificación necesita además la geometría, que es de Edificio.
+  const detritus = useMemo(() => regionDetritus({
+    ciudad: d.ciudad, riesgo: d.riesgo, esSalud: d.cerr.esSalud,
+    distanciaCosta: d.cerr.distanciaCosta, declarada: d.cerr.detritusDeclarada,
+  }), [d.ciudad, d.riesgo, d.cerr.esSalud, d.cerr.distanciaCosta, d.cerr.detritusDeclarada]);
+
+  const cerrCalc = useMemo(() => clasificar({
+    geo: geoN, aberturas: d.aberturas, detritus, riesgo: d.riesgo,
+  }), [geoN, d.aberturas, detritus, d.riesgo]);
+
+  // `V_i` vacío = automático: el volumen geométrico exacto. Editable porque el art. 1.11
+  // habla del volumen NO DIVIDIDO, y con cielorraso hermético o tabiques estancos hay que
+  // tomar sólo el del recinto que tiene la abertura dominante.
+  const ViAuto = cerrCalc.Vi;
+  const Vi = opt(d.cerr.Vi) ?? ViAuto;
+  const Ri = cerrCalc.clasificacion === "parc_cerrado" ? riDe(Vi, cerrCalc.AogTotal) : null;
+
+  // La clasificación que EFECTIVAMENTE usa el cálculo.
+  const cerramiento = d.cerrModo === "calculado" ? cerrCalc.clasificacion : d.cerramiento;
+  const cerr = { ...cerrCalc, Vi, ViAuto, Ri, detritus, modo: d.cerrModo,
+    declarada: d.cerramiento, efectiva: cerramiento,
+    fundamento: d.cerrFundamento,
+    // ⚠ `label` Y `motivo` SIGUEN A LA CLASIFICACIÓN EFECTIVA, NO A LA CALCULADA. En modo
+    // declarado, mostrar la etiqueta de la calculada junto al GC_pi de la declarada da
+    // una pantalla que se contradice a sí misma: decía «Cerrado» y «±0,55».
+    label: CERRAMIENTOS.find(x => x.id === cerramiento)?.label ?? "—",
+    gcpi: gcpiDe(cerramiento) ?? 0,
+    motivo: d.cerrModo === "calculado" ? cerrCalc.motivo
+      : `Clasificación DECLARADA por el proyectista${d.cerrFundamento
+        ? `: ${d.cerrFundamento}` : ", sin fundamento declarado"}.`,
+    motivoCalculado: cerrCalc.motivo,
+    calculada: cerrCalc.clasificacion,
+    // La discrepancia se informa sólo cuando hay DOS lecturas de verdad: aberturas
+    // cargadas y una clasificación declarada a propósito. El valor por defecto del
+    // desplegable no es una declaración, y avisar por él sería ruido en cada proyecto
+    // nuevo.
+    discrepa: d.aberturas.length > 0 && String(d.cerrFundamento ?? "").trim() !== ""
+      && d.cerramiento !== cerrCalc.clasificacion };
+
   // El factor de ráfaga se calcula ANTES del análisis y lo alimenta: cuál de las tres
   // vías del art. 1.9 se adopta cambia TODAS las presiones, así que no puede quedar como
   // un bloque informativo al costado.
@@ -234,8 +296,8 @@ export function ProyectoProvider({ children }) {
 
   const G = rafaga.opciones.find(o => o.id === d.modoG)?.G ?? 0.85;
 
-  const entrada = useMemo(() => ({ geo: d.geo, sitio, cerramiento: d.cerramiento, G,
-    modoG: d.modoG }), [d.geo, sitio, d.cerramiento, G, d.modoG]);
+  const entrada = useMemo(() => ({ geo: d.geo, sitio, cerramiento, G,
+    modoG: d.modoG }), [d.geo, sitio, cerramiento, G, d.modoG]);
 
   const todas = useMemo(
     () => DIRECCIONES.map(dir => analizarDireccion({ ...entrada, sitio: sitioDe(dir) }, dir)),
@@ -293,8 +355,8 @@ export function ProyectoProvider({ children }) {
 
   const kdSilo = kdDe(d.silo.kd || "chim_redonda") ?? 1.0;
   const silo = useMemo(() => analizarSilo({
-    datos: d.silo, sitio, kd: kdSilo, G, gcpi: gcpiDe(d.cerramiento) ?? 0,
-  }), [d.silo, sitio, kdSilo, G, d.cerramiento]);
+    datos: d.silo, sitio, kd: kdSilo, G, gcpi: gcpiDe(cerramiento) ?? 0,
+  }), [d.silo, sitio, kdSilo, G, cerramiento]);
 
   const kdAnexo = kdDe(d.anexo.kd || "chim_redonda") ?? 1.0;
   const anexo = useMemo(() => analizarAnexo({
@@ -351,6 +413,7 @@ export function ProyectoProvider({ children }) {
       tab, setTab, irA, nombreTab: TABS[tab] ?? TABS[0],
       iDir, setIDir, direcciones: DIRECCIONES,
       V, vel, setSub, sitio, geoN, rafaga, G, todas, act, res, resDe, maxAbs, curvas,
+      cerr, cerramiento,
       avisos, avisosPorTab: porTab(avisos), conteo: contar(avisos),
       guardadoEn, nuevo, exportar, importar, fileRef,
     }}>{children}</Ctx.Provider>

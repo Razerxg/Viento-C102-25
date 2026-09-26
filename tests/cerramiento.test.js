@@ -354,3 +354,34 @@ describe('R_i — expresión (1.11-1)', () => {
     expect(clas([puerta("X+")]).Ri).not.toBe(null);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ESTADO Y MIGRACIÓN
+// ═══════════════════════════════════════════════════════════════════════════════
+describe('modo de determinación y migración de proyectos guardados', () => {
+  it('los proyectos NUEVOS arrancan calculando a partir de aberturas', async () => {
+    const { INICIAL } = await import('../src/context/ProyectoContext.jsx');
+    expect(INICIAL.cerrModo).toBe("calculado");
+    expect(INICIAL.aberturas).toEqual([]);
+  });
+
+  // ⚠ UN PROYECTO GUARDADO NO TIENE ABERTURAS CARGADAS. Calcularlo daría «cerrado» y
+  // pisaría en silencio la clasificación que su autor había elegido a mano —que puede ser
+  // parcialmente cerrado, con el triple de presión interna—. Por eso migra a «declarado».
+  it('un proyecto guardado sin `cerrModo` queda en DECLARADO', () => {
+    const viejo = { cerramiento: "parc_cerrado", ciudad: "Buenos Aires" };
+    const modo = viejo.cerrModo ?? "declarado";
+    expect(modo).toBe("declarado");
+    // Y con eso la clasificación efectiva sigue siendo la suya, no la calculada.
+    const efectiva = modo === "calculado" ? "cerrado" : viejo.cerramiento;
+    expect(efectiva).toBe("parc_cerrado");
+    expect(gcpiDe(efectiva)).toBe(0.55);
+  });
+
+  it('sin aberturas, el cálculo daría «cerrado»: por eso migrar mal sería peligroso', () => {
+    expect(clas([]).clasificacion).toBe("cerrado");
+    expect(gcpiDe("cerrado")).toBe(0.18);
+    // El factor de tres que se perdería.
+    expect(gcpiDe("parc_cerrado") / gcpiDe("cerrado")).toBeCloseTo(3.06, 1);
+  });
+});

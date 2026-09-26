@@ -423,6 +423,39 @@ propio azul las hace parecer de proveedores distintos.
   con los `C_N` de las Figuras 2.4-4 a 2.4-7, que no están implementados; mostrar los Cp
   de la 2.4-1 es mostrar los de otro edificio.
 
+## Cerramiento — decisiones que no conviene revertir
+
+- **ES UNA PANTALLA PROPIA, después de Edificio.** La clasificación dejó de ser un
+  desplegable de cuatro opciones: se calcula a partir de las aberturas, y las áreas brutas
+  salen de la geometría —hastial y trapecio en las paredes, área INCLINADA en la cubierta—.
+  Sitio conserva sólo la línea de resumen que lleva ahí.
+- **`A_g` de la cubierta = `a·b/cosθ`.** Con una sola pendiente, las proyecciones en planta
+  de los faldones cubren la planta exactamente y ninguna se superpone, así que no hace
+  falta sumar faldón por faldón. Vale para dos aguas, cuatro aguas y vertiente única.
+- **`V_i` es el volumen geométrico EXACTO, no planta × altura media.** En cuatro aguas el
+  atajo sobreestima, y un `V_i` mayor da un `R_i` MENOR: menos presión interna de la que
+  corresponde, o sea del lado inseguro. Es editable porque el art. 1.11 habla del volumen
+  NO DIVIDIDO.
+- ⚠ **LA V QUE DECIDE SI HAY REGIÓN CON DETRITUS NO ES LA DE LA CATEGORÍA DEL EDIFICIO.**
+  Categoría II, y categoría III que NO sea instalación de salud, van por la Figura 1.5-1A;
+  las instalaciones de salud de categoría III y la categoría IV, por la 1.5-1B. En Neuquén
+  eso es 58,8 contra 63,0: con la V de su categoría, un edificio III que no es hospital
+  entraría en región con detritus sin corresponder.
+- **Los proyectos guardados MIGRAN A «declarado».** Un proyecto viejo no tiene aberturas
+  cargadas, así que calcularlo daría «cerrado» y pisaría en silencio una clasificación que
+  puede haber sido parcialmente cerrado, con el triple de presión interna.
+- **La etiqueta y el motivo siguen a la clasificación EFECTIVA, no a la calculada.**
+  Mostrar la etiqueta de la calculada junto al `GC_pi` de la declarada daba una pantalla
+  que se contradecía: decía «Cerrado» y «±0,55».
+- **La discrepancia entre los dos modos se avisa sólo cuando hay dos lecturas de verdad**
+  —aberturas cargadas y una clasificación declarada CON fundamento—. El valor por defecto
+  del desplegable no es una declaración, y avisar por él sería ruido en cada proyecto nuevo.
+- ⚠ **EL SOLAPAMIENTO DEL ART. 1.10.5 CASI NO SE DA.** La condición (1) de parcialmente
+  cerrado pide que una pared tenga más aberturas que 1,10 veces todo el resto, y «abierto»
+  pide que la pared OPUESTA —de igual área— esté también al 80 %. Aparece sólo en un
+  edificio muy alargado y de techo grande; el test lo construye con 200 × 10 y alero 3 m, y
+  verifica primero que el solapamiento EXISTA antes de comprobar la prioridad.
+
 ## Unidades — la conversión vive en `lib/unidades.js`
 
 - **El motor trabaja siempre en N, m, N/m².** Son las unidades en que el reglamento

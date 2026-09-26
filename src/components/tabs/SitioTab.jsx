@@ -7,7 +7,6 @@
 import { useProyecto } from '../../context/ProyectoContext.jsx';
 import { CIUDADES, factorV } from '../../constants/velocidades.js';
 import { ORIGENES_V, FUNDAMENTOS_V } from '../../engine/velocidad.js';
-import { CERRAMIENTOS, PRIORIDAD_ABIERTO } from '../../constants/presionInterna.js';
 import { EXPOSICIONES, TERRENO } from '../../constants/exposicion.js';
 import { MapaVelocidad } from '../MapaVelocidad.jsx';
 import { CroquisTopografia } from '../svg/CroquisTopografia.jsx';
@@ -15,7 +14,7 @@ import { useUi } from '../../context/UiContext.jsx';
 import { FORMAS_TOPO, CONDICIONES_KZT } from '../../constants/topografia.js';
 import { DIRECCIONES } from '../../engine/edificio.js';
 import { Encabezado, Card, Campo, Num, Sel, Salida, Aviso, Nota, Tabla, Acordeon,
-  Divisor, Th, Td, TdN } from '../ui.jsx';
+  Divisor, Boton, Th, Td, TdN } from '../ui.jsx';
 import { c, SP, t, TONO } from '../tokens.js';
 import { FIGURAS } from '../../constants/figuras.js';
 import { f, fmt } from '../../lib/formato.js';
@@ -37,7 +36,8 @@ const EXPLICA_EXPOSICION = {
 const estiloTexto = { padding: "6px 8px", borderRadius: 6 };
 
 export function SitioTab() {
-  const { d, set, setTopo, setSub, V, vel, sitio, geoN, act, topo, topoBase } = useProyecto();
+  const { d, set, setTopo, setSub, V, vel, sitio, geoN, act, topo, topoBase,
+    cerr, irA } = useProyecto();
   const { tema } = useUi();
   const t_ = d.topo;
   const terr = TERRENO[d.exposicion];
@@ -412,55 +412,31 @@ export function SitioTab() {
         )}
       </Card>
 
+      {/* ── CERRAMIENTO: SÓLO EL RESUMEN ────────────────────────────────────────
+          La clasificación dejó de ser un desplegable y pasó a calcularse a partir de las
+          aberturas, que dependen de la geometría del edificio. Por eso vive en su propia
+          pantalla, después de Edificio, y acá queda lo que hace falta ver sin salir de
+          Sitio: qué clasificación gobierna y con qué GC_pi. */}
       <Card titulo="Clasificación de cerramiento"
         desc="Art. 1.10 y Tabla 1.11-1. Entre «cerrado» y «parcialmente cerrado» hay un
           factor de tres en la presión interna, y en una cubierta liviana eso decide el
-          levantamiento.">
-        <Campo label="Clasificación"
-          ayuda="Se decide por el área de aberturas de cada pared comparada con el área bruta y con las aberturas del resto de la envolvente.">
-          <Sel v={d.cerramiento} set={set("cerramiento")} w={240}
-            opciones={CERRAMIENTOS.map(x => [x.id, x.label])} />
-        </Campo>
+          levantamiento."
+        acciones={<Boton onClick={() => irA("Cerramiento")}>Abrir Cerramiento →</Boton>}>
+        <Salida label="Clasificación" v={cerr.label}
+          ayuda={cerr.modo === "calculado"
+            ? "Calculada a partir de las aberturas declaradas, con el procedimiento del art. 1.10.2."
+            : "Declarada por el proyectista. El modo se cambia en la pantalla Cerramiento."} />
+        <Salida label="Modo"
+          v={cerr.modo === "calculado" ? "Calculado a partir de aberturas" : "Declarado"} />
         <Salida label="Coeficiente de presión interna GC_pi"
           v={`±${f(Math.abs(act.GCpi), 2)}`} />
-
-        <Acordeon titulo="Las cuatro clasificaciones y su criterio">
-          <Tabla minWidth={520}>
-            <thead><tr>
-              <Th>Clasificación</Th><Th>Criterio</Th><Th>Presión interna</Th>
-              <Th alinear="right">GC_pi</Th>
-            </tr></thead>
-            <tbody>
-              {CERRAMIENTOS.map(x => {
-                // La fila elegida se resalta por FONDO. Es la única forma de ver, sin leer
-                // los cuatro criterios, cuál de ellos es el que está gobernando el cálculo.
-                const on = x.id === d.cerramiento;
-                return (
-                  <tr key={x.id}>
-                    <Td peso={on ? 600 : 400} fondo={on ? c.azulBg : undefined}>{x.label}</Td>
-                    <Td tono={c.txt2} fondo={on ? c.azulBg : undefined}>{x.criterio}</Td>
-                    <Td tono={c.txt2} fondo={on ? c.azulBg : undefined}>{x.presion}</Td>
-                    <TdN peso={on ? 600 : 400} fondo={on ? c.azulBg : undefined}>±{f(x.gcpi, 2)}</TdN>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </Tabla>
-          <Nota>
-            <b style={{ color: c.txt }}>{PRIORIDAD_ABIERTO}</b> La categoría «parcialmente
-            abierto» es nueva respecto del 102-2005: existe para no dejar sin clasificar a
-            los edificios que no cumplen ninguna de las otras tres.
-          </Nota>
-        </Acordeon>
-
-        <Nota>
-          <b style={{ color: c.txt }}>Siempre son dos casos, no uno.</b> La nota 3 de la
-          Tabla 1.11-1 exige considerar el GC_pi positivo aplicado a todas las superficies
-          internas y el negativo aplicado a todas. No es elegir el peor y seguir: uno
-          gobierna el levantamiento de la cubierta y el otro la compresión de las paredes,
-          en combinaciones distintas. Por eso la tabla de presiones tiene dos columnas.
-        </Nota>
+        {cerr.Ri != null && (
+          <Salida label="Factor de reducción R_i" v={f(cerr.Ri, 3)}
+            ayuda="Expresión (1.11-1). Sólo aplica a parcialmente cerrados." />
+        )}
+        <Nota>{cerr.motivo}</Nota>
       </Card>
+
     </>
   );
 }
