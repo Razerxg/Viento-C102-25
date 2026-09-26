@@ -6,6 +6,7 @@
 // en el suelo. Un croquis que dibujara la flecha en el centro estaría ocultando justo eso.
 import { mkView, Dim, Rotulo, Lienzo, Flecha } from './kit.jsx';
 import { U } from '../../lib/unidades.js';
+import { num } from '../../lib/parseo.js';
 
 export function CroquisAccesorio({ analisis, datos, familia, fmt, tema = "claro",
   ancho = 620, alto = 340 }) {
@@ -14,7 +15,7 @@ export function CroquisAccesorio({ analisis, datos, familia, fmt, tema = "claro"
   const cuerpo = tema === "oscuro" ? "#232322" : "#f0efec";
   if (!analisis) return null;
 
-  const n = (v, d = 0) => { const x = parseFloat(v); return Number.isFinite(x) ? x : d; };
+  const n = num;
 
   // Geometría en metros según la familia. `sInf` es la cota del borde inferior del cuerpo
   // sobre el suelo: en una chimenea o una torre es 0, en un cartel puede no serlo.

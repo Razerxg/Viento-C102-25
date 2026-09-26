@@ -10,11 +10,12 @@ import {
   VB_I1, TABLA_I1, TABLA_I2, TABLA_I3A, TABLA_I3B, I3B_THETA_MAX, factorInclinacion,
   TABLA_I4, VB_I5, TABLA_I5, TABLA_I6, ALCANCE_ANEXO,
 } from '../constants/anexo1.js';
+// El parseo de los campos es uno solo: `lib/parseo.js`. Antes había tres `num()` en el
+// motor y dos usaban `parseFloat` pelado, que con la coma habilitada en los campos lee
+// «12,5» como 12 y descarta el resto sin avisar.
+import { num } from '../lib/parseo.js';
 
-const num = (v, d = 0) => {
-  const n = typeof v === "number" ? v : parseFloat(v);
-  return Number.isFinite(n) ? n : d;
-};
+
 const fc = (n, d = 2) => (Number.isFinite(n) ? n.toFixed(d).replace(".", ",") : "—");
 
 // Interpolación con extremos congelados: las filas de tope de estas tablas son «≥ 10»,

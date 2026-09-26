@@ -17,6 +17,7 @@ import { c, t, SP, MONO } from '../tokens.js';
 import { FIGURAS } from '../../constants/figuras.js';
 import { U } from '../../lib/unidades.js';
 import { f, fmt } from '../../lib/formato.js';
+import { num } from '../../lib/parseo.js';
 
 // Casilla de verificación con el mismo cuerpo y color que el resto del formulario. El
 // `<input type=checkbox>` pelado se ve como de otra aplicación al lado de los selects.
@@ -230,7 +231,7 @@ export function AccesoriosTab() {
                       ? ` (e = (0,2 − 0,25·R_máx)·B, con R_máx = ${f(r.extra.red.Rmax, 3)} ≤ 0,4)`
                       : " (e = 0,2·B)"}.
                     {r.extra.apoyado && <> Y como el cartel apoya de forma continua en el
-                      suelo, además actúa <b style={{ color: c.txt }}>{f(0.05 * parseFloat(cp.h || 0), 2)} m</b>{" "}
+                      suelo, además actúa <b style={{ color: c.txt }}>{f(0.05 * num(cp.h), 2)} m</b>{" "}
                       por encima del centro geométrico.</>}
                   </Nota>
                 </div>
@@ -259,7 +260,7 @@ export function AccesoriosTab() {
         <Card titulo="Caso C — direcciones de viento oblicuas" fig={FIGURAS["4.4-1c"]}
           desc="La nota 2 lo EXIGE cuando B/s ≥ 2. No es otro coeficiente: es otro reparto,
             con la fuerza concentrada cerca del borde de barlovento.">
-          <PlantaCasoC casoC={r.extra.casoC} B={parseFloat(cp.B) || 1} fmt={fmt} tema={tema} />
+          <PlantaCasoC casoC={r.extra.casoC} B={num(cp.B, 1)} fmt={fmt} tema={tema} />
           <Tabla minWidth={520}>
             <thead><tr>
               <Th>Región</Th><Th alinear="right">Desde (m)</Th><Th alinear="right">Hasta (m)</Th>
@@ -274,7 +275,7 @@ export function AccesoriosTab() {
                   <TdN>{f(reg.hasta, 2)}</TdN>
                   <TdN>{f(reg.cfTabla, 2)}</TdN>
                   <TdN peso={600}>{f(reg.cf, 3)}</TdN>
-                  <TdN>{U.n.fuerza(r.q * G * reg.cf * reg.ancho * parseFloat(cp.s || 0), 2)}</TdN>
+                  <TdN>{U.n.fuerza(r.q * G * reg.cf * reg.ancho * num(cp.s), 2)}</TdN>
                 </tr>
               ))}
             </tbody>

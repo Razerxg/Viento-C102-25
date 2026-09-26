@@ -24,11 +24,12 @@ import {
   CP_FONDO_SILO, FONDO_SILO_LIMITE, SILO_AGRUPADO, CF_SILO_GRUPO,
   CP_TECHO_SILO_GRUPO, ZONAS_SILO_GRUPO_PLANO, SILO_ALCANCE,
 } from '../constants/cap4.js';
+// El parseo de los campos es uno solo: `lib/parseo.js`. Antes había tres `num()` en el
+// motor y dos usaban `parseFloat` pelado, que con la coma habilitada en los campos lee
+// «12,5» como 12 y descarta el resto sin avisar.
+import { num } from '../lib/parseo.js';
 
-const num = (v, d = 0) => {
-  const n = typeof v === "number" ? v : parseFloat(v);
-  return Number.isFinite(n) ? n : d;
-};
+
 const fc = (n, d = 2) => (Number.isFinite(n) ? n.toFixed(d).replace(".", ",") : "—");
 
 // Interpolación lineal en una grilla ORDENADA, con extremos CONGELADOS y no extrapolados.

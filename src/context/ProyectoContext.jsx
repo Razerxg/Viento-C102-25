@@ -17,6 +17,7 @@ import { analizarDireccion, normalizarGeo, DIRECCIONES } from '../engine/edifici
 import { analizarAccesorio, analizarSilo, familiaDe } from '../engine/otrasEstructuras.js';
 import { analizarAnexo } from '../engine/anexo1.js';
 import { kzt as calcularKzt } from '../engine/topografia.js';
+import { num, opt } from '../lib/parseo.js';
 import { gcpiDe } from '../constants/presionInterna.js';
 import { factorRafaga } from '../engine/factorRafaga.js';
 import { resultantes, barridoAlero, envolvente } from '../engine/resultantes.js';
@@ -161,8 +162,8 @@ export function ProyectoProvider({ children }) {
   const entradaTopo = useMemo(() => ({
     forma: d.topo.forma || undefined,
     exposicion: d.topo.exposicionLocal || d.exposicion,
-    H_m: parseFloat(d.topo.H_m), Lh_m: parseFloat(d.topo.Lh_m),
-    x_m: parseFloat(d.topo.x_m) || 0, lado: d.topo.lado,
+    H_m: opt(d.topo.H_m), Lh_m: opt(d.topo.Lh_m),
+    x_m: num(d.topo.x_m), lado: d.topo.lado,
     cond1_confirmada: !!d.topo.cond1, metodo: d.topo.metodo,
   }), [d.topo, d.exposicion]);
 
@@ -178,8 +179,8 @@ export function ProyectoProvider({ children }) {
     // El escalar sigue siendo el de la cubierta: es el que usan q_h y las trazas. Lo que
     // hace variar K_zt con la altura es `topo`, y sólo está cuando el cálculo APLICA.
     Kzt: topo.kzt, topo: topo.aplica ? entradaTopo : null,
-    altitud: parseFloat(d.altitud) || 0, usarKe: d.usarKe !== false,
-    puntosPerfil: parseInt(d.puntosPerfil, 10) || 10,
+    altitud: num(d.altitud), usarKe: d.usarKe !== false,
+    puntosPerfil: num(d.puntosPerfil, 10),
   }), [V, d.exposicion, d.altitud, d.usarKe, d.puntosPerfil, topo.kzt, topo.aplica, entradaTopo]);
 
   /**
@@ -205,7 +206,7 @@ export function ProyectoProvider({ children }) {
   // un bloque informativo al costado.
   const rafaga = useMemo(() => factorRafaga({
     h: geoN.h, B: Math.max(geoN.a, geoN.b), L: Math.min(geoN.a, geoN.b),
-    exposicion: d.exposicion, V, n1: parseFloat(d.n1) || 0, beta: parseFloat(d.beta) || 0.02,
+    exposicion: d.exposicion, V, n1: num(d.n1), beta: num(d.beta, 0.02),
   }), [geoN.h, geoN.a, geoN.b, d.exposicion, V, d.n1, d.beta]);
 
   const G = rafaga.opciones.find(o => o.id === d.modoG)?.G ?? 0.85;
@@ -277,7 +278,7 @@ export function ProyectoProvider({ children }) {
     familia: d.anexo.familia, sitio, kd: kdAnexo, G,
     datos: { b: d.anexo.b, L: d.anexo.L, z: d.anexo.z, d: d.anexo.d, theta: d.anexo.theta,
       filaI1: d.anexo.filaI1, filaI2: d.anexo.filaI2, filaI5: d.anexo.filaI5,
-      perfil: d.anexo.perfil, thetaPerfil: parseFloat(d.anexo.thetaPerfil) || 0 },
+      perfil: d.anexo.perfil, thetaPerfil: num(d.anexo.thetaPerfil) },
   }), [d.anexo, sitio, kdAnexo, G]);
 
   const avisos = useMemo(() => avisosDe({

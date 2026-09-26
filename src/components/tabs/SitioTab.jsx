@@ -18,6 +18,7 @@ import { Encabezado, Card, Campo, Num, Sel, Salida, Aviso, Nota, Tabla, Acordeon
 import { c, SP, t, TONO } from '../tokens.js';
 import { FIGURAS } from '../../constants/figuras.js';
 import { f, fmt } from '../../lib/formato.js';
+import { num } from '../../lib/parseo.js';
 import { kz } from '../../engine/presionDinamica.js';
 
 const EXPLICA_EXPOSICION = {
@@ -264,7 +265,7 @@ export function SitioTab() {
           </div>
         ))}
 
-        {t_.forma && parseFloat(t_.H_m) > 0 && parseFloat(t_.Lh_m) > 0 && (
+        {t_.forma && num(t_.H_m) > 0 && num(t_.Lh_m) > 0 && (
           <div style={{ marginTop: SP.md }}>
             <CroquisTopografia forma={t_.forma} H_m={t_.H_m} Lh_m={t_.Lh_m}
               x_m={t_.x_m} z_m={geoN.h} etiquetaZ="h" lado={t_.lado}

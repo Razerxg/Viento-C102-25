@@ -107,7 +107,7 @@ El punto 8 se integra a la envolvente de la Fase 2, por decisión del proyectist
 | ⏳ | Envolvente automática: 4 direcciones × 2 signos de `GC_pi` | Con el caso torsional en el resumen de críticos |
 | ⏳ | **Casos de carga de la Fig. 2.4-8** (punto 8 del módulo edificios) | Caso 2: paredes y cubierta al 75 % del caso 1 · Casos 3 y 4 (nota 2): cubierta al 100 % de la mayor presión de los casos 1 y 2 sobre cada área, en las dos direcciones principales · Caso 4: `M_T = 0,563·(P_WX+P_LX)·B_X·e_X + 0,563·(P_WY+P_LY)·B_Y·e_Y` — hoy `momentoTorsor` cubre un solo eje · `e = ±0,15·B` en rígidas con el signo más desfavorable, expr. (2.4-5) en flexibles · nota 3: paredes laterales omitibles en los casos 1 y 2 con diafragma rígido continuo · nota 4: `M_T` sobre diafragmas rígidos; con diafragma flexible o sin diafragma, bloque de presión distribuida sobre las paredes con presión normal |
 | ⏳ | **Exención del art. 2.4.7** | Selector con las condiciones del 2.4.7.2 —una planta con h ≤ 10 m; hasta dos plantas de entramado liviano; hasta dos plantas con diafragmas flexibles— ⇒ sólo casos 1 y 3. Las del 2.4.7.3 a 2.4.7.5, como declaración del usuario con cita del artículo. Corregir el comentario de `CASOS_CARGA` |
-| ⏳ | Parseo de inputs | Un solo separador (coma o punto) = decimal · **sin separador de miles** · con más de uno se rechaza con aviso · mostrar al lado el valor interpretado |
+| ✅ | Parseo de inputs | `lib/parseo.js`. Un solo separador = decimal · sin separador de miles · con más de uno se rechaza con el motivo · el valor interpretado al lado del campo · `type="text"` con `inputMode="decimal"`. Reemplaza los tres `num()` del motor, dos de los cuales usaban `parseFloat` pelado y leían «12,5» como 12 |
 
 ## Fase 3 — Salidas ⏳
 

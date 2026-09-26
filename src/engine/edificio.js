@@ -20,6 +20,10 @@ import { interp, cpSotavento, presion } from './presiones.js';
 import { gcpiDe } from '../constants/presionInterna.js';
 import { fachadasDe, areaHasta, momentoHasta } from './fachadas.js';
 import { tipoDe } from '../constants/cubiertas.js';
+// El parseo de los campos es uno solo: `lib/parseo.js`. Antes había tres `num()` en el
+// motor y dos usaban `parseFloat` pelado, que con la coma habilitada en los campos lee
+// «12,5» como 12 y descarta el resto sin avisar.
+import { num } from '../lib/parseo.js';
 
 export const DIRECCIONES = [
   { id: "Wx+", eje: "X", signo: +1, label: "Viento según +X" },
@@ -36,10 +40,7 @@ export const DIRECCIONES = [
 // «1.234» que se lee mil doscientos de un lado y uno coma dos del otro.
 const fc = (n, d = 2) => Number(n).toFixed(d).replace(".", ",");
 
-const num = (v, d = 0) => {
-  const n = typeof v === "number" ? v : parseFloat(String(v ?? "").replace(",", "."));
-  return Number.isFinite(n) ? n : d;
-};
+
 
 // ── ALTURA DEL PUNTO MÁS ALTO ───────────────────────────────────────────────────
 //

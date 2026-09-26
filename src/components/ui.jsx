@@ -11,6 +11,7 @@ import { createContext, useContext, useState, useCallback, useRef, useEffect } f
 import { createPortal } from 'react-dom';
 import { MONO, s } from './styles.js';
 import { c, t, SP, R, TONO, SOMBRA, TRANS, TAM } from './tokens.js';
+import { interpretado } from '../lib/parseo.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PRIMITIVAS DE FORMULARIO
@@ -30,9 +31,39 @@ export function Campo({ label, unit, ayuda, fig, children }) {
   );
 }
 
-export function Num({ v, set, w = 104, ph, step = "any", min, max }) {
-  return <input className="vw-in" style={{ ...s.inp, width: w }} type="number" step={step}
-    min={min} max={max} value={v} placeholder={ph} onChange={e => set(e.target.value)} />;
+/**
+ * Campo numérico.
+ *
+ * ⚠ ES `type="text"` CON `inputMode="decimal"`, NO `type="number"`. El input numérico del
+ * navegador decide qué separador acepta según el idioma del SISTEMA, no del documento: en
+ * una máquina en inglés rechaza la coma y en una en español rechaza el punto, y en los dos
+ * casos el campo queda vacío sin decir nada. Con `inputMode="decimal"` el teléfono abre
+ * igual el teclado numérico.
+ *
+ * AL LADO DEL CAMPO VA EL VALOR INTERPRETADO, que es lo que hace que la regla del
+ * separador único sea usable: la lectura del programa está siempre a la vista, y un
+ * «1.234» que el usuario quiso como mil doscientos se ve al instante como 1,234.
+ */
+export function Num({ v, set, w = 104, ph, min, max }) {
+  const leido = interpretado(v);
+  // Sólo se muestra cuando aporta: si el texto y la lectura coinciden, repetirlo es ruido.
+  const mostrar = !leido.ok || (leido.texto != null && leido.texto !== String(v ?? "").trim());
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+      <input className="vw-in" type="text" inputMode="decimal" autoComplete="off"
+        style={{ ...s.inp, width: w,
+          borderColor: leido.ok ? undefined : TONO.error.bd,
+          color: leido.ok ? undefined : TONO.error.fg }}
+        value={v ?? ""} placeholder={ph} aria-invalid={!leido.ok}
+        onChange={e => set(e.target.value)} />
+      {mostrar && (
+        <span style={{ ...t.micro, color: leido.ok ? c.txt3 : TONO.error.fg,
+          maxWidth: 260, lineHeight: 1.35 }}>
+          {leido.ok ? `= ${leido.texto}` : leido.texto}
+        </span>
+      )}
+    </span>
+  );
 }
 
 export function Sel({ v, set, opciones, w = 200 }) {
