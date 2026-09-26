@@ -6,6 +6,13 @@ fuerza del viento (SRFV)**.
 
 ---
 
+## 📋 EL PLAN VIVO ESTÁ EN `docs/PLAN.md`
+
+Qué falta, qué está hecho y **qué está frenado esperando un dato del proyectista** vive
+ahí, no acá y no en el `git log`. Se lee al empezar y **se actualiza al cerrar cada
+tanda, en el mismo commit que el código**. Este archivo guarda las DECISIONES —lo que no
+hay que revertir sin conversarlo—; `PLAN.md` guarda el ESTADO.
+
 ## ⚠ LO PRIMERO: LAS TABLAS DE LA NORMA NO ESTÁN EN LA MEMORIA DEL MODELO
 
 El CIRSOC 102-**2005** es conocido. El **2025 no**: ni sus valores de tabla, ni su
@@ -93,10 +100,12 @@ de todo.
   con respuesta resonante de edificios flexibles: exige frecuencia natural `n1`,
   amortiguamiento y escalas de turbulencia, datos que rara vez están a mano. Quien los
   tenga calcula `G` aparte y lo carga.
-- **`Kzt = 1,0` fijo, CON AVISO.** Cubre el terreno llano, que es la mayoría de los casos.
-  Lo que no puede pasar es que el 1,0 se asuma callado: la app tiene que **decir cuándo NO
-  corresponde** —loma, escarpa, colina— para que la omisión sea una decisión y no un
-  descuido. Un `Kzt` que debía ser 1,3 y quedó en 1,0 subestima la presión un 30 %.
+- ~~`Kzt = 1,0` fijo, CON AVISO.~~ **SUPERADO**: el art. 1.8 está implementado entero, ver
+  «K_zt — decisiones que no conviene revertir» más abajo. Lo que sí sobrevive de aquella
+  decisión, y sigue gobernando la pantalla, es que **el 1,0 nunca se asume callado**:
+  cuando K_zt da 1,0 la app dice el MOTIVO —sin accidente declarado, valle, o cuál de las
+  tres condiciones del art. 1.8.1 falla—, para que la omisión sea una decisión y no un
+  descuido.
 - **Velocidad básica por MAPA INTERACTIVO de localidades.** Es la decisión que más empuja
   hacia lo gráfico, que es el pedido explícito del autor. Depende de que el reglamento
   traiga la tabla de localidades; si no, se digitaliza el mapa.
@@ -192,7 +201,7 @@ archivo, que ninguna imagen quede huérfana y que todas digan de qué página sa
 | Dónde | Figura | Por qué |
 |---|---|---|
 | Edificio → tipo de cubierta y dirección de cumbrera | 2.4-1 | Entre «vertiente única», «dos aguas» y «mansarda» no se elige leyendo: se elige mirando la planta y la elevación |
-| Sitio → aviso de `K_zt` | 1.8-1 | La decisión se toma FUERA de la app, con el terreno a la vista. Hacen falta los dibujos de loma y escarpa y las tres condiciones |
+| Sitio → formulario de `K_zt` | 1.8-1 | La decisión de si el terreno es llano se toma FUERA de la app, con el sitio a la vista: hacen falta los dibujos de loma y escarpa y las tres condiciones. La figura convive con el croquis del accidente declarado, que dibuja LOS DATOS CARGADOS y no el caso genérico |
 | Accesorios → geometría de cada familia | 4.4-1 · 4.5-1 · 4.5-2 · 4.5-3 | La figura DEFINE los símbolos: «declare B, s, h y t» no significa nada sin ella |
 | Accesorios → caso C | 4.4-1 cont. | El reparto en regiones y la esquina de retorno |
 | Silos → geometría | 4.5-4 | Es la que distingue `H` (cilindro sólido) de `h` (altura media) y define `C` |
@@ -287,6 +296,67 @@ propio azul las hace parecer de proveedores distintos.
 - **Las cuatro direcciones se eligen en el shell** (`SelectorDireccion`), no dentro de una
   pantalla: la pregunta «cuál estoy mirando» se hace en todas las de resultado a la vez.
 
+## K_zt — decisiones que no conviene revertir
+
+- **K_zt NO ES UN NÚMERO, ES UN PERFIL EN ALTURA.** K3 = e^(−γ·z/Lh) crece hacia el
+  terreno mientras K_z queda congelado por debajo de z_mín, así que evaluarlo a una sola
+  cota —la altura media de cubierta, que es lo que hacía el campo «z de evaluación»— NO es
+  conservador: en la franja baja de la pared a barlovento la presión real supera a la
+  calculada. Los datos del accidente viajan en `sitio.topo` sin altura y cada superficie
+  evalúa la suya.
+- **La z de K3 va SIN el piso de 5 m.** Ese piso es del perfil de exposición, no del
+  art. 1.8. Aplicárselo borraría justo la franja donde el efecto topográfico es máximo.
+- **Cada tramo se resuelve con el mayor producto K_z·K_zt de sus dos extremos**, y la
+  tabla de cargas dice cuál gobierna.
+- **El perfil corta también en los MÁXIMOS LOCALES de K_z·K_zt.** La regla de los dos
+  extremos sólo es exacta si el producto es monótono adentro, y no lo es: K_z sube, K_zt
+  baja, y el producto tiene joroba. Medido sobre 2.700 combinaciones, el máximo interior
+  superaba al mayor de los dos extremos hasta en **0,82 %** —por encima del 0,5 % con el
+  que se validan los casos, y del lado inseguro—. Cortando en los máximos, la
+  subestimación medida es 0.
+- ⚠ **SE BUSCAN TODOS LOS MÁXIMOS LOCALES, NO EL GLOBAL.** El producto es BIMODAL: una
+  joroba cerca del terreno, donde manda K_zt, y otra subida arriba, donde K_zt ya se
+  extinguió y manda K_z. En un edificio alto el máximo global está en el tope, que ya es
+  extremo del perfil, y quedarse con él se saltea justo la joroba de abajo.
+- **`q_h` usa K_z(h)·K_zt(h) con la h del edificio analizado.** Hay test: un K_zt que
+  viniera de una cota ajena daría una presión plausible y nadie lo vería.
+- **K_zt se aplica POR DIRECCIÓN**, con «aplicar a todas» tildado por defecto porque los
+  multiplicadores suponen viento en la dirección de máxima pendiente (nota 3) y usarlos en
+  las cuatro es mayorar.
+- **El capítulo 4 y el Anexo I evalúan K_zt a la altura de ESA estructura**, no a la del
+  edificio. Un venteo de 18 m y un cartel de 3 m sobre la misma loma no tienen el mismo
+  factor.
+
+## Interpolación — una sola implementación
+
+- **Vive en `engine/interpolacion.js`** y devuelve siempre los puntos de tabla usados: un
+  C_f de 1,27 no se puede controlar contra el papel sin saber entre qué dos filas salió.
+  Había cuatro copias de la misma regla con firmas distintas.
+- ⚠ **EXIGE ABSCISAS CRECIENTES Y LANZA SI NO LO SON. No las ordena.** La versión vieja de
+  `presiones.js` las ordenaba, y eso hace que una tabla cargada al revés dé un número
+  plausible en vez de fallar. Es un riesgo concreto acá: las filas de la Figura 4.4-1 van
+  en s/h DECRECIENTE y `cfCartelLleno` tiene que invertirlas a mano.
+- **Los extremos se congelan, no se extrapolan.** Las filas extremas de estas tablas son
+  «≤ 0,05», «≥ 45», «40 o más»: el reglamento dice que más allá vale el mismo número.
+
+## La UI está fuera del typecheck, y por eso tiene otras dos redes
+
+`tsc --noEmit` corre con `checkJs` sobre `engine`, `constants` y `lib`. Los componentes
+quedan afuera a propósito (`docs/tipado.md`). El agujero ya se materializó: en `SitioTab`
+se usaron `Divisor` y `t` sin importarlos, el build pasó limpio, los 685 tests pasaron y
+la pantalla explotaba recién al abrirla.
+
+- **ESLint con TRES reglas, no los conjuntos `recommended`.** `no-undef`,
+  `react/jsx-no-undef` y `react-hooks/rules-of-hooks`. Un linter que tira doscientas
+  advertencias de estilo se termina ignorando, y con él se ignoran las tres que importan.
+- **El smoke test renderiza las once pantallas y falla ante cualquier `console.error`.**
+  React no tira excepción por una key repetida ni por una prop inválida: lo escribe en la
+  consola y sigue, que es como esos defectos llegan a producción.
+- ⚠ **El smoke test navega con `fireEvent`, no con `.click()`.** Sin `act()` React no
+  reconcilia y los once casos pasaban verificando la Guía once veces. `abrir()` exige
+  `aria-current="page"` y hay un caso que comprueba que las once pantallas muestran
+  contenidos distintos entre sí.
+
 ## Estilo
 
 - **Español**, tanto en el código como en los textos de la app.
@@ -353,6 +423,9 @@ salieron de MIRAR LA PANTALLA RENDERIZADA, no de un test.
 
 ## Pendientes conocidos
 
+> El estado al día de hoy está en **`docs/PLAN.md`**. Lo que sigue es el detalle de POR QUÉ
+> cada uno está pendiente, que es lo que no conviene volver a deducir.
+
 - ⛔ **PANELES SOLARES, ART. 4.5.3 A 4.5.5 — NO IMPLEMENTADOS, Y NO POR FALTA DE TIEMPO.**
   Sus coeficientes no están tabulados: las Figuras 4.5-7, 4.5-10 y 4.5-11 son **once
   gráficos de curvas** sobre ejes logarítmicos, con unos pocos valores rotulados de arranque
@@ -371,8 +444,7 @@ salieron de MIRAR LA PANTALLA RENDERIZADA, no de un test.
   el propio reglamento admite.
 - **Falta el factor `Ri`** de reducción por gran volumen: está implementado en
   `constants/presionInterna.js` pero no cableado a la interfaz.
-- **`Kzt` está fijo en 1,0.** El motor completo está en `engine/presionDinamica.js` y en
-  `constants/topografia.js`, con sus tres condiciones de aplicación; falta la interfaz.
+
 - **Los casos de carga de la Figura 2.4-8 no se aplican todavía a la salida.** Están
   declarados en `engine/edificio.js` con sus factores y su momento torsor.
 - Cubiertas en **cúpula** (Figura 2.4-2) y **abovedadas** (2.4-3): las constantes están
@@ -380,5 +452,4 @@ salieron de MIRAR LA PANTALLA RENDERIZADA, no de un test.
 - **El croquis de `q(z)` desperdicia el ancho de su tarjeta.** `mkView` ajusta la escala al
   MENOR de los dos factores, y con un edificio bajo y ancho eso deja dos tercios del lienzo
   vacíos. Arreglarlo bien toca el encuadre de los cuatro croquis.
-- **`K_zt` sigue fijo en 1,0 en la interfaz** aunque el motor lo calcula. Es el aviso más
-  importante de la app: es un multiplicador que puede llegar a 1,9.
+

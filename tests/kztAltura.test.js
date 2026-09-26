@@ -212,6 +212,66 @@ describe('el máximo interior de K_z·K_zt', () => {
   });
 });
 
+describe('q_h usa la h del edificio analizado', () => {
+  // ⚠ ESTE TEST EXISTE POR UN ERROR DE REPORTE, NO DE CÓDIGO. Al verificar K_zt(z) en el
+  // navegador informé K_zt(h) = 2,1146 para un edificio de h = 30 m; ese número es el de
+  // z = 6 m, que era el alero por defecto de OTRA corrida. El valor correcto para h = 30
+  // es 1,4034. El cálculo estaba bien y el reporte mal, pero un número de q_h que viene
+  // de una cota ajena es exactamente el defecto que nadie ve: la presión sale plausible.
+  //
+  // Con la loma de referencia y Lh → 2H = 80 m:
+  //   K1 = 1,30 × 0,5 = 0,650 · K2 = 1 − 15/(1,5·80) = 0,875
+  //   K3(z) = e^(−3z/80)  ⇒  K_zt(z) = (1 + 0,56875·e^(−0,0375·z))²
+  const TOPO = { ...LOMA, H_m: 40, Lh_m: 60, x_m: 15 };
+  const SITIO = { ...LLANO, Kzt: null, topo: TOPO };
+  const kztMano = (z) => Math.pow(1 + 0.65 * 0.875 * Math.exp(-3 * z / 80), 2);
+
+  it('el multiplicador a mano coincide con el del motor', () => {
+    for (const z of [0, 6, 14.21, 30, 60]) {
+      expect(kztEn(SITIO, z), `z = ${z}`).toBeCloseTo(kztMano(z), 10);
+    }
+    // Y los dos números que se confundieron son efectivamente distintos.
+    expect(kztEn(SITIO, 6)).toBeCloseTo(2.1146, 4);
+    expect(kztEn(SITIO, 30)).toBeCloseTo(1.4034, 4);
+  });
+
+  // La propiedad: q_h sale de K_z(h)·K_zt(h) con la h de ESTE edificio, no de una cota
+  // heredada, no del alero por defecto y no del tope del perfil.
+  it('q_h = 0,613·K_z(h)·K_zt(h)·K_d·K_e·V², con la h de cada edificio', () => {
+    for (const hAlero of [4, 6, 12, 30, 60]) {
+      const geo = { a: 20, b: 30, hAlero, theta: 0, tipo: "plana", cumbrera: "X" };
+      const r = analizarDireccion({ geo, sitio: SITIO, cerramiento: "cerrado", G: 0.85 }, D["Wx+"]);
+      const h = r.geo.h;
+      expect(r.qh, `h = ${h}`).toBeCloseTo(
+        0.613 * kz(h, "B") * kztMano(h) * 0.85 * 1 * 55.1 * 55.1, 6);
+      // Y la traza informa ese mismo K_zt, no otro.
+      expect(r.traza.find(t => t.simbolo === "K_zt(h)").valor, `h = ${h}`)
+        .toBeCloseTo(kztMano(h), 10);
+    }
+  });
+
+  // El otro lado del mismo error: cambiar la altura del edificio TIENE que cambiar q_h.
+  // Si K_zt quedara pegado a una cota fija, dos edificios distintos darían el mismo.
+  it('dos edificios de distinta altura no comparten K_zt(h)', () => {
+    const qh = (hAlero) => analizarDireccion(
+      { geo: { a: 20, b: 30, hAlero, theta: 0, tipo: "plana", cumbrera: "X" },
+        sitio: SITIO, cerramiento: "cerrado", G: 0.85 }, D["Wx+"]);
+    const bajo = qh(6), alto = qh(30);
+    expect(bajo.traza.find(t => t.simbolo === "K_zt(h)").valor)
+      .toBeGreaterThan(alto.traza.find(t => t.simbolo === "K_zt(h)").valor);
+  });
+
+  // Las superficies de q_h constante —sotavento, laterales, cubierta— usan ESE q_h.
+  it('sotavento, laterales y cubierta llevan el q_h de la altura media', () => {
+    const r = analizarDireccion(
+      { geo: { a: 20, b: 30, hAlero: 30, theta: 0, tipo: "plana", cumbrera: "X" },
+        sitio: SITIO, cerramiento: "cerrado", G: 0.85 }, D["Wx+"]);
+    for (const s of r.superficies.filter(s => s.id !== "pared_barlovento")) {
+      expect(s.q, s.id).toBeCloseTo(r.qh, 9);
+    }
+  });
+});
+
 describe('corte en la base con K_zt(z)', () => {
   const analisis = analizarDireccion({ geo: GEO, sitio: CON_LOMA, cerramiento: "cerrado", G: 0.85 }, D["Wx+"]);
 
