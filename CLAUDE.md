@@ -532,6 +532,43 @@ casos de la figura, con los dos signos de la excentricidad en los torsionales.
   edificio muy alargado y de techo grande; el test lo construye con 200 × 10 y alero 3 m, y
   verifica primero que el solapamiento EXISTA antes de comprobar la prioridad.
 
+## Salidas — decisiones que no conviene revertir
+
+- **TODA salida lleva procedencia.** Versión de la app, edición del reglamento
+  —CIRSOC 102-2025—, procedimiento, fecha y aviso de responsabilidad profesional. Viven en
+  `constants/version.js` y salen de ahí en versión objeto y en versión texto: escritas
+  aparte, un día la memoria informa una versión y el JSON otra.
+- **La versión está repetida en `package.json` a propósito** —no se importa el manifiesto
+  para no arrastrarlo al bundle— y lo único que impide que se separen es un test.
+- ⚠ **`leer()` E `importar()` PASAN POR LA MISMA FUNCIÓN.** Antes sólo `leer()` fusionaba
+  sub-objeto por sub-objeto; `importar()` hacía `{ ...INICIAL, ...v }` y un archivo con un
+  `topo` de tres claves REEMPLAZABA el objeto entero. Las claves que faltaban quedaban en
+  `undefined`, `num(undefined)` da NaN, y un NaN sale como «—» en la pantalla sin ningún
+  error: el caso se abre «bien» y el cálculo está roto.
+- **La lista de sub-objetos se DERIVA de `INICIAL`**, no se escribe a mano, y hay un test
+  que la contrasta. Uno nuevo que quedara afuera volvería a abrir el mismo agujero.
+- **El esquema del archivo separa el sobre de los datos.** En el v1 estaban al mismo
+  nivel, así que un campo del proyecto llamado `app` o `v` pisaba la identificación del
+  archivo. Sube de versión **sólo cuando un archivo viejo deja de poder leerse tal cual**:
+  agregar un campo no la sube, porque la fusión ya lo resuelve.
+- **Un archivo de un esquema más nuevo se abre con aviso, no se rechaza.** El usuario tiene
+  su caso adentro: negarse es peor que abrir lo que se entienda, y mucho mejor que abrirlo
+  en silencio.
+- **En el CSV la unidad va PEGADA al nombre de la columna** (`p_gobernante_kN_m2`). Un CSV
+  se abre en cualquier cosa y lo primero que se pierde son las líneas de encabezado.
+- **Dos dialectos de CSV, y es un parámetro.** Abrir el equivocado no da error: da una
+  columna sola con todo el renglón adentro, o números partidos en dos. El escape se decide
+  **contra el separador del dialecto**: las referencias traen comas, y sin comillas en el
+  dialecto de coma correrían todas las columnas un lugar.
+- **La pared a barlovento se exporta TRAMO POR TRAMO**, cada uno con su `q_z`. Con un
+  `q_h` único se borra lo único que la distingue de las demás caras.
+- **Dos columnas de área en cubierta:** la real (`planta / cos θ`), sobre la que actúa la
+  presión, y la proyección en planta, que es la que da la componente vertical. Las dos
+  salen de `aporteCubierta` y no se recalculan acá.
+- **El tramo de extensión nula en `z = 0` se saltea en la exportación, no en el motor.** El
+  motor lo usa como extremo del perfil y no le molesta; en un archivo es un renglón con
+  área 0 que invita a sumarlo o a dividir por él.
+
 ## Unidades — la conversión vive en `lib/unidades.js`
 
 - **El motor trabaja siempre en N, m, N/m².** Son las unidades en que el reglamento

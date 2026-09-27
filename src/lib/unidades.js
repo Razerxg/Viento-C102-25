@@ -29,6 +29,7 @@
 
 /**
  * @typedef {"fuerza"|"presion"|"momento"|"longitud"|"area"|"velocidad"} Magnitud
+ * @exports Magnitud
  */
 
 /**

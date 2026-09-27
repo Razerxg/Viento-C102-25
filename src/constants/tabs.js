@@ -15,7 +15,11 @@ export const NAV = [
   // del proyectista —cuál de las tres vías del art. 1.9 se adopta— y esa decisión cambia
   // todas las presiones. Puesto entre los resultados parecería algo que la app informa.
   { grupo: "Definición", items: ["Sitio", "Edificio", "Cerramiento", "Ráfaga"] },
-  { grupo: "Resultados", items: ["Presiones", "Croquis", "Resultantes", "Resumen"] },
+  // «Salidas» cierra el grupo de resultados y no abre uno propio: exportar no es otra
+  // etapa del trabajo, es lo último que se hace con lo que las cuatro pantallas
+  // anteriores ya calcularon.
+  { grupo: "Resultados", items: ["Presiones", "Croquis", "Resultantes", "Resumen",
+    "Salidas"] },
   // CAPÍTULO 4 APARTE, Y NO ENTRE LOS RESULTADOS DEL EDIFICIO. No es otra salida del mismo
   // cálculo: es OTRO objeto. El capítulo 2 reparte presiones sobre las superficies de un
   // edificio; el 4 da una fuerza resultante sobre una pared libre, una chimenea o una
@@ -43,12 +47,12 @@ export const idxTab = (nombre) => Math.max(0, TABS.indexOf(nombre));
 // capítulo 2 reparte Cp por dirección, pero un coeficiente de fuerza ya contempla la
 // dirección más desfavorable dentro del propio C_f y de sus casos A, B y C.
 export const SIN_DIRECCION = new Set(["Guía", "Sitio", "Edificio", "Cerramiento", "Ráfaga", "Resumen",
-  "Accesorios", "Silos y tanques", "Secciones uniformes"]);
+  "Salidas", "Accesorios", "Silos y tanques", "Secciones uniformes"]);
 
 // Pantallas que NO llevan la ficha de estado al costado. Los croquis y el resumen usan
 // todo el ancho: en el resumen la ficha duplicaría columnas que la propia tabla ya lista,
 // y en los croquis le come lugar al dibujo, que es lo único que hay para ver.
-export const SIN_FICHA = new Set(["Guía", "Croquis", "Resumen"]);
+export const SIN_FICHA = new Set(["Guía", "Croquis", "Resumen", "Salidas"]);
 
 // Las pantallas del capítulo 4 SÍ llevan ficha: lo que muestra —V, exposición, K_zt, K_e—
 // es justamente lo que comparten con el edificio, y es lo que hay que poder mirar sin

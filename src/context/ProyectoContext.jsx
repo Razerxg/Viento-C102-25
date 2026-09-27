@@ -29,139 +29,35 @@ import { aplicabilidadDeTodas } from '../engine/aplicabilidad.js';
 import { velocidadDe } from '../constants/velocidades.js';
 import { kdDe } from '../constants/direccionalidad.js';
 import { TABS, idxTab } from '../constants/tabs.js';
+import { INICIAL } from '../constants/inicial.js';
+import { migrar, serializar, nombreArchivo } from '../lib/proyecto.js';
 import { avisosDe, porTab, contar } from '../lib/avisos.js';
+
+// Se re-exporta desde donde estaba: los tests y cualquier import viejo lo siguen
+// encontrando acá, y la definición vive en un solo lado.
+export { INICIAL };
 
 const KEY = "viento_proyecto_v1";
 const Ctx = createContext(null);
 export const useProyecto = () => useContext(Ctx);
 
-// ESTADO INICIAL — un caso completo, no campos vacíos.
-//
-// Abrir en blanco obliga a inventar un edificio antes de poder ver qué hace la app, y el
-// que llega por primera vez no sabe qué inventar. Con un caso cargado, la primera
-// pantalla ya muestra presiones y el usuario cambia lo que le interesa.
-export const INICIAL = {
-  proyecto: "Edificio sin nombre",
-  ciudad: "Buenos Aires",
-  riesgo: "II",
-  // ── ORIGEN DE V, art. 1.5 ───────────────────────────────────────────────────
-  // Por defecto la tabla de ciudades, que es lo que la app hacía antes. Los proyectos
-  // guardados NO traen este campo, así que la fusión contra `INICIAL` los deja en
-  // «tabla», que es exactamente lo que estaban usando.
-  origenV: "tabla",
-  vInterp: { V1: "", V2: "", d1: "", d2: "" },
-  vManual: { V: "", fundamento: "", documento: "" },
-  vConv: { V50: "" },
-  exposicion: "B",
-  altitud: "0",
-  usarKe: true,
-  // ── CERRAMIENTO ─────────────────────────────────────────────────────────────
-  // `cerramiento` es la clasificación DECLARADA. Sigue existiendo porque es lo que traen
-  // los proyectos guardados, y porque el modo «declarado» la usa tal cual.
-  cerramiento: "cerrado",
-  // ⚠ LOS PROYECTOS GUARDADOS MIGRAN A «declarado». Un proyecto viejo no tiene aberturas
-  // cargadas, así que calcularlo daría «cerrado» y pisaría en silencio la clasificación
-  // que el proyectista había elegido a mano. Los proyectos NUEVOS arrancan en «calculado».
-  cerrModo: "calculado",
-  cerrFundamento: "",
-  aberturas: [],
-  cerr: {
-    esSalud: false, distanciaCosta: "", detritusDeclarada: false,
-    // Vacío = automático: se precarga con el volumen geométrico exacto.
-    Vi: "",
-  },
-  // ── TOPOGRAFÍA, art. 1.8 ────────────────────────────────────────────────────
-  // Por defecto SIN accidente declarado, que es terreno llano y K_zt = 1,0. No es lo
-  // mismo que «se supone 1,0»: acá el 1,0 sale de que el usuario no declaró ninguna loma,
-  // y la app lo dice con ese motivo.
-  topo: {
-    forma: "", exposicionLocal: "", H_m: "", Lh_m: "", x_m: "0",
-    lado: "barlovento", cond1: false, metodo: "expresiones",
-    // Opción CONSERVADORA por defecto: los multiplicadores de la Fig. 1.8-1 suponen
-    // viento en la dirección de máxima pendiente (nota 3), así que aplicarlos en las
-    // cuatro es mayorar. Desactivarla exige declarar en qué direcciones aplica.
-    todasLasDirecciones: true, direcciones: ["Wx+"],
-  },
-  geo: { a: "20", b: "30", hAlero: "6", theta: "0", cumbrera: "X",
-    tipo: "plana", pendienteHacia: "+Y" },
-  n1: "",
-  beta: "0.02",
-  modoG: "defecto",
-  tipoFrec: "",
-  puntosPerfil: "10",
-  // Excepción de la propia nota 7 de la Figura 2.4-1: «excepto para SPRFVs en el techo
-  // consistentes en entramados resistentes a momento». Por defecto NO, o sea con piso.
-  porticosCubierta: false,
-  // El piso es parte de la estructura —contenedor, shelter sobre skid, módulo— y la
-  // presión interna se autoequilibra. Desactivado por defecto: lo conservador.
-  pisoSolidario: false,
-
-  // ── CASOS DE CARGA DE LA FIGURA 2.4-8 ───────────────────────────────────────
-  // Por defecto NO se declara ninguna exención del art. 2.4.7: se verifican los cuatro
-  // casos, los dos torsionales incluidos. Es lo conservador y es lo que el reglamento
-  // pide salvo que se demuestre lo contrario. El diafragma arranca en rígido, que es lo
-  // que hace aplicable el momento torsor tal cual sale de la figura.
-  env: { cond247: [], arts247: [], fundamento247: "", diafragma: "rigido" },
-
-  // ── CAPÍTULO 4 ──────────────────────────────────────────────────────────────
-  // Un caso cargado por defecto, igual que el edificio: abrir en blanco obliga a inventar
-  // un cartel antes de poder ver qué hace la pantalla.
-  cap4: {
-    familia: "cartel_lleno",
-    kd: "",              // "" = el que la Tabla 1.6-1 da para esta familia
-    // pared libre / cartel lleno
-    B: "6", s: "2", h: "5", eps: "", t: "", Lr: "", dobleCara: false,
-    // cartel abierto / entramado
-    epsAb: "0.25", miembro: "plano", Dmiembro: "0.05",
-    // chimenea / tanque
-    hChim: "20", Dchim: "3", filaChimenea: "circ_super_suave",
-    // torre reticulada
-    hTorre: "30", BTorre: "2", epsTorre: "0.25", seccionTorre: "cuadrada",
-    redondos: false, diagonal: false,
-    // equipo sobre cubierta
-    Bedif: "30", hedif: "12", Ledif: "40", Af: "6", Ar: "9",
-  },
-  // ⚠ EL SILO LLEVA SU PROPIO K_d. Antes tomaba el de la pantalla de Accesorios, así que
-  // elegir «cartel lleno» allá dejaba el tanque calculado con K_d = 0,85 en vez de 1,00:
-  // un 15 % menos de presión sobre otra estructura, sin que nada lo dijera. Por defecto va
-  // la fila de chimeneas y tanques redondos, que es lo que un silo cilíndrico es.
-  silo: { D: "10", H: "18", theta: "25", separacion: "5", elevado: false, C: "",
-    kd: "chim_redonda" },
-  // ANEXO I — secciones de forma uniforme. Lleva su propio K_d por el mismo motivo que el
-  // silo: un caño redondo va por la fila de chimeneas redondas, no por el 0,85 del edificio.
-  anexo: { familia: "redondeada", kd: "chim_redonda",
-    b: "0.5", L: "12", z: "6", d: "0.5", theta: "0",
-    filaI1: "cil_liso", filaI2: "cuad_cara", filaI5: "tub_lisa",
-    perfil: "angulo", thetaPerfil: "0" },
-};
-
 const leer = () => {
   try {
     const v = JSON.parse(window.localStorage.getItem(KEY) || "null");
-    // Fusión superficial contra el inicial: un archivo guardado antes de que existiera un
-    // campo tiene que seguir abriendo, con el valor por defecto del campo nuevo. Sin esto
-    // agregar un campo rompe todos los proyectos guardados, y no hay forma de enterarse
-    // hasta que alguien abre el suyo.
-    return v && typeof v === "object" ? { ...INICIAL, ...v,
-      geo: { ...INICIAL.geo, ...(v.geo || {}) },
-      topo: { ...INICIAL.topo, ...(v.topo || {}) },
-      cerr: { ...INICIAL.cerr, ...(v.cerr || {}) },
-      env: { ...INICIAL.env, ...(v.env || {}) },
-      // Un proyecto guardado no trae `cerrModo` ni aberturas: queda en «declarado»,
-      // que es la clasificación que su autor eligió a mano.
-      cerrModo: v.cerrModo ?? "declarado",
-      aberturas: Array.isArray(v.aberturas) ? v.aberturas : [],
-      vInterp: { ...INICIAL.vInterp, ...(v.vInterp || {}) },
-      vManual: { ...INICIAL.vManual, ...(v.vManual || {}) },
-      vConv: { ...INICIAL.vConv, ...(v.vConv || {}) },
-      cap4: { ...INICIAL.cap4, ...(v.cap4 || {}) },
-      silo: { ...INICIAL.silo, ...(v.silo || {}) },
-      anexo: { ...INICIAL.anexo, ...(v.anexo || {}) } } : null;
+    if (v == null) return null;
+    // ⚠ LA MISMA RUTA QUE UN ARCHIVO IMPORTADO. Antes esta función fusionaba sub-objeto
+    // por sub-objeto y `importar()` no: un archivo con un `topo` de tres claves
+    // reemplazaba el objeto entero y las que faltaban entraban al motor como `undefined`.
+    return migrar(v);
   } catch { return null; }
 };
 
 export function ProyectoProvider({ children }) {
-  const [d, setD] = useState(() => (typeof window === "undefined" ? INICIAL : (leer() ?? INICIAL)));
+  const inicio = typeof window === "undefined" ? null : leer();
+  const [d, setD] = useState(() => inicio?.datos ?? INICIAL);
+  // Lo que hubo que hacer para abrir el caso: migración de esquema, archivo de otra app,
+  // archivo más nuevo que la aplicación. Se muestra una vez, al abrir.
+  const [aperturaAvisos, setAperturaAvisos] = useState(() => inicio?.avisos ?? []);
   const [tab, setTab] = useState(0);
   const [iDir, setIDir] = useState(0);
   const [guardadoEn, setGuardadoEn] = useState(null);
@@ -458,18 +354,19 @@ export function ProyectoProvider({ children }) {
   const irA = useCallback((nombre) => setTab(idxTab(nombre)), []);
 
   const nuevo = () => {
-    setD(INICIAL); setIDir(0); setTab(0);
+    setD(INICIAL); setIDir(0); setTab(0); setAperturaAvisos([]);
     try { window.localStorage.removeItem(KEY); } catch {}
   };
 
   const exportar = () => {
-    const blob = new Blob([JSON.stringify({ app: "viento-c102-25", v: 1, ...d }, null, 2)],
+    // El sobre de procedencia lo arma `lib/proyecto.js`: versión de la app, edición del
+    // reglamento, procedimiento, fecha y aviso de responsabilidad. Un archivo de
+    // presiones sin eso no se puede auditar dentro de dos años.
+    const blob = new Blob([JSON.stringify(serializar(d), null, 2)],
       { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    // El nombre del archivo sale del nombre del proyecto: con «viento.json» para todos,
-    // una carpeta con seis casos es seis archivos indistinguibles.
-    a.download = `${(d.proyecto || "viento").replace(/[^\w\- ]+/g, "").trim() || "viento"}.viento.json`;
+    a.download = nombreArchivo(d.proyecto);
     a.click();
     URL.revokeObjectURL(a.href);
   };
@@ -480,9 +377,15 @@ export function ProyectoProvider({ children }) {
     const r = new FileReader();
     r.onload = () => {
       try {
-        const v = JSON.parse(String(r.result));
-        setD({ ...INICIAL, ...v, geo: { ...INICIAL.geo, ...(v.geo || {}) } });
-      } catch { /* un archivo que no es JSON no debe dejar la app en un estado a medias */ }
+        const m = migrar(JSON.parse(String(r.result)));
+        setD(m.datos);
+        setAperturaAvisos(m.avisos);
+        setIDir(0);
+      } catch {
+        // Un archivo que no es JSON no debe dejar la app en un estado a medias: se
+        // conserva lo que había y se dice que no se pudo leer.
+        setAperturaAvisos(["No se pudo leer el archivo: no es un JSON válido."]);
+      }
     };
     r.readAsText(f);
     e.target.value = "";
@@ -501,6 +404,7 @@ export function ProyectoProvider({ children }) {
       cerr, cerramiento, envCasos, setEnv, aplic,
       avisos, avisosPorTab: porTab(avisos), conteo: contar(avisos),
       guardadoEn, nuevo, exportar, importar, fileRef,
+      aperturaAvisos, descartarAperturaAvisos: () => setAperturaAvisos([]),
     }}>{children}</Ctx.Provider>
   );
 }

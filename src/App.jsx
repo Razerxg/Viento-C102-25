@@ -12,7 +12,7 @@
 import { ProyectoProvider, useProyecto } from "./context/ProyectoContext.jsx";
 import { UiProvider } from "./context/UiContext.jsx";
 import { EstilosGlobales } from "./components/EstilosGlobales.jsx";
-import { ProveedorToast } from "./components/ui.jsx";
+import { ProveedorToast, Aviso, Boton } from "./components/ui.jsx";
 import { BarraSuperior } from "./components/shell/BarraSuperior.jsx";
 import { Sidebar } from "./components/shell/Sidebar.jsx";
 import { FichaEstado } from "./components/shell/FichaEstado.jsx";
@@ -28,6 +28,7 @@ import { PresionesTab } from "./components/tabs/PresionesTab.jsx";
 import { CroquisTab } from "./components/tabs/CroquisTab.jsx";
 import { ResultantesTab } from "./components/tabs/ResultantesTab.jsx";
 import { ResumenTab } from "./components/tabs/ResumenTab.jsx";
+import { SalidasTab } from "./components/tabs/SalidasTab.jsx";
 import { AccesoriosTab } from "./components/tabs/AccesoriosTab.jsx";
 import { SilosTab } from "./components/tabs/SilosTab.jsx";
 import { SeccionesTab } from "./components/tabs/SeccionesTab.jsx";
@@ -39,10 +40,33 @@ const PANTALLAS = {
   "Guía": GuiaTab, "Sitio": SitioTab, "Edificio": EdificioTab,
   "Cerramiento": CerramientoTab, "Ráfaga": RafagaTab,
   "Presiones": PresionesTab, "Croquis": CroquisTab, "Resultantes": ResultantesTab,
-  "Resumen": ResumenTab,
+  "Resumen": ResumenTab, "Salidas": SalidasTab,
   "Accesorios": AccesoriosTab, "Silos y tanques": SilosTab,
   "Secciones uniformes": SeccionesTab,
 };
+
+/**
+ * Lo que hubo que hacer para abrir el caso: migración de esquema, archivo de otra
+ * aplicación, archivo más nuevo que esta versión.
+ *
+ * ⚠ NO ES UN TOAST. Un aviso que se va solo a los tres segundos no sirve para decir «este
+ * proyecto se migró y al guardarlo cambia de formato»: el usuario puede estar mirando otra
+ * ventana cuando aparece. Queda hasta que lo cierre.
+ */
+function AvisosDeApertura() {
+  const { aperturaAvisos, descartarAperturaAvisos } = useProyecto();
+  if (!aperturaAvisos?.length) return null;
+  return (
+    <div style={{ marginBottom: SP.lg }}>
+      <Aviso tono="info" titulo="Al abrir este proyecto">
+        {aperturaAvisos.map((x, i) => <div key={i} style={{ marginBottom: 4 }}>{x}</div>)}
+        <div style={{ marginTop: SP.sm }}>
+          <Boton onClick={descartarAperturaAvisos}>Entendido</Boton>
+        </div>
+      </Aviso>
+    </div>
+  );
+}
 
 function Shell() {
   const { nombreTab } = useProyecto();
@@ -66,6 +90,7 @@ function Shell() {
             {/* `key` fuerza el remount al cambiar de pantalla: reinicia el scroll interno
                 y dispara la animación de entrada, así el cambio se percibe. */}
             <div key={nombreTab} className="vw-entra" style={{ minWidth: 0 }}>
+              <AvisosDeApertura />
               {!SIN_DIRECCION.has(nombreTab) && <SelectorDireccion />}
               <Pantalla />
             </div>

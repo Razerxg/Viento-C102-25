@@ -16,6 +16,7 @@ de funcionalidades nuevas.**
 | 🔄 | en curso |
 | ⏳ | pendiente |
 | 📥 | **esperando un dato del proyectista** — no avanza solo |
+| ⏸ | **postergado por decisión del proyectista** — no es que falte, es que va después |
 | ⛔ | bloqueado por algo que no depende de este repositorio |
 
 > **Regla que gobierna todos los 📥:** no se inventa ni se completa de memoria un
@@ -129,20 +130,20 @@ Decisiones tomadas para (2), ya implementadas:
 |---|---|---|
 | ✅ | `unidades.js`: conversión **en el borde**, motor en N, m, N/m² | `lib/unidades.js`. Tres perfiles: pantalla, memoria (longitudes en mm, presiones en kN/m²) y datos (longitudes en m). El número y su unidad salen del MISMO objeto, y hay un test que recorre `src/components` y falla si reaparece una conversión a mano |
 | ✅ | **Avisos de aplicabilidad visibles, nunca silenciosos** | `engine/aplicabilidad.js` + tarjeta en Presiones. Ver abajo qué distingue cada estado |
-| ⏳ | n₁ según art. 1.9.2 | Baja altura = rígido, no bloquear · `n_a` de 1.9.3 sólo con acero/hormigón/mampostería, h < 90 m y h < 4·L_ef · `G_f` obligatorio si n₁ < 1 Hz |
+| ⏸ | n₁ según art. 1.9.2 — **postergado por el proyectista**, se retoma después de la Fase 3 | Baja altura = rígido, no bloquear · `n_a` de 1.9.3 sólo con acero/hormigón/mampostería, h < 90 m y h < 4·L_ef · `G_f` obligatorio si n₁ < 1 Hz. Hoy los tres límites están escritos en un comentario de `engine/factorRafaga.js` y **no se verifican ni se muestran**: el selector ofrece las tres expresiones sin decir si aplican. Falta además la cuarta familia —tabiques de hormigón o mampostería—, que necesita `C_w` y no es dato del modelo |
 | ✅ | **Envolvente automática**, los casos de la Fig. 2.4-8 y la exención del art. 2.4.7 | `engine/envolvente.js`. Ver abajo qué quedó decidido y qué falta |
 | ✅ | Parseo de inputs | `lib/parseo.js`. Un solo separador = decimal · sin separador de miles · con más de uno se rechaza con el motivo · el valor interpretado al lado del campo · `type="text"` con `inputMode="decimal"`. Reemplaza los tres `num()` del motor, dos de los cuales usaban `parseFloat` pelado y leían «12,5» como 12 |
 
 ## Fase 3 — Salidas ⏳
 
-| Estado | Ítem |
-|---|---|
-| ⏳ | Panel de trazabilidad expandible por paso |
-| ⏳ | Memoria en Markdown con la estructura clásica pedida |
-| ⏳ | Memoria en Word (`docx.js`): A4, márgenes 2,5/1,5 cm, Arial 10,5 pt justificado, TOC por campo, tablas de 9000 dxa |
-| ⏳ | Presiones por cara y zona en CSV y JSON, con esquema documentado y campo `unidades` |
-| 🔄 | Guardar y abrir proyectos como JSON — existe; **falta versionar el esquema** |
-| ⏳ | Versión de la app, «CIRSOC 102-2025» y aviso de responsabilidad profesional en cada salida |
+| Estado | Ítem | Dónde |
+|---|---|---|
+| ⏳ | Panel de trazabilidad expandible por paso | |
+| ⏳ | Memoria en Markdown con la estructura clásica pedida | |
+| ⏳ | Memoria en Word (`docx.js`): A4, márgenes 2,5/1,5 cm, Arial 10,5 pt justificado, TOC por campo, tablas de 9000 dxa | |
+| ✅ | Presiones por cara y zona en CSV y JSON, con esquema documentado y campo `unidades` | `lib/exportar.js` + pantalla **Salidas** |
+| ✅ | Guardar y abrir proyectos como JSON, con el **esquema versionado** | `lib/proyecto.js` |
+| ✅ | Versión de la app, «CIRSOC 102-2025» y aviso de responsabilidad profesional en cada salida | `constants/version.js` |
 
 ## Fase 4 — Capítulo 5, componentes y revestimientos ⏳
 
@@ -192,6 +193,64 @@ además necesita el `(GC_p)` del Capítulo 5, que no está en el repositorio. S�
 transcribible exacto porque sus quiebres caen sobre líneas de grilla.
 
 ---
+
+## Fase 3 — procedencia, esquema y exportación ✅ (primer bloque)
+
+### Procedencia en toda salida
+
+`constants/version.js` es el único lugar donde viven la versión, la edición del reglamento
+—**CIRSOC 102-2025**—, el procedimiento y el aviso de responsabilidad profesional. De ahí
+salen el sobre del archivo de proyecto, la cabecera del CSV y el encabezado del JSON, en
+versión objeto y en versión texto: **escritas aparte, un día la memoria informa una versión
+y el JSON otra, y las dos salieron de la misma corrida**.
+
+La versión está repetida en `package.json` a propósito —no se importa el manifiesto para no
+arrastrarlo al bundle— y lo que impide que se separen es un test. Al escribirlo encontró la
+primera discrepancia: la app decía 0.2.0 y el manifiesto 0.1.0.
+
+### Esquema del archivo de proyecto — v2
+
+| | v1 | v2 |
+|---|---|---|
+| Forma | `{ app, v: 1, ...estado }` | `{ app, esquema, version, norma, generado, datos }` |
+| Problema | un campo del proyecto llamado `app` o `v` pisaba la identificación del archivo | los dos niveles separados |
+
+⚠ **Y arregla un error que estaba a la vista.** `leer()` de `localStorage` fusionaba
+sub-objeto por sub-objeto, pero **`importar()` de un archivo no**: hacía
+`{ ...INICIAL, ...v, geo: {...} }` y nada más. Un archivo con un `topo` de tres claves
+**reemplazaba el objeto entero**, y las que faltaban quedaban en `undefined`.
+`num(undefined)` da NaN, y un NaN que entra al motor sale como «—» en la pantalla sin
+ningún error: el caso se abre «bien» y el cálculo está roto. Las dos rutas pasan ahora por
+la misma función pura.
+
+La lista de sub-objetos se **deriva de `INICIAL`** y hay un test que la contrasta: uno
+nuevo que no estuviera en la lista volvería a producir el mismo agujero.
+
+### Exportación de presiones
+
+Pantalla **Salidas**, al final del grupo de resultados. CSV y JSON con la presión de
+**cada cara y cada zona**, en las cuatro direcciones y con **los dos signos de la presión
+interna** —que son casos de carga separados, no un ± del que se elige el peor—.
+
+| Decisión | Por qué |
+|---|---|
+| La unidad va **pegada al nombre de la columna** (`p_gobernante_kN_m2`) | Un CSV se abre en cualquier cosa y lo primero que se pierde son las líneas de encabezado. Una columna que dice `presion` a secas es una columna que alguien va a leer en las unidades que supone |
+| **Dos dialectos** de CSV, no una constante | Abrir el equivocado NO da error: da una columna sola con todo el renglón adentro, o números partidos en dos |
+| El escape se decide **contra el separador del dialecto** | Las referencias traen comas —«h/L = 0,28»—. Sin comillas, en el dialecto de coma correrían todas las columnas un lugar: el archivo se lee «bien» con los números cambiados de lugar |
+| La pared a barlovento sale **tramo por tramo**, con su `q_z` | Exportarla con un `q_h` único borra justamente lo que la distingue de las demás caras |
+| Dos columnas de área: **real** y **proyección en planta** | La presión actúa sobre la real (`planta / cos θ`); la componente vertical sale de la proyección. Con una sola, el que recibe el archivo tiene que adivinar cuál es |
+| Las áreas de cubierta salen de `aporteCubierta`, no se recalculan | Recalcular la partición acá sería una segunda definición de la misma cosa, y el día que una cambie la exportación informa un área que el cálculo no usó |
+| El JSON trae **la descripción de sus propias columnas** | No hace falta buscar un documento aparte que dentro de dos años puede no existir |
+| La envolvente viaja **con el estado de carga que la gobierna** | No es el máximo por columna de la tabla de presiones: cada magnitud sale de un estado completo de la Figura 2.4-8 |
+
+**Hallazgo menor:** el perfil de la pared a barlovento trae un tramo de **extensión nula en
+z = 0**. Al motor no le molesta —área cero, fuerza cero— pero en un archivo es un renglón
+con área 0 al lado de otros con área real, y eso invita a sumarlo o a dividir por él. Se
+saltea en la exportación, no en el motor, que lo usa como extremo del perfil.
+
+Verificación: 52 tests entre `tests/proyecto.test.js` y `tests/exportar.test.js`, con **23
+mutaciones corridas y las 23 muertas**. Verificado en navegador descargando los dos
+archivos y leyéndolos, y abriendo un proyecto del esquema 1 para ver la migración.
 
 ## Hallazgo — el factor de ráfaga se calculaba una vez para las cuatro direcciones
 
