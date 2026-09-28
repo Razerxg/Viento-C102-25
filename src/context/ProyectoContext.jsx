@@ -25,6 +25,8 @@ import { factorRafaga, dimensionesDe } from '../engine/factorRafaga.js';
 import { resultantes, barridoAlero, envolvente } from '../engine/resultantes.js';
 import { estadosDeCarga, envolventeCritica, exencion247 } from '../engine/envolvente.js';
 import { aplicabilidadDeTodas } from '../engine/aplicabilidad.js';
+import { consolidar, trazaDelMotor } from '../lib/consolidar.js';
+import { U } from '../lib/unidades.js';
 import { velocidadDe } from '../constants/velocidades.js';
 import { kdDe } from '../constants/direccionalidad.js';
 import { TABS, idxTab } from '../constants/tabs.js';
@@ -367,6 +369,15 @@ export function ProyectoProvider({ children }) {
   // salió de acá y se puede controlar contra el papel».
   const aplic = useMemo(() => aplicabilidadDeTodas(todas), [todas]);
 
+  // ── LA TRAZA CONSOLIDADA ───────────────────────────────────────────────────
+  // UN solo árbol para el panel, la memoria y el Word. Con tres lectores y cinco
+  // formatos, lo que pasa es que el panel se corrige y la memoria queda atrás —o al
+  // revés— y dos salidas de la misma corrida dicen cosas distintas.
+  const traza = useMemo(() => consolidar({ vel, sitio, topo, geoN, cerr, rafaga, G,
+    modoG: d.modoG, act, res, envCasos, U, d }),
+  [vel, sitio, topo, geoN, cerr, rafaga, G, d.modoG, act, res, envCasos, d]);
+  const trazaMotor = useMemo(() => trazaDelMotor(act), [act]);
+
   const avisos = useMemo(() => avisosDe({
     geoN, sitio, cerramiento: d.cerramiento, rafaga, modoG: d.modoG, n1: d.n1,
     analisis: act, resultantes: res, accesorio, silo, anexo, topo, aplic, rafagaTodas,
@@ -423,7 +434,7 @@ export function ProyectoProvider({ children }) {
       iDir, setIDir, direcciones: DIRECCIONES,
       V, vel, setSub, sitio, geoN, rafaga, rafagaTodas, gDe, gCap4, G,
       todas, act, res, resDe, maxAbs, curvas,
-      cerr, cerramiento, envCasos, setEnv, aplic,
+      cerr, cerramiento, envCasos, setEnv, aplic, traza, trazaMotor,
       avisos, avisosPorTab: porTab(avisos), conteo: contar(avisos),
       guardadoEn, nuevo, exportar, importar, fileRef,
       aperturaAvisos, descartarAperturaAvisos: () => setAperturaAvisos([]),

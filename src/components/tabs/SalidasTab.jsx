@@ -17,6 +17,7 @@ import { PERFILES, UNIDADES } from '../../lib/unidades.js';
 import { APP, ESQUEMA, RESPONSABILIDAD, procedenciaTexto } from '../../constants/version.js';
 import { DIALECTOS, COLUMNAS, tituloColumna, csvPresiones,
   jsonPresiones } from '../../lib/exportar.js';
+import { PanelTraza } from '../PanelTraza.jsx';
 
 /** Descarga un texto como archivo. Un solo lugar: el `revokeObjectURL` se olvida solo. */
 function bajar(nombre, texto, tipo) {
@@ -29,7 +30,8 @@ function bajar(nombre, texto, tipo) {
 const limpio = (s) => String(s || "viento").replace(/[^\w\- ]+/g, "").trim() || "viento";
 
 export function SalidasTab() {
-  const { todas, resDe, envCasos, sitio, geoN, cerr, gDe, d, aplic } = useProyecto();
+  const { todas, resDe, envCasos, sitio, geoN, cerr, gDe, d, aplic,
+    traza, trazaMotor } = useProyecto();
   const toast = useToast();
   const [dial, setDial] = useState("programa");
   const [perfilId, setPerfilId] = useState("datos");
@@ -186,6 +188,19 @@ export function SalidasTab() {
           </Nota>
         </Acordeon>
       </Card>
+
+      {/* ── TRAZABILIDAD ─────────────────────────────────────────────────────
+          El mismo árbol que van a renderizar la memoria en Markdown y el Word. Está acá y
+          no en una pantalla propia porque es una SALIDA: lo que se entrega junto con los
+          números para que alguien pueda rehacerlos. */}
+      <Divisor>Trazabilidad del cálculo</Divisor>
+      <Nota>
+        Cada paso con su artículo, su fórmula y el bloque «donde:» con todos los símbolos.
+        Es <b style={{ color: c.txt }}>el mismo árbol</b> que usan la memoria y el
+        documento de Word: con tres recorridos separados, el día que se agregue un paso a
+        uno los otros dos quedan atrás sin que nada falle.
+      </Nota>
+      <PanelTraza traza={traza} trazaMotor={trazaMotor} />
 
       {/* ── ARCHIVO DE PROYECTO ──────────────────────────────────────────────── */}
       <Card titulo="Archivo de proyecto"

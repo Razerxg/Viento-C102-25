@@ -138,8 +138,8 @@ Decisiones tomadas para (2), ya implementadas:
 
 | Estado | Ítem | Dónde |
 |---|---|---|
-| ⏳ | Panel de trazabilidad expandible por paso | |
-| ⏳ | Memoria en Markdown con la estructura clásica pedida | |
+| ✅ | **Modelo de traza único** y panel que lo renderiza | `lib/traza.js` + `lib/consolidar.js` + `components/PanelTraza.jsx`, en la pantalla Salidas |
+| 📥 | Memoria en Markdown con la estructura clásica pedida | **Esperando el visto bueno del índice.** El formato ya está acordado; falta aprobar los capítulos de cálculo |
 | ⏳ | Memoria en Word (`docx.js`): A4, márgenes 2,5/1,5 cm, Arial 10,5 pt justificado, TOC por campo, tablas de 9000 dxa | |
 | ✅ | Presiones por cara y zona en CSV y JSON, con esquema documentado y campo `unidades` | `lib/exportar.js` + pantalla **Salidas** |
 | ✅ | Guardar y abrir proyectos como JSON, con el **esquema versionado** | `lib/proyecto.js` |
@@ -193,6 +193,35 @@ además necesita el `(GC_p)` del Capítulo 5, que no está en el repositorio. S�
 transcribible exacto porque sus quiebres caen sobre líneas de grilla.
 
 ---
+
+## Modelo de traza único ✅
+
+`lib/traza.js` define la estructura y `lib/consolidar.js` arma el árbol. **El panel, la
+memoria en Markdown y el Word renderizan lo mismo**: con tres recorridos separados, la
+primera vez que se agregue un paso a uno de los tres los otros dos quedan atrás sin que
+nada falle, y dos salidas de la misma corrida dicen cosas distintas.
+
+**Qué lleva un paso:** título · artículo · fórmula en línea propia · bloque «donde:» con
+**todos** los símbolos · valor con unidad · puntos de tabla si hubo interpolación. El
+«donde:» no es decorativo: una fórmula con seis símbolos y tres explicados es una fórmula
+que hay que ir a buscar a otro lado.
+
+| Decisión | Por qué |
+|---|---|
+| `paso()` **normaliza** todos los campos | Los tres renderizadores pueden confiar en que `donde` es un arreglo. Si cada origen decidiera, uno que devolviera `null` rompería una sola de las tres salidas |
+| Un **diccionario de símbolos** (`SIM`), no cadenas sueltas | El mismo `K_zt` aparece en tres lugares; con tres descripciones distintas el lector no sabe si son tres cosas |
+| `valorDe()` y `puntosDe()` viven en el modelo | Con tres consumidores escribiendo el formato a mano, un día el panel dice «1.224,5 kN·m» y la memoria «1224.45» |
+| Las trazas viejas se **adaptan**, no se reescriben | `edificio.js` y el capítulo 4 ya están probados contra el reglamento; tocarlos sería arriesgar una regresión en código validado para ganar prolijidad |
+| El `detalle` viejo va como **nota**, no como «donde:» | Es prosa que explica de dónde sale el número. Los símbolos se declaran donde se escribe la fórmula |
+| `consolidar()` **no calcula nada** | Cualquier cuenta ahí sería una segunda definición de algo que el motor ya resolvió, y el día que se separen la memoria informa un número que el cálculo nunca usó |
+| La **traza del motor se conserva aparte** | Sirve para contrastar el árbol consolidado contra lo que el motor realmente hizo: si discrepan, la consolidación está reordenando algo que el motor ya no calcula así |
+
+Seis bloques, en el orden del cálculo: **velocidad · sitio · cerramiento · ráfaga ·
+presiones · resultantes**. Consolida lo que estaba repartido en `edificio.js`
+(lista de pasos), `topografia.js` (`trazas: {K1,K2,K3}`), `velocidad.js` (`cuenta` de
+texto), `cerramiento.js` (tabla por pared) y `factorRafaga.js` (intermedios sueltos).
+
+Verificación: 19 tests en `tests/traza.test.js`. Verificado en navegador.
 
 ## Revisión del proyectista — correcciones ✅
 
