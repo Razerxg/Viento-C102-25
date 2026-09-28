@@ -139,7 +139,7 @@ Decisiones tomadas para (2), ya implementadas:
 | Estado | Ítem | Dónde |
 |---|---|---|
 | ✅ | **Modelo de traza único** y panel que lo renderiza | `lib/traza.js` + `lib/consolidar.js` + `components/PanelTraza.jsx`, en la pantalla Salidas |
-| 📥 | Memoria en Markdown con la estructura clásica pedida | **Esperando el visto bueno del índice.** El formato ya está acordado; falta aprobar los capítulos de cálculo |
+| ✅ | **Memoria en Markdown** con la estructura clásica | `lib/memoria.js` + `lib/memoriaCapitulos.js`, en la pantalla Salidas. Índice aprobado por el proyectista |
 | ⏳ | Memoria en Word (`docx.js`): A4, márgenes 2,5/1,5 cm, Arial 10,5 pt justificado, TOC por campo, tablas de 9000 dxa | |
 | ✅ | Presiones por cara y zona en CSV y JSON, con esquema documentado y campo `unidades` | `lib/exportar.js` + pantalla **Salidas** |
 | ✅ | Guardar y abrir proyectos como JSON, con el **esquema versionado** | `lib/proyecto.js` |
@@ -149,6 +149,18 @@ Decisiones tomadas para (2), ya implementadas:
 
 Zonas y `GC_p`, con la exposición más desfavorable según el art. 1.7.4.4. Uso previsto:
 LSF, correas y chapas. El capítulo **no está leído todavía**.
+
+## Memorias de otras estructuras ⏳ — siguiente
+
+Mismo generador, mismos capítulos de sitio, **capítulos de cálculo propios**: carteles y
+paredes libres, chimeneas y tanques, torres reticuladas, silos, y las secciones del
+Anexo I. Son **otro objeto**, no otra salida del mismo cálculo: el capítulo 2 reparte
+presiones sobre las superficies de un edificio y el 4 da una fuerza resultante sobre algo
+que no tiene interior ni presión interna.
+
+**Excepción: «Equipo o estructura sobre cubierta» (art. 4.5.1)**, que ya está
+implementada. Carga **al edificio** y usa su `h`, así que va como capítulo opcional de la
+memoria del edificio —sólo si hay uno cargado— y no en una separada.
 
 ## Roadmap — después de la Fase 2
 
@@ -193,6 +205,59 @@ además necesita el `(GC_p)` del Capítulo 5, que no está en el repositorio. S�
 transcribible exacto porque sus quiebres caen sobre líneas de grilla.
 
 ---
+
+## Memoria en Markdown ✅
+
+`lib/memoria.js` tiene el formato y `lib/memoriaCapitulos.js` los capítulos: dos cosas que
+cambian por razones distintas —el formato lo fija el estudio, y los capítulos, el
+reglamento—.
+
+**Es una memoria de ACCIONES.** Determina cargas, no verifica elementos: por eso
+«Materiales» dice *No corresponde* y **no hay filas de aprovechamiento**. Inventar una
+`η | VERIFICA` haría creer que algo se verificó.
+
+### Los 19 capítulos
+
+Sitio en el orden de la **Tabla 2.2-1** —ráfaga antes que cerramiento, que no es el orden
+en que la app calcula— y cálculo en el orden acordado: presiones → resultantes → **carga
+mínima** → casos de carga y envolvente. La aplicabilidad de la Fig. 2.4-1 es el **12.3**.
+La categoría de riesgo es el **7.1**, con su fundamento: es la que elige el mapa de V, y
+entre categoría II y IV hay un período de retorno distinto para el mismo sitio.
+
+| Decisión | Por qué |
+|---|---|
+| La memoria **vuelve a consolidar** el árbol con el perfil «memoria» | Es la misma función, pero la conversión ocurre en el borde y el borde de la memoria no es el de la pantalla: mm y kN/m² contra m y N/m² |
+| `num()` propio, **no `toLocaleString`** | El separador de miles del navegador depende del idioma del SISTEMA: la misma memoria abierta en una máquina en inglés saldría con «1,224.45». Un documento de cálculo no puede cambiar de notación según quién lo abra |
+| El **alcance declara las exclusiones** | Una memoria que sólo dice lo que hizo invita a suponer que lo demás está adentro. El modo de falla real no es que se rompa: es que alguien use un número correcto para algo que ese número no cubre |
+| «Condiciones de uso» lista las **hipótesis declaradas** | Si alguna deja de cumplirse en obra o en operación, el cálculo deja de ser válido y **no hay nada en los números que lo delate** |
+| El recuadro **NO APTA PARA EMISIÓN va primero** | La memoria se sigue pudiendo descargar —es un borrador y sirve para trabajar— pero tiene que decirlo antes de que alguien transcriba el primer número. Sólo los avisos de nivel **error**: con los demás adentro dejaría de significar |
+| Bibliografía **sólo de lo citado** | El INPRES-CIRSOC 103 entra únicamente si se invocó el art. 2.4.7.3 |
+
+**Hallazgo del test de numeración:** las figuras salían **3, 1, 2**. Los capítulos de
+cálculo se arman en un arreglo aparte y recién después se intercalan, así que la figura
+del capítulo 6 pedía su número *después* que las de los capítulos 13 y 16. El contador
+vive en el generador justamente para que esto sea detectable.
+
+## Carga mínima dentro de la envolvente ✅
+
+⚠ **No es un piso por magnitud: el C 2.1.5 dice que se AGREGA a los casos de carga
+normal.** Hasta acá se calculaba, se informaba en su tarjeta y se comparaba a mano contra
+el corte; `envolvente.js` no la conocía, así que el máximo que informaba **podía quedar
+por debajo de un caso que el reglamento exige considerar**.
+
+- Un estado por dirección, **sólo horizontal**: `levantamiento = 0` y `M_T = 0`. El
+  artículo la define sobre las áreas proyectadas en un plano vertical normal al viento.
+- **No depende de `GC_pi` ni del caso de la nota 3** —es una presión prescripta—, así que
+  no se repite ocho veces idéntico.
+- El momento sale de los **baricentros de cada área**: la de cubierta está más arriba pero
+  paga 0,40 kN/m² contra 0,75, y pesar por área correría el punto de aplicación.
+- `envolventeCritica()` marca **por magnitud** cuándo gobierna: puede gobernar el corte y
+  no el vuelco, porque su punto de aplicación no es el del caso calculado.
+- El identificador es la **cadena `"min"`** y no un `5`: los cuatro casos de la figura se
+  filtran por número, y un 5 se colaría en esos filtros sin que nadie lo notara.
+
+Verificación: 36 tests de memoria + 7 del caso 2.1.5, con **18 mutaciones y las 18
+muertas**.
 
 ## Modelo de traza único ✅
 

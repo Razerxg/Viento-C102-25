@@ -1,8 +1,8 @@
 // ENVOLVENTE DE CASOS DE CARGA — Figura 2.4-8 y exención del art. 2.4.7.
 import { describe, it, expect } from 'vitest';
 import { analizarDireccion, DIRECCIONES } from '../src/engine/edificio.js';
-import { aporteParedes, aporteCubierta } from '../src/engine/resultantes.js';
-import { CASOS_CARGA, CASOS_NOTA3, SIGNOS_GCPI, E_RIGIDA, excentricidad,
+import { aporteParedes, aporteCubierta, cargaMinima } from '../src/engine/resultantes.js';
+import { CASOS_CARGA, CASOS_NOTA3, SIGNOS_GCPI, E_RIGIDA, CASO_MINIMO, excentricidad,
   exencion247, baseDireccion, envolventeCubierta, estadosDeCarga, envolventeCritica,
   CONDICIONES_247_2, ARTICULOS_247_DECLARADOS, DIAFRAGMAS } from '../src/engine/envolvente.js';
 
@@ -14,6 +14,11 @@ const GEO = { a: "20", b: "40", hAlero: "6", theta: "0", tipo: "plana", cumbrera
 const ENT = { geo: GEO, sitio: SITIO, cerramiento: "cerrado", G: 0.85 };
 const barrer = (opc = {}, entrada = ENT) =>
   estadosDeCarga({ analizar: analizarDireccion, entrada, opc });
+// Los estados de la Figura 2.4-8, sin el caso del art. 2.1.5: es otro artículo y otro
+// tipo de caso —una presión prescripta sobre la silueta proyectada— y mezclarlo en los
+// controles del barrido haría que un `casoNota3` en `null` los rompiera.
+const barrerFig = (opc = {}, entrada = ENT) =>
+  barrer(opc, entrada).filter(e => e.caso !== CASO_MINIMO);
 
 describe('los cuatro casos de la Figura 2.4-8', () => {
   it('son cuatro, con los factores de pared de la figura', () => {
@@ -139,7 +144,7 @@ describe('la envolvente de cubierta por área — nota 2', () => {
 
 describe('el barrido', () => {
   it('recorre los dos signos de GC_pi y los dos casos de la nota 3', () => {
-    const es = barrer();
+    const es = barrerFig();
     // ⚠ CONTRA LOS LITERALES, no contra `SIGNOS_GCPI`. Comparar la constante consigo
     // misma deja pasar que se le saque un signo: el test seguiría en verde con la mitad
     // del barrido, que es justo lo que este módulo existe para no hacer.
@@ -184,7 +189,7 @@ describe('el barrido', () => {
     const geo = { a: "20", b: "40", hAlero: "6", theta: "30",
       tipo: "dos_aguas", cumbrera: "X" };
     const ent = { ...ENT, geo };
-    const es = barrer({}, ent);
+    const es = barrerFig({}, ent);
     const maxV = Math.max(...es.map(e => Math.abs(e.levantamiento)));
     // El mismo barrido restringido a un solo caso de la nota 3 tiene que dar MENOS o
     // igual: si diera lo mismo en los dos, el barrido no estaría aportando nada.
@@ -293,12 +298,15 @@ describe('la exención del art. 2.4.7', () => {
     const x = exencion247({ h: 6 });
     expect(x.exento).toBe(false);
     const es = barrer({ exentoArt247: false });
-    expect(new Set(es.map(e => e.caso))).toEqual(new Set([1, 2, 3, 4]));
+    expect(new Set(es.map(e => e.caso))).toEqual(new Set([CASO_MINIMO, 1, 2, 3, 4]));
   });
 
   it('declarada, quedan SÓLO los casos 1 y 3', () => {
     const es = barrer({ exentoArt247: true });
-    expect(new Set(es.map(e => e.caso))).toEqual(new Set([1, 3]));
+    // ⚠ LA EXENCIÓN ES DE LOS CASOS TORSIONALES DE LA FIGURA, NO DEL ART. 2.1.5. El caso
+    // de carga mínima es de otro artículo y sigue estando: exceptuarlo de paso sería
+    // sacar del barrido un caso que el reglamento no exceptúa.
+    expect(new Set(es.map(e => e.caso))).toEqual(new Set([CASO_MINIMO, 1, 3]));
     expect(es.every(e => e.MT === 0)).toBe(true);
     expect(envolventeCritica(es).conTorsion).toBe(false);
     // Y el barrido completo sí los tiene: si `conTorsion` fuera siempre false, la
@@ -535,5 +543,91 @@ describe('la envolvente de cubierta en los dos sentidos', () => {
     // El levantamiento más negativo —o sea la mayor carga hacia abajo— sale de la
     // envolvente descendente.
     expect(minB).toBeLessThan(minA);
+  });
+});
+
+// ── EL CASO DE CARGA MÍNIMA DEL ART. 2.1.5, DENTRO DE LA ENVOLVENTE ────────────
+//
+// ⚠ NO ES UN PISO POR MAGNITUD: el C 2.1.5 dice que se AGREGA a los casos de carga
+// normal. Antes se calculaba, se informaba en su tarjeta y se comparaba a mano contra el
+// corte; la envolvente no lo conocía, así que el máximo que informaba podía quedar por
+// debajo de un caso que el reglamento exige considerar.
+describe('el caso de carga mínima en la envolvente', () => {
+  it('hay uno por dirección, y no se repite por signo de GC_pi ni por nota 3', () => {
+    const mins = barrer().filter(e => e.caso === CASO_MINIMO);
+    expect(mins).toHaveLength(4);
+    expect(mins.map(e => e.dirs[0])).toEqual(["Wx+", "Wx-", "Wy+", "Wy-"]);
+    // Es una presión PRESCRIPTA sobre la silueta proyectada: no depende de GC_pi ni del
+    // caso de la nota 3, y meterlo en ese barrido lo repetiría ocho veces idéntico.
+    expect(mins.every(e => e.casoInterno === null && e.casoNota3 === null)).toBe(true);
+  });
+
+  it('es sólo horizontal: sin levantamiento y sin torsión', () => {
+    for (const e of barrer().filter(x => x.caso === CASO_MINIMO)) {
+      expect(e.levantamiento).toBe(0);
+      expect(e.MT).toBe(0);
+      expect(e.cortante).toBeGreaterThan(0);
+      // Y la componente va en el eje de su dirección, no en los dos.
+      if (e.dirs[0].startsWith("Wx")) expect(e.Vy).toBe(0);
+      else expect(e.Vx).toBe(0);
+    }
+  });
+
+  it('el corte y el momento son los que da cargaMinima, sin recalcular', () => {
+    for (const d of DIRECCIONES) {
+      const an = analizarDireccion(ENT, D[d.id]);
+      const m = cargaMinima(an);
+      const e = barrer().find(x => x.caso === CASO_MINIMO && x.dirs[0] === d.id);
+      expect(e.cortante).toBeCloseTo(m.fuerza, 9);
+      expect(e.vuelco).toBeCloseTo(Math.abs(m.momento), 9);
+      // El momento sale de los baricentros de CADA área: pesar por área en vez de por
+      // fuerza correría el punto de aplicación hacia arriba, porque la cubierta está más
+      // alta pero paga 0,40 kN/m² contra 0,75.
+      expect(e.brazo.z).toBeCloseTo(m.zBar, 9);
+      expect(e.minimo.partes.length).toBeGreaterThan(0);
+    }
+  });
+
+  // El caso que pidió el proyectista: con V baja y exposición B, la carga mínima supera
+  // al cálculo y la envolvente tiene que decirlo.
+  it('con V baja en exposición B, el corte de la envolvente sale del caso 2.1.5', () => {
+    const sitio = { V: 34, exposicion: "B", kd: 0.85, Kzt: 1.0, altitud: 0, usarKe: false,
+      puntosPerfil: 6 };
+    const ent = { ...ENT, sitio };
+    const env = envolventeCritica(barrer({}, ent));
+    expect(env.cortante.estado.caso).toBe(CASO_MINIMO);
+    expect(env.gobiernaMinimo.cortante).toBe(true);
+    expect(env.minimoGobiernaAlgo).toBe(true);
+    // Y supera de verdad al mayor corte calculado, no por un redondeo.
+    const calculado = Math.max(...barrerFig({}, ent).map(e => e.cortante));
+    expect(env.cortante.valor).toBeGreaterThan(calculado * 1.05);
+  });
+
+  it('con V alta gobierna el cálculo, y la envolvente lo dice igual', () => {
+    const sitio = { V: 70, exposicion: "D", kd: 0.85, Kzt: 1.0, altitud: 0, usarKe: false,
+      puntosPerfil: 6 };
+    const env = envolventeCritica(barrer({}, { ...ENT, sitio }));
+    expect(env.cortante.estado.caso).not.toBe(CASO_MINIMO);
+    expect(env.gobiernaMinimo.cortante).toBe(false);
+    expect(env.conCargaMinima).toBe(true);   // está en el barrido aunque no gobierne
+  });
+
+  // Se marca POR MAGNITUD y no con un solo booleano: la mínima puede gobernar el corte y
+  // no el vuelco, porque su punto de aplicación no es el del caso calculado.
+  it('el «gobierna» se informa por magnitud', () => {
+    const env = envolventeCritica(barrer());
+    expect(Object.keys(env.gobiernaMinimo).sort())
+      .toEqual(["cortante", "levantamiento", "torsion", "vuelco"]);
+    // El levantamiento y la torsión del caso mínimo son cero, así que nunca pueden
+    // gobernarlos salvo que todo lo demás sea cero.
+    expect(env.gobiernaMinimo.levantamiento).toBe(false);
+    expect(env.gobiernaMinimo.torsion).toBe(false);
+  });
+
+  it('se puede saltear, y entonces la envolvente no lo conoce', () => {
+    // Existe para los tests que miran sólo la Figura 2.4-8; la aplicación nunca lo usa.
+    const env = envolventeCritica(barrer({ sinCargaMinima: true }));
+    expect(env.conCargaMinima).toBe(false);
+    expect(env.minimoGobiernaAlgo).toBe(false);
   });
 });

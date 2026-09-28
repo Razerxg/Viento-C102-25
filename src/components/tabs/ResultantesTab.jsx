@@ -12,7 +12,7 @@ import { Encabezado, Card, Stat, Stats, Aviso, Nota, Tabla, Divisor, Salida,
 import { c, SP, t } from '../tokens.js';
 import { U, unidades, PERFILES } from '../../lib/unidades.js';
 import { f, fmt } from '../../lib/formato.js';
-import { CASOS_CARGA, CONDICIONES_247_2, ARTICULOS_247_DECLARADOS,
+import { CASOS_CARGA, CASO_MINIMO, CONDICIONES_247_2, ARTICULOS_247_DECLARADOS,
   DIAFRAGMAS } from '../../engine/envolvente.js';
 
 // ⚠ EL ART. 2.1.5 ESCRIBE SUS MÍNIMOS EN kN/m², y la pantalla usa N/m² en el resto. Un
@@ -51,13 +51,18 @@ export function ResultantesTab() {
 
   // El máximo de cada magnitud DENTRO de cada caso. Es la tabla que contesta la pregunta
   // que uno se hace mirando la figura: ¿cuál de los cuatro casos gobierna qué?
-  const porCaso = CASOS_CARGA.map(cs => {
-    const es = envCasos.estados.filter(e => e.caso === cs.n);
+  const filaDe = (n, label) => {
+    const es = envCasos.estados.filter(e => e.caso === n);
     const mx = (k) => es.length ? Math.max(...es.map(e => Math.abs(e[k]))) : null;
-    return { n: cs.n, label: cs.label, corrido: es.length,
+    return { n, label, corrido: es.length,
       cortante: mx("cortante"), levantamiento: mx("levantamiento"),
       vuelco: mx("vuelco"), MT: mx("MT") };
-  });
+  };
+  // ⚠ EL CASO DEL ART. 2.1.5 VA EN LA MISMA TABLA. El C 2.1.5 dice que se AGREGA a los
+  // casos de carga normal: mostrarlo en una tarjeta aparte, como estaba, obligaba a
+  // compararlo a mano contra los otros cuatro.
+  const porCaso = [...CASOS_CARGA.map(cs => filaDe(cs.n, cs.label)),
+    filaDe(CASO_MINIMO, "Caso 2.1.5 — carga mínima, sólo horizontal")];
 
   return (
     <>
@@ -214,7 +219,11 @@ export function ResultantesTab() {
         </Tabla>
         <Nota>
           Cada celda es el máximo en valor absoluto dentro de ese caso, sobre todas las
-          direcciones, los dos signos de GC_pi y los dos casos de la nota 3. Se barrieron{" "}
+          direcciones, los dos signos de GC_pi y los dos casos de la nota 3. El{" "}
+          <b style={{ color: c.txt }}>caso 2.1.5</b> es de otro artículo y no de la figura:
+          se <b style={{ color: c.txt }}>agrega</b> a los cuatro (C 2.1.5), va sólo en
+          horizontal sobre la silueta proyectada, y por eso su levantamiento y su M_T son
+          cero. Se barrieron{" "}
           <b style={{ color: c.txt }}>{envCasos.estados.length} estados</b> de carga. El
           caso 4 no es «el 3 más chico»: el 56,3 % baja las paredes pero la cubierta queda
           al 75 % del caso 2, y encima aparece la torsión de los dos ejes a la vez.

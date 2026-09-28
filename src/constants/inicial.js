@@ -15,6 +15,13 @@ export const INICIAL = {
   proyecto: "Edificio sin nombre",
   ciudad: "Buenos Aires",
   riesgo: "II",
+  // ── FUNDAMENTO DE LA CATEGORÍA DE RIESGO ────────────────────────────────────
+  // La Tabla 1.14-1 clasifica por USO, OCUPACIÓN y presencia de materiales peligrosos, y
+  // de esa clasificación sale QUÉ MAPA de velocidad se lee: entre categoría II y IV hay
+  // un período de retorno distinto y una V distinta para el mismo sitio. Un desplegable
+  // con cuatro opciones y ningún fundamento es la decisión más pesada del cálculo tomada
+  // sin registro.
+  riesgoFundamento: "",
   // ── ORIGEN DE V, art. 1.5 ───────────────────────────────────────────────────
   // Por defecto la tabla de ciudades, que es lo que la app hacía antes. Los proyectos
   // guardados NO traen este campo, así que la fusión contra `INICIAL` los deja en

@@ -18,6 +18,7 @@ import { APP, ESQUEMA, RESPONSABILIDAD, procedenciaTexto } from '../../constants
 import { DIALECTOS, COLUMNAS, tituloColumna, csvPresiones,
   jsonPresiones } from '../../lib/exportar.js';
 import { PanelTraza } from '../PanelTraza.jsx';
+import { memoriaMarkdown, indiceDe } from '../../lib/memoria.js';
 
 /** Descarga un texto como archivo. Un solo lugar: el `revokeObjectURL` se olvida solo. */
 function bajar(nombre, texto, tipo) {
@@ -31,7 +32,7 @@ const limpio = (s) => String(s || "viento").replace(/[^\w\- ]+/g, "").trim() || 
 
 export function SalidasTab() {
   const { todas, resDe, envCasos, sitio, geoN, cerr, gDe, d, aplic,
-    traza, trazaMotor } = useProyecto();
+    traza, trazaMotor, act, topo, vel, rafaga, avisos, accesorio } = useProyecto();
   const toast = useToast();
   const [dial, setDial] = useState("programa");
   const [perfilId, setPerfilId] = useState("datos");
@@ -50,6 +51,11 @@ export function SalidasTab() {
   // se cortan sus renglones: una vista previa armada aparte terminaría mostrando algo que
   // el archivo no dice.
   const vista = csv().split("\n").filter(x => !x.startsWith("#")).slice(0, 6);
+  // La memoria se genera para mostrar el índice y para descargarla: el MISMO documento,
+  // así que el índice no puede prometer un capítulo que el archivo no traiga.
+  const memoria = () => memoriaMarkdown({ envCasos, todas, resDe, gDe, geoN, act, d, cerr,
+    sitio, topo, aplic, vel, rafaga, avisos, accesorio, env: envCasos, res: resDe(act) });
+  const errores = avisos.filter(a => a.tono === "error");
   const cabeceraCerr = csv().split("\n").filter(x => x.startsWith("# GC_pi"));
 
   return (
@@ -187,6 +193,40 @@ export function SalidasTab() {
             conversión y no puede haber un factor 1000 perdido entre dos pasos.
           </Nota>
         </Acordeon>
+      </Card>
+
+      {/* ── MEMORIA ──────────────────────────────────────────────────────────
+          Renderiza el MISMO árbol que el panel de abajo: con dos recorridos separados, el
+          día que se agregue un paso a uno el otro queda atrás sin que nada falle. */}
+      <Card titulo="Memoria de cálculo"
+        desc="Memoria de ACCIONES en Markdown, con la estructura clásica: alcance con sus
+          exclusiones, capítulos de cálculo con fórmula y «donde:», condiciones de uso y
+          conclusión con las cargas para el modelo."
+        acciones={<Boton variante="primario" onClick={() => {
+          bajar(`${limpio(d.proyecto)}.memoria.md`, memoria(), "text/markdown");
+          toast("Memoria descargada en Markdown.", "ok");
+        }}>Descargar memoria (.md)</Boton>}>
+        {errores.length > 0 && (
+          <Aviso tono="error" titulo="NO APTA PARA EMISIÓN">
+            Hay {errores.length} observación{errores.length === 1 ? "" : "es"} de nivel
+            error sin resolver. La memoria se descarga igual, como{" "}
+            <b style={{ color: c.txt }}>borrador de trabajo</b>, y arranca con un recuadro
+            que las lista: {errores.map(x => x.titulo).join(" · ")}.
+          </Aviso>
+        )}
+        <Divisor>Índice</Divisor>
+        <pre style={{ ...t.micro, fontFamily: MONO, background: c.raised, padding: SP.md,
+          borderRadius: 8, border: `1px solid ${c.border}`, overflowX: "auto",
+          margin: 0, lineHeight: 1.8 }}>{indiceDe(memoria())}</pre>
+        <Nota>
+          Es una memoria de <b style={{ color: c.txt }}>acciones</b>: determina cargas, no
+          verifica elementos. Por eso «Materiales» dice <i>No corresponde</i> y no hay
+          filas de aprovechamiento. El capítulo{" "}
+          <b style={{ color: c.txt }}>Condiciones de uso y control operativo</b> lista las
+          hipótesis declaradas de las que depende el cálculo: si alguna deja de cumplirse
+          en obra o en operación, los valores dejan de ser válidos y no hay nada en los
+          números que lo delate.
+        </Nota>
       </Card>
 
       {/* ── TRAZABILIDAD ─────────────────────────────────────────────────────

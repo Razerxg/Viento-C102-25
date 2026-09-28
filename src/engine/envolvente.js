@@ -27,7 +27,7 @@
 // la cubierta el caso que gobernaba el CORTE y con ese armaba también el levantamiento y
 // el vuelco: el estado resultante no era ninguno de los dos y podía subestimar el
 // levantamiento, que es justo la magnitud que el caso positivo agrava.
-import { aporteParedes, aporteCubierta } from './resultantes.js';
+import { aporteParedes, aporteCubierta, cargaMinima } from './resultantes.js';
 import { DIRECCIONES } from './edificio.js';
 
 /**
@@ -52,6 +52,16 @@ export const CASOS_CARGA = [
     factorPared: 0.563, factorCubierta: 0.75, simultaneo: true, torsion: true,
     mt: 0.563, base: 2 },
 ];
+
+/**
+ * El identificador del caso de carga mínima.
+ *
+ * Es una CADENA y no un número a propósito: los cuatro casos de la Figura 2.4-8 se
+ * filtran por `caso === 2 || caso === 4` y se listan con `CASOS_CARGA`, y el 2.1.5 no es
+ * uno de ellos —es un caso de otro artículo que se agrega—. Con un `5` se colaría en esos
+ * filtros sin que nadie lo notara.
+ */
+export const CASO_MINIMO = "min";
 
 /** Los dos signos de GC_pi. Los dos entran siempre: ninguno domina las tres magnitudes. */
 export const SIGNOS_GCPI = ["conInternaPos", "conInternaNeg"];
@@ -343,6 +353,48 @@ export function armarEstado({ caso, bx, by, eSigno, flexible, diafragma = "rigid
   };
 }
 
+/**
+ * EL CASO DE CARGA MÍNIMA DEL ART. 2.1.5, COMO UN ESTADO MÁS DE LA ENVOLVENTE.
+ *
+ * ⚠ NO ES UN PISO POR MAGNITUD: EL C 2.1.5 DICE QUE SE AGREGA A LOS CASOS DE CARGA
+ * NORMAL. Hasta acá la carga mínima se calculaba, se informaba en su tarjeta y se
+ * comparaba a mano contra el corte; la envolvente no la conocía, así que el máximo que
+ * informaba podía ser menor que un caso que el reglamento exige considerar.
+ *
+ * ── SÓLO HORIZONTAL ───────────────────────────────────────────────────────────
+ * El artículo la define sobre las áreas PROYECTADAS en un plano vertical normal al
+ * viento, y el C 2.1.5 la aplica horizontalmente sobre esa proyección. No hay componente
+ * vertical que inventar: `levantamiento = 0`. Y no tiene excentricidad declarada, así que
+ * `M_T = 0` —lo cual NO quiere decir que el edificio no torsione en este caso, sino que
+ * el artículo no lo pide—.
+ *
+ * El momento sale de los baricentros de CADA área: la de cubierta está más arriba pero
+ * paga 0,40 kN/m² contra 0,75, así que pesar por área en vez de por fuerza correría el
+ * punto de aplicación hacia arriba.
+ */
+export function estadoCargaMinima(analisis) {
+  const m = cargaMinima(analisis);
+  const eje = analisis.dir.eje;
+  const M = m.momento;
+  return {
+    caso: CASO_MINIMO, label: "Caso 2.1.5 — carga mínima",
+    sentidoCubierta: null, casoInterno: null, casoNota3: null, eSigno: null,
+    dirs: [analisis.dir.id],
+    Vx: eje === "X" ? m.fuerza : 0, Vy: eje === "Y" ? m.fuerza : 0,
+    cortante: m.fuerza,
+    levantamiento: 0,
+    MT: 0, comoBloque: false,
+    Mx: eje === "X" ? M : 0, My: eje === "Y" ? M : 0,
+    vuelco: Math.abs(M),
+    brazo: { porArea: false, z: m.zBar },
+    excentricidades: null,
+    factorPared: 1, factorCubierta: 1,
+    // Las partes con su área, su presión y su baricentro: es lo que hace falta para
+    // rehacer el caso sin volver a la pantalla.
+    minimo: m,
+  };
+}
+
 /** Clave de la tabla de bases: dirección × signo de GC_pi × caso de la nota 3. */
 const clave = (dirId, casoInterno, casoNota3) => `${dirId}|${casoInterno}|${casoNota3}`;
 
@@ -357,6 +409,8 @@ const clave = (dirId, casoInterno, casoNota3) => `${dirId}|${casoInterno}|${caso
  * @param {boolean} [e.opc.flexible]      estructura flexible: e sale de la (2.4-5)
  * @param {string} [e.opc.diafragma]      "rigido" | "flexible" | "sin"
  * @param {boolean} [e.opc.porticosCubierta] @param {boolean} [e.opc.pisoSolidario]
+ * @param {boolean} [e.opc.sinCargaMinima]  saltea el caso del art. 2.1.5. Existe para los
+ *   tests que miran sólo la Figura 2.4-8; la aplicación nunca lo usa.
  */
 export function estadosDeCarga({ analizar, entrada, opc = {} }) {
   // ── EXENCIÓN DEL ART. 2.4.7 ───────────────────────────────────────────────────
@@ -371,8 +425,13 @@ export function estadosDeCarga({ analizar, entrada, opc = {} }) {
   // dos valores viajan dentro de cada superficie—, así que se hace una vez por dirección
   // y se recombina. Al revés serían dieciséis análisis completos para nada.
   const bases = {};
+  const minimos = [];
   for (const d of DIRECCIONES) {
     const analisis = analizar(entrada, d);
+    // ⚠ NO DEPENDE DE GC_pi NI DEL CASO DE LA NOTA 3. Es una presión prescripta sobre la
+    // silueta proyectada: un estado por dirección y nada más. Meterlo en el barrido de
+    // signos lo repetiría ocho veces idéntico.
+    if (!opc.sinCargaMinima) minimos.push(estadoCargaMinima(analisis));
     for (const casoInterno of SIGNOS_GCPI)
       for (const casoNota3 of CASOS_NOTA3)
         bases[clave(d.id, casoInterno, casoNota3)] = baseDireccion(analisis,
@@ -381,7 +440,7 @@ export function estadosDeCarga({ analizar, entrada, opc = {} }) {
   const porEje = { X: DIRECCIONES.filter(d => d.eje === "X"),
     Y: DIRECCIONES.filter(d => d.eje === "Y") };
 
-  const estados = [];
+  const estados = [...minimos];
   for (const casoInterno of SIGNOS_GCPI) {
     for (const caso of casos) {
       const signosE = caso.torsion ? [+1, -1] : [0];
@@ -423,13 +482,22 @@ export function envolventeCritica(estados) {
     const g = estados.reduce((a, b) => (Math.abs(b[k]) > Math.abs(a[k]) ? b : a), estados[0]);
     return { valor: g[k], estado: g };
   };
-  return {
+  const r = {
     cortante: de("cortante"), levantamiento: de("levantamiento"),
     vuelco: de("vuelco"), torsion: de("MT"),
     // Que HAYA casos torsionales en el barrido es lo que distingue «torsión nula» de
     // «torsión no verificada»: sin este dato la pantalla no puede decir cuál de las dos.
     conTorsion: estados.some(e => e.caso === 2 || e.caso === 4),
     comoBloque: estados.some(e => e.comoBloque),
+    conCargaMinima: estados.some(e => e.caso === CASO_MINIMO),
     estados,
   };
+  // ── CUÁNDO GOBIERNA LA CARGA MÍNIMA ──────────────────────────────────────────
+  // Se marca por MAGNITUD y no con un solo booleano: puede gobernar el corte y no el
+  // vuelco, porque su punto de aplicación no es el del caso calculado. Un «gobierna la
+  // mínima» global obligaría al lector a adivinar en qué.
+  r.gobiernaMinimo = Object.fromEntries(["cortante", "levantamiento", "vuelco", "torsion"]
+    .map(k => [k, r[k].estado?.caso === CASO_MINIMO]));
+  r.minimoGobiernaAlgo = Object.values(r.gobiernaMinimo).some(Boolean);
+  return r;
 }

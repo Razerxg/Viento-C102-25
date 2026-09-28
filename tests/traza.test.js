@@ -120,9 +120,12 @@ describe('el adaptador de la traza vieja', () => {
 });
 
 describe('la traza consolidada', () => {
-  it('cubre los seis bloques, en el orden del cálculo', () => {
+  // ⚠ LA PRESIÓN DINÁMICA Y LOS COEFICIENTES SON DOS BLOQUES, NO UNO. La memoria los
+  // pide como capítulos separados —11 y 12—, y un bloque que se parte en dos capítulos
+  // obligaría al renderizador a saber dónde cortarlo.
+  it('cubre los siete bloques, en el orden del cálculo', () => {
     expect(TRAZA.map(b => b.id)).toEqual(["velocidad", "sitio", "cerramiento", "rafaga",
-      "presiones", "resultantes"]);
+      "dinamica", "coeficientes", "resultantes"]);
   });
 
   it('todo paso tiene título, artículo y algo que mostrar', () => {
@@ -161,7 +164,9 @@ describe('la traza consolidada', () => {
     expect(buscar("velocidad", "V").valor).toBe(vel.V);
     expect(buscar("sitio", "h").valor).toBe(geoN.h);
     expect(buscar("rafaga", "G").valor).toBe(G);
-    expect(buscar("presiones", "qh").valor).toBe(act.qh);
+    // La presión dinámica sale convertida al perfil de unidades que se le pasa: acá el
+    // de pantalla, que trabaja en N/m², así que coincide con el valor interno.
+    expect(buscar("dinamica", "qh").valor).toBe(U.val.presion(act.qh));
     expect(buscar("cerramiento", "Ri").valor).toBe(cerr.RiAplicado);
   });
 

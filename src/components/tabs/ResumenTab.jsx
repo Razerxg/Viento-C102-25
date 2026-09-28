@@ -137,6 +137,13 @@ export function ResumenTab() {
         </Tabla>
         {/* El caso torsional es el que se olvida: no aparece en ninguna tabla por
             dirección, porque no ES una dirección. Por eso va en esta lista y no aparte. */}
+        {envCasos.minimoGobiernaAlgo && (
+          <Aviso tono="aviso" titulo="Gobierna la carga mínima del art. 2.1.5">
+            En {Object.entries(envCasos.gobiernaMinimo).filter(([, v]) => v)
+              .map(([k]) => k).join(" y ")}, el caso de carga mínima supera a todos los de
+            la Figura 2.4-8. Es el que hay que llevar al modelo.
+          </Aviso>
+        )}
         {!envCasos.conTorsion && (
           <Aviso tono="aviso" titulo="Los casos torsionales no se verificaron">
             Se declaró la exención del art. 2.4.7, así que sólo se barrieron los casos 1 y

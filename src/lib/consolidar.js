@@ -180,17 +180,42 @@ function bloqueRafaga({ rafaga, G, modoG, act }) {
     pasos: p });
 }
 
-// ── 5 · PRESIÓN DINÁMICA Y PRESIONES POR SUPERFICIE ─────────────────────────────
-function bloquePresiones({ act }) {
+// ── 5 · PRESIÓN DINÁMICA ────────────────────────────────────────────────────────
+//
+// ⚠ LA UNIDAD SALE DEL PERFIL QUE LE PASAN, no escrita a mano. El panel trabaja en N/m² y
+// la memoria en kN/m²: con la unidad fija acá, una de las dos salidas mostraría el número
+// de la otra debajo de su propio encabezado, que es el error que `lib/unidades.js` existe
+// para hacer imposible.
+function bloquePresionDinamica({ act, U }) {
   const p = [paso({
     id: "qh", titulo: "Presión dinámica en la altura media de cubierta", art: "Art. 1.13",
-    valor: act.qh, unidad: "N/m²", dec: 0,
+    valor: U.val.presion(act.qh), unidad: U.u.presion, dec: U.u.presion === "N/m²" ? 0 : 3,
     formula: "q_h = 0,613·K_h·K_zt(h)·K_d·K_e·V²",
     donde: [SIM.qh, SIM.Kh, SIM.Kzt, SIM.Kd, SIM.Ke, SIM.V],
     nota: "El 0,613 lleva la densidad del aire y la conversión de unidades: con V en m/s "
       + "da N/m². La usan sotavento, las paredes laterales y la cubierta; la pared a "
       + "barlovento usa q_z, que varía con la altura.",
   }), paso({
+    id: "qz", titulo: "Perfil de presión dinámica en la pared a barlovento", art: "Art. 1.13",
+    formula: "q_z = 0,613·K_z(z)·K_zt(z)·K_d·K_e·V²",
+    donde: [SIM.qz, SIM.Kz, SIM.Kzt],
+    texto: `${act.superficies.find(s2 => s2.id === "pared_barlovento")?.tramos.length ?? 0} `
+      + "tramos, ver la tabla",
+    // ⚠ K_zt NO ES UN ESCALAR. K₃ = e^(−γ·z/L_h) decae con la altura, así que sobre una
+    // loma el factor es máximo al ras del suelo. Cada tramo se evalúa en sus DOS extremos
+    // y gobierna el mayor producto K_z·K_zt: con K_z congelado por debajo de z_mín, el
+    // peor punto de la franja de base es el piso y no el techo.
+    nota: "Es la única superficie con q variable. Cada tramo se evalúa en sus DOS extremos "
+      + "y gobierna el mayor producto K_z·K_zt: con K_zt variable el peor punto de la "
+      + "franja de base puede ser el piso y no el techo.",
+  })];
+  return bloque({ id: "dinamica", titulo: "Presión dinámica", art: "Art. 1.13",
+    desc: `Dirección ${act.dir.label}.`, pasos: p });
+}
+
+// ── 6 · COEFICIENTES DE PRESIÓN EXTERNA ─────────────────────────────────────────
+function bloqueCoeficientes({ act }) {
+  const p = [paso({
     id: "p", titulo: "Presión de diseño sobre cada superficie",
     art: "Art. 2.4.1 · expresión (2.4-1)",
     formula: "p = q·G·C_p − q_i·(GC_pi)",
@@ -204,8 +229,8 @@ function bloquePresiones({ act }) {
     texto: act.modo === "unica" ? `superficie completa a ${act.caraUnica}` : act.modo,
     nota: act.motivoModo,
   })];
-  return bloque({ id: "presiones", titulo: "Presiones sobre las superficies",
-    art: "Art. 2.4", desc: `Dirección ${act.dir.label}.`, pasos: p });
+  return bloque({ id: "coeficientes", titulo: "Coeficientes de presión externa",
+    art: "Figura 2.4-1", desc: `Dirección ${act.dir.label}.`, pasos: p });
 }
 
 // ── 6 · RESULTANTES Y ENVOLVENTE ────────────────────────────────────────────────
@@ -243,9 +268,14 @@ function bloqueResultantes({ res, envCasos, U }) {
         valor: res.cargaMinima.areaPared, unidad: "m²" },
       { sim: "A_cubierta", desc: "lo que la silueta agrega por encima de la pared",
         valor: res.cargaMinima.areaCubierta, unidad: "m²" }],
-      nota: res.gobiernaMinimo
-        ? "⚠ GOBIERNA la carga mínima: supera al corte calculado en esta dirección."
-        : "El corte calculado la supera en esta dirección." }),
+      nota: "Es un caso de carga SEPARADO que se AGREGA a los normales (C 2.1.5), "
+        + "aplicado horizontalmente sobre las áreas proyectadas en un plano vertical "
+        + "normal al viento. Entra en la envolvente como un estado más. "
+        + (envCasos.minimoGobiernaAlgo
+          ? `⚠ GOBIERNA en ${Object.entries(envCasos.gobiernaMinimo)
+            .filter(([, v]) => v).map(([k]) => k).join(" y ")}.`
+          : "No gobierna ninguna magnitud de la envolvente."),
+      tono: envCasos.minimoGobiernaAlgo ? "aviso" : "info" }),
   ];
   return bloque({ id: "resultantes", titulo: "Resultantes en la base",
     art: "Art. 2.4 · Figura 2.4-8",
@@ -269,7 +299,8 @@ export function consolidar({ vel, sitio, topo, geoN, cerr, rafaga, G, modoG, act
     bloqueSitio({ sitio, topo, geoN }),
     bloqueCerramiento({ cerr }),
     bloqueRafaga({ rafaga, G, modoG, act }),
-    bloquePresiones({ act }),
+    bloquePresionDinamica({ act, U }),
+    bloqueCoeficientes({ act }),
     bloqueResultantes({ res, envCasos, U }),
   ];
 }

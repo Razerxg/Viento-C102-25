@@ -80,6 +80,26 @@ export function SitioTab() {
           ayuda="Tabla 1.14-1. I son construcciones de bajo riesgo para la vida humana; II es el caso general; III y IV son las de gran ocupación y las esenciales, y comparten el mapa de 1.700 años.">
           <Sel v={d.riesgo} set={set("riesgo")} opciones={["I", "II", "III", "IV"]} w={100} />
         </Campo>
+        {/* ⚠ ES LA DECISIÓN QUE ELIGE EL MAPA. La Tabla 1.14-1 clasifica por uso,
+            ocupación y materiales peligrosos, y de ahí sale qué figura de velocidad se
+            lee: entre categoría II y IV hay un período de retorno distinto y una V
+            distinta para el mismo sitio. Un desplegable de cuatro opciones sin fundamento
+            es la decisión más pesada del cálculo tomada sin registro. */}
+        <Campo label="Fundamento de la categoría"
+          ayuda="Uso y ocupación de la construcción, y si hay materiales peligrosos. Va a la memoria: es lo que permite revisar por qué se leyó ese mapa y no otro.">
+          <input className="vw-in" type="text" style={{ padding: "6px 8px", borderRadius: 6, width: 360 }}
+            value={d.riesgoFundamento ?? ""}
+            placeholder="p. ej. depósito sin ocupación permanente, sin materiales peligrosos"
+            onChange={e => set("riesgoFundamento")(e.target.value)} />
+        </Campo>
+        {!String(d.riesgoFundamento ?? "").trim() && (
+          <Aviso tono="aviso" titulo="Falta el fundamento de la categoría de riesgo">
+            La Tabla 1.14-1 clasifica por uso, ocupación y materiales peligrosos, y de esa
+            clasificación sale <b style={{ color: c.txt }}>qué mapa de velocidad se lee</b>.
+            Entre categoría II y IV hay un período de retorno distinto y una V distinta
+            para el mismo sitio.
+          </Aviso>
+        )}
 
         {/* ── DE DÓNDE SALE V ──────────────────────────────────────────────────
             V es el dato de entrada de todo el cálculo —la presión va con V²— y antes la
