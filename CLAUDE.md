@@ -457,6 +457,12 @@ figura cayó el edificio. No calcula ninguna presión: lee un análisis ya hecho
 `GC_pi`**; la envolvente barre las 4 direcciones × 2 signos × 2 casos de la nota 3 × los
 casos de la figura, con los dos signos de la excentricidad en los torsionales.
 
+- ⚠ **LA NOTA 2 SE ENVUELVE EN LOS DOS SENTIDOS.** «La mayor presión sobre cada área» no
+  dice «la mayor succión». Con las dos direcciones succionando, la envolvente hacia arriba
+  manda y la otra queda dominada; cuando el faldón a barlovento recibe **presión**,
+  quedarse sólo con la de arriba toma en cada celda la **menor** de las dos presiones
+  descendentes, que es lo contrario de envolver. La de arriba gobierna el levantamiento y
+  el anclaje; la de abajo, la compresión de correas y la flexión de los pórticos.
 - **EN LOS CASOS 3 Y 4 LA CUBIERTA NO VA AL 75 %.** La nota 2 la deja al **100 % de la
   mayor presión —del caso 1 para el 3, del caso 2 para el 4— SOBRE CADA ÁREA**,
   considerando las dos direcciones principales. Leyendo «75 % en los dos ejes» uno le pone
@@ -498,6 +504,37 @@ casos de la figura, con los dos signos de la excentricidad en los torsionales.
   para la excentricidad y necesita `e_Q`, `e_R`, `g_Q`, `g_R` y los factores de respuesta
   del art. 1.9.5, que hoy no son datos del modelo. Se adopta `e = ±0,15·B` —el valor de
   **rígidas**— y se avisa en rojo: **puede quedar del lado inseguro**.
+
+## Presión interna y coherencia de V — decisiones que no conviene revertir
+
+- ⚠ **`R_i` SE APLICA O NO SE MUESTRA, PERO NO LAS DOS COSAS.** Durante un tiempo se
+  calculaba, se informaba en pantalla y el cálculo usaba el ±0,55 de tabla. Cada cosa por
+  separado era defendible —adoptar 1,0 es admisible y conservador— pero juntas la pantalla
+  se contradecía a sí misma. Ahora el modo es una **decisión declarada**, por defecto 1,0,
+  y el valor elegido viaja a presiones, resultantes, envolvente, silos, capítulo 4 y
+  exportación.
+- **`ri()` evalúa la expresión; `riAplicado()` decide si esa evaluación entra al cálculo.**
+  Mezclarlos es cómo se llega a aplicar una reducción en un edificio cerrado, donde la
+  (1.11-1) no interviene. `Ri = null` NO es `Ri = 1`: uno dice «no aplica» y el otro
+  «aplica y da 1».
+- **El CSV y el JSON informan el GC_pi APLICADO**, con su `R_i` y el de tabla. Sin eso,
+  quien recibe el archivo rehace las dos columnas de presión interna con el ±0,55 de
+  tabla, que el cálculo nunca usó.
+- ⚠ **LA CIUDAD NO SE USA SI EL ORIGEN DE V NO ES LA TABLA.** Interpolando entre isotacas
+  el sitio está **fuera de la tabla por definición**, y si en el desplegable quedaba una
+  ciudad del paso anterior, la comparación contra el mapa y la región con detritus salían
+  de esa ciudad. `resolverV` devuelve `ciudadRef`, que es `null` ahí, y el campo cambia de
+  nombre según el origen en vez de quedar pareciendo un dato inocuo.
+- **Fuera de la tabla, la región con detritus se CONVIERTE en vez de declararse.** La V del
+  sitio se lleva a la Figura 1.5-1A por la proporción entre mapas `V ∝ √I` de la
+  **C 1.5-6.1**; desde `v₅₀` es exacto por `V = v₅₀·√(1,5·I)` con `I = 1,00`. La conversión
+  se contrasta contra las 29 ciudades de la tabla, con tolerancia **relativa**: la tabla
+  está redondeada a 0,1 m/s y la relación no puede cerrar mejor que ese redondeo.
+- **La definición de abertura va LITERAL del art. 1.2**, con las dos mitades. La que
+  importa es la segunda: una puerta o portón **diseñados para la presión del Capítulo 5 y
+  que se mantienen cerrados durante el viento de diseño NO son abertura** (art. 1.10.2.1).
+  Decir sólo «lo que deja pasar el aire» borra justamente la decisión que la pantalla
+  tiene que hacer explícita.
 
 ## Cerramiento — decisiones que no conviene revertir
 
@@ -565,9 +602,11 @@ casos de la figura, con los dos signos de la excentricidad en los torsionales.
 - **Dos columnas de área en cubierta:** la real (`planta / cos θ`), sobre la que actúa la
   presión, y la proyección en planta, que es la que da la componente vertical. Las dos
   salen de `aporteCubierta` y no se recalculan acá.
-- **El tramo de extensión nula en `z = 0` se saltea en la exportación, no en el motor.** El
-  motor lo usa como extremo del perfil y no le molesta; en un archivo es un renglón con
-  área 0 que invita a sumarlo o a dividir por él.
+- **`perfilBarlovento` devuelve `puntos` Y `tramos`.** Los puntos son las cotas con su
+  `q_z`, `z = 0` incluido, para el diagrama y la tabla de cotas; los tramos, sólo los que
+  tienen extensión, para integrar y exportar. Antes el tramo de extensión nula se filtraba
+  en la exportación, y eso obligaba a que **cada salida nueva se acordara de saltearlo**:
+  la que se olvidara mostraría un tramo fantasma sin que nada fallara.
 
 ## Unidades — la conversión vive en `lib/unidades.js`
 
