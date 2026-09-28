@@ -319,7 +319,7 @@ export function perfilBarlovento({ h, sitio, hAlero, hCumbre, puntos = 10, zTope
 
   const lista = [...cortes.values()].sort((a, b) => a.z - b.z);
   let previo = 0;
-  return lista.map(({ z, marcas }) => {
+  const cotas = lista.map(({ z, marcas }) => {
     // ⚠ EL TRAMO SE EVALÚA EN SUS DOS EXTREMOS, NO SÓLO ARRIBA. Con K_zt constante el
     // techo siempre gobierna —K_z crece con z— y esto da el mismo número de siempre. Con
     // K_zt(z) no: K3 decrece con la altura y K_z está congelado abajo de 5 m, así que en
@@ -334,6 +334,20 @@ export function perfilBarlovento({ h, sitio, hAlero, hCumbre, puntos = 10, zTope
     previo = z;
     return t;
   });
+
+  // ── `puntos` Y `tramos` SON DOS COSAS DISTINTAS ──────────────────────────────
+  //
+  // El primer corte es `z = 0`, y como el tramo anterior también arranca en 0, su
+  // extensión es nula. Para el DIAGRAMA y para la tabla de cotas ese punto hace falta: es
+  // el pie del perfil, con su q_z. Para INTEGRAR y para EXPORTAR es un renglón de área
+  // cero al lado de otros con área real, y eso invita a sumarlo, a promediarlo o a
+  // dividir por él.
+  //
+  // ⚠ ANTES SE FILTRABA EN LA EXPORTACIÓN. Eso obligaba a que cada salida nueva —el
+  // panel de trazabilidad, la memoria, el Word— se acordara de saltearlo, y la que se
+  // olvidara iba a mostrar un tramo fantasma sin que nada fallara. El motor devuelve las
+  // dos listas y cada consumidor toma la que le corresponde.
+  return { puntos: cotas, tramos: cotas.filter(t => t.hasta > t.desde) };
 }
 
 // Qué decir de G según la vía del art. 1.9 que se haya adoptado. Son tres vías y cada
@@ -351,7 +365,18 @@ const DETALLE_G = {
 };
 
 // ── ANÁLISIS COMPLETO PARA UNA DIRECCIÓN ────────────────────────────────────────
-export function analizarDireccion({ geo, sitio, cerramiento, G = 0.85, modoG = "defecto" }, dir) {
+/**
+ * @param {object} e
+ * @param {any} e.geo @param {any} e.sitio @param {string} e.cerramiento
+ * @param {number} [e.G] @param {string} [e.modoG]
+ * @param {number} [e.gcpi]  el GC_pi que EFECTIVAMENTE se aplica, ya reducido por `R_i`.
+ *   Sin él se cae al de la Tabla 1.11-1 sin reducir, que es lo conservador.
+ * @param {{modo:string, calculado:number|null, aplicado:number}} [e.ri]  de dónde salió,
+ *   para la traza: un GC_pi reducido sin decir por cuánto no se puede revisar.
+ * @param {any} dir
+ */
+export function analizarDireccion({ geo, sitio, cerramiento, G = 0.85, modoG = "defecto",
+  gcpi, ri }, dir) {
   const g = normalizarGeo(geo);
   const L = dir.eje === "X" ? g.a : g.b;
   const B = dir.eje === "X" ? g.b : g.a;
@@ -362,7 +387,12 @@ export function analizarDireccion({ geo, sitio, cerramiento, G = 0.85, modoG = "
   // CUBIERTA: es la altura a la que el reglamento evalúa esas superficies.
   const kztH = kztEn(sitio, g.h);
   const qh = qDinamica({ ...sitio, z: g.h, Kzt: kztH });
-  const GCpi = gcpiDe(cerramiento) ?? 0;
+  // ── GC_pi, YA REDUCIDO POR R_i ────────────────────────────────────────────────
+  // El valor de tabla y el que se aplica son dos números distintos, y los dos van a la
+  // traza. Calcular la reducción acá adentro obligaría a este módulo a saber qué modo
+  // eligió el proyectista, que es una decisión de la pantalla de Cerramiento.
+  const GCpiTabla = gcpiDe(cerramiento) ?? 0;
+  const GCpi = typeof gcpi === "number" ? gcpi : GCpiTabla;
   // ── q_i, LA PRESIÓN DINÁMICA DE LA PRESIÓN INTERNA ────────────────────────────
   // Se adopta q_h, que el art. 2.4.1 admite explícitamente para todas las clasificaciones.
   // El artículo PERMITE además, en edificios parcialmente cerrados y parcialmente
@@ -422,11 +452,21 @@ export function analizarDireccion({ geo, sitio, cerramiento, G = 0.85, modoG = "
     { paso: "Factor de efecto de ráfaga", simbolo: "G", dec: 3, valor: G, unidad: "",
       ref: DETALLE_G[modoG]?.ref ?? "Art. 1.9.1",
       detalle: DETALLE_G[modoG]?.detalle ?? DETALLE_G.defecto.detalle },
-    { paso: "Coeficiente de presión interna", simbolo: "GC_pi", dec: 2, valor: GCpi,
-      unidad: "", texto: `±${GCpi.toFixed(2).replace(".", ",")}`,
-      ref: "Tabla 1.11-1",
+    { paso: "Coeficiente de presión interna", simbolo: "GC_pi", dec: 3, valor: GCpi,
+      unidad: "", texto: `±${GCpi.toFixed(3).replace(".", ",")}`,
+      ref: "Tabla 1.11-1" + (ri && ri.aplicado !== 1 ? " · expresión (1.11-1)" : ""),
       detalle: "Se aplica en sus DOS signos: la nota 3 exige considerar el positivo sobre "
-        + "todas las superficies internas y el negativo sobre todas." },
+        + "todas las superficies internas y el negativo sobre todas."
+        + (ri
+          ? ` Valor de tabla ±${GCpiTabla.toFixed(2).replace(".", ",")}`
+            + (ri.aplicado === 1
+              ? `, con R_i = 1,0 —${ri.calculado == null
+                ? "la expresión (1.11-1) no interviene en esta clasificación"
+                : `la expresión (1.11-1) daría ${ri.calculado.toFixed(4).replace(".", ",")}, `
+                  + "no aplicado"}—.`
+              : `, reducido por R_i = ${ri.aplicado.toFixed(4).replace(".", ",")} `
+                + "de la expresión (1.11-1).")
+          : "") },
     { paso: "Relación de esbeltez de la cubierta", simbolo: "h/L", dec: 2, valor: hL, unidad: "",
       ref: "Figura 2.4-1", detalle: `h = ${fc(g.h)} m · L = ${fc(L)} m `
         + "(dimensión paralela al viento). Es la fila de la tabla de cubiertas." },
@@ -470,12 +510,15 @@ export function analizarDireccion({ geo, sitio, cerramiento, G = 0.85, modoG = "
     puntos: sitio.puntosPerfil ?? 10, zTope: fach.barlovento.zTope });
   sup.push({
     id: "pared_barlovento", nombre: "Pared a barlovento", tipo: "pared", usar: "qz",
-    cp: CP_PARED.barlovento.cp, perfil, fachada: fach.barlovento,
+    // La superficie lleva los PUNTOS: es lo que dibuja el croquis de q(z) y lo que se
+    // lista en la tabla de cotas, y ahí el pie del perfil en z = 0 hace falta.
+    cp: CP_PARED.barlovento.cp, perfil: perfil.puntos, fachada: fach.barlovento,
     cpRef: "Figura 2.4-1 — pared a barlovento, todos los valores de L/B",
     // El ÁREA de cada tramo sale de la forma de la pared, no de `B·dz`: en el frontón de
     // un hastial el ancho se va cerrando y multiplicar por B de más sobreestima la franja
     // más alta, que es la de mayor q_z y mayor brazo.
-    tramos: perfil.map(t => ({ ...t,
+    // Y los TRAMOS para integrar: sólo los que tienen extensión.
+    tramos: perfil.tramos.map(t => ({ ...t,
       area: areaHasta(fach.barlovento, t.hasta) - areaHasta(fach.barlovento, t.desde),
       momento: momentoHasta(fach.barlovento, t.hasta) - momentoHasta(fach.barlovento, t.desde),
       ...presion({ q: t.q, qi, G, Cp: CP_PARED.barlovento.cp, GCpi }) })),
@@ -535,10 +578,14 @@ export function analizarDireccion({ geo, sitio, cerramiento, G = 0.85, modoG = "
     });
   }
 
-  return { dir, geo: g, L, B, hL, qh, GCpi, G, modoG, cerramiento, sitio, fachadas: fach,
+  return { dir, geo: g, L, B, hL, qh, GCpi, GCpiTabla, ri: ri ?? null,
+    G, modoG, cerramiento, sitio, fachadas: fach,
+    // `perfil` en la raíz son los PUNTOS, que es lo que consumen el croquis y la tabla de
+    // cotas. Los tramos con extensión viven dentro de la superficie.
+    perfilTramos: perfil.tramos,
     modo: mc.modo, motivoModo: mc.motivo, caraUnica: mc.cara,
     limatesaParalelo: !!mc.limatesaParalelo,
-    normalACumbrera: mc.normal, superficies: sup, perfil, traza };
+    normalACumbrera: mc.normal, superficies: sup, perfil: perfil.puntos, traza };
 }
 
 export const analizarEdificio = (entrada) =>

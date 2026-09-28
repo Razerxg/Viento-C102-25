@@ -38,6 +38,10 @@ export const INICIAL = {
   aberturas: [],
   cerr: {
     esSalud: false, distanciaCosta: "", detritusDeclarada: false,
+    // ⚠ POR DEFECTO R_i = 1,0, que es lo conservador y lo que la app hacía de hecho
+    // cuando calculaba la expresión y no la aplicaba. Adoptar la (1.11-1) es una decisión
+    // del proyectista y queda declarada.
+    modoRi: "uno",
     // Vacío = automático: se precarga con el volumen geométrico exacto.
     Vi: "",
   },

@@ -29,21 +29,26 @@ function bajar(nombre, texto, tipo) {
 const limpio = (s) => String(s || "viento").replace(/[^\w\- ]+/g, "").trim() || "viento";
 
 export function SalidasTab() {
-  const { todas, resDe, envCasos, sitio, geoN, cerramiento, gDe, d, aplic } = useProyecto();
+  const { todas, resDe, envCasos, sitio, geoN, cerr, gDe, d, aplic } = useProyecto();
   const toast = useToast();
   const [dial, setDial] = useState("programa");
   const [perfilId, setPerfilId] = useState("datos");
   const perfil = PERFILES[perfilId];
   const dialecto = DIALECTOS[dial];
 
-  const comun = { todas, perfil, proyecto: d.proyecto };
+  // ⚠ SE PASA EL OBJETO `cerr` ENTERO, NO LA CLASIFICACIÓN PELADA. Con R_i aplicado el
+  // GC_pi usado NO es el de la Tabla 1.11-1, y un archivo que informe «parcialmente
+  // cerrado» sin decir el R_i deja a quien lo recibe reconstruyendo un ±0,55 que el
+  // cálculo nunca usó.
+  const comun = { todas, perfil, proyecto: d.proyecto, cerramiento: cerr };
   const csv = () => csvPresiones({ ...comun, dialecto });
-  const json = () => jsonPresiones({ ...comun, resDe, envCasos, sitio, geoN, cerramiento, gDe });
+  const json = () => jsonPresiones({ ...comun, resDe, envCasos, sitio, geoN, gDe });
 
   // Las primeras filas del CSV, para mirar antes de bajarlo. Se genera el archivo REAL y
   // se cortan sus renglones: una vista previa armada aparte terminaría mostrando algo que
   // el archivo no dice.
   const vista = csv().split("\n").filter(x => !x.startsWith("#")).slice(0, 6);
+  const cabeceraCerr = csv().split("\n").filter(x => x.startsWith("# GC_pi"));
 
   return (
     <>
@@ -90,6 +95,13 @@ export function SalidasTab() {
           las líneas de encabezado. En el JSON, además, hay un campo{" "}
           <code style={{ fontFamily: MONO }}>unidades</code>.
         </Nota>
+        {cabeceraCerr.length > 0 && (
+          <Nota>
+            El archivo informa el <b style={{ color: c.txt }}>GC_pi que se aplicó</b>, con
+            su R_i: <code style={{ fontFamily: MONO }}>{cabeceraCerr[0].replace(/^# /, "")}</code>.
+            Sin eso, las dos columnas de presión interna no se pueden reproducir.
+          </Nota>
+        )}
         <Divisor>Cómo empieza el archivo</Divisor>
         <pre style={{ ...t.micro, fontFamily: MONO, background: c.raised, padding: SP.md,
           borderRadius: 8, border: `1px solid ${c.border}`, overflowX: "auto",

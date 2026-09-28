@@ -12,7 +12,7 @@
 // trapecio de las paredes, y el área INCLINADA de la cubierta.
 import { useProyecto } from '../../context/ProyectoContext.jsx';
 import { TIPOS_ABERTURA, PAREDES, UMBRAL_DETRITUS } from '../../engine/cerramiento.js';
-import { CERRAMIENTOS, PRIORIDAD_ABIERTO } from '../../constants/presionInterna.js';
+import { CERRAMIENTOS, PRIORIDAD_ABIERTO, MODOS_RI } from '../../constants/presionInterna.js';
 import { Encabezado, Card, Campo, Num, Sel, Salida, Aviso, Nota, Tabla, Acordeon,
   Divisor, Boton, Badge, Th, Td, TdN } from '../ui.jsx';
 import { c, SP, t, TONO } from '../tokens.js';
@@ -311,25 +311,76 @@ export function CerramientoTab() {
           </Aviso>
           <Salida label="Volumen geométrico del edificio" unit="m³" v={f(cerr.ViAuto, 0)}
             ayuda="Exacto, no planta × altura media: en cuatro aguas el atajo sobreestima el volumen, y un V_i mayor da un R_i menor, o sea del lado inseguro." />
-          <Salida label="Factor R_i" v={f(cerr.Ri ?? 1, 4)} />
+          <Salida label="R_i de la expresión (1.11-1)" v={f(cerr.Ri ?? 1, 4)}
+            ayuda="Lo que da la expresión. Si abajo se adopta 1,0, este número queda como referencia y NO entra al cálculo." />
           <Nota>
             R_i = 0,5·(1 + 1/√(1 + V_i/(6950·A_og))). Vale 1,0 cuando el volumen es chico
-            frente a las aberturas, y baja hasta 0,5 en el límite. R_i = 1,0 siempre está
-            admitido y es el lado seguro.
+            frente a las aberturas, y baja hasta 0,5 en el límite.
           </Nota>
+
+          {/* ── QUÉ R_i SE APLICA ─────────────────────────────────────────────────
+              ⚠ DURANTE UN TIEMPO SE MOSTRABA Y NO SE APLICABA: la pantalla informaba
+              R_i = 0,9327 y las presiones se calculaban con ±0,55 en vez de ±0,513. Las
+              dos cosas son defendibles por separado —adoptar 1,0 es admisible— pero
+              juntas la pantalla se contradecía a sí misma. */}
+          <Divisor>Cuál se aplica</Divisor>
+          <Campo label="R_i adoptado"
+            ayuda="El art. 1.11.1 admite adoptar 1,0 en cualquier caso. Adoptar la expresión reduce la presión interna y es una decisión del proyectista.">
+            <Sel v={cerr.modoRi} set={setSub("cerr")("modoRi")} w={300}
+              opciones={MODOS_RI.map(x => [x.id, x.label])} />
+          </Campo>
+          <Nota>{MODOS_RI.find(x => x.id === cerr.modoRi)?.nota}</Nota>
+          <Salida label="R_i aplicado" v={f(cerr.RiAplicado, 4)} />
+          <Salida label="GC_pi de tabla" v={`±${f(Math.abs(cerr.gcpiTabla), 2)}`}
+            ayuda="Tabla 1.11-1, sin reducir." />
+          <Salida label="GC_pi aplicado" v={`±${f(Math.abs(cerr.gcpi), 4)}`}
+            ayuda="Es el que entra en p = q·G·C_p − q_i·(GC_pi) en todas las pantallas, en las resultantes, en la envolvente y en lo que se exporta." />
+          {cerr.modoRi === "uno" && cerr.Ri != null && cerr.Ri < 1 && (
+            <Aviso tono="info" titulo="R_i calculado pero NO aplicado">
+              La expresión (1.11-1) da <b style={{ color: c.txt }}>{f(cerr.Ri, 4)}</b> y se
+              está adoptando <b style={{ color: c.txt }}>1,0</b>, que es lo conservador y lo
+              que el art. 1.11.1 admite. La presión interna queda un{" "}
+              {f((1 / cerr.Ri - 1) * 100, 1)} % por encima de la que daría la expresión.
+            </Aviso>
+          )}
+          {cerr.modoRi === "expresion" && cerr.Ri != null && (
+            <Aviso tono="aviso" titulo="Se está reduciendo la presión interna">
+              GC_pi baja de ±{f(Math.abs(cerr.gcpiTabla), 2)} a{" "}
+              ±{f(Math.abs(cerr.gcpi), 4)} por la expresión (1.11-1). La reducción depende
+              de <b style={{ color: c.txt }}>V_i</b>, que es un dato declarado: conviene que
+              el volumen cargado sea el del recinto que tiene la abertura dominante y no el
+              del edificio entero.
+            </Aviso>
+          )}
         </Card>
       )}
 
       {/* ── LA EXPLICACIÓN ─────────────────────────────────────────────────────── */}
       <Card titulo="Cómo se clasifica">
         <Acordeon titulo="Qué es una abertura — art. 1.2 y C 1.10" abierto>
+          {/* ⚠ EL TEXTO ANTERIOR DECÍA «lo que define a una abertura es que deje pasar el
+              aire» Y ESO ES LA MITAD DE LA DEFINICIÓN. La otra mitad —«que se consideran
+              abiertos durante el viento de diseño»— es justamente la que decide si un
+              portón cerrado cuenta o no, que es la pregunta que esta pantalla tiene que
+              resolver. Va el texto literal del artículo. */}
           <Nota>
-            Una abertura es toda apertura en la envolvente que permita el paso del aire. El
-            C 1.10 enumera: <b style={{ color: c.txt }}>puertas, ventanas operables, tomas
-            de aire, rendijas alrededor de puertas, rendijas deliberadas en el
-            revestimiento y persianas operables</b>. No hay un tamaño mínimo: lo que define
-            a una abertura es que deje pasar el aire, no que sea grande.
+            Art. 1.2: <b style={{ color: c.txt }}>«vanos u orificios en la envolvente del
+            edificio que permiten el flujo de aire a través de dicha envolvente y que se
+            consideran “abiertos” durante el viento de diseño»</b>.
           </Nota>
+          <Nota>
+            El C 1.10 enumera: <b style={{ color: c.txt }}>puertas, ventanas operables,
+            tomas de aire, rendijas alrededor de puertas, rendijas deliberadas en el
+            revestimiento y persianas operables</b>. No hay un tamaño mínimo.
+          </Nota>
+          <Aviso tono="info" titulo="Lo que hay que decidir, y no es el tamaño">
+            Una puerta o un portón <b style={{ color: c.txt }}>diseñados para la presión
+            del Capítulo 5 y que se mantienen cerrados durante el viento de diseño NO son
+            abertura</b> (art. 1.10.2.1). Las dos condiciones van juntas: un portón que
+            resiste pero que queda abierto por operación sí lo es, y uno que se cierra pero
+            no está verificado, también. Esa decisión es de proyecto y de uso, no de
+            geometría, y por eso cada abertura de la lista de arriba la pregunta.
+          </Aviso>
         </Acordeon>
 
         <Acordeon titulo="El procedimiento: cada pared supuesta a barlovento — art. 1.10.2">

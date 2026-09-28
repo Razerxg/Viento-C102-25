@@ -147,7 +147,7 @@ describe('perfil de la pared a barlovento', () => {
   // presentación; lo que hay que fijar es que la lista CUBRA la altura sin huecos, que es
   // de lo que depende la integración.
   it.each([[4], [12], [27], [60]])('h = %s m: los tramos cubren 0 a h sin huecos ni solapes', (h) => {
-    const p = perfilBarlovento({ h, sitio: SITIO, hAlero: h, hCumbre: h });
+    const p = perfilBarlovento({ h, sitio: SITIO, hAlero: h, hCumbre: h }).tramos;
     expect(p[0].desde).toBe(0);
     expect(p.at(-1).hasta).toBeCloseTo(h, 9);
     for (let i = 1; i < p.length; i++) expect(p[i].desde).toBe(p[i - 1].hasta);
@@ -156,8 +156,25 @@ describe('perfil de la pared a barlovento', () => {
 
   // Las tres cotas con nombre son las que el proyectista transcribe al modelo. Buscarlas
   // interpolando entre dos filas de la tabla es justo lo que produce errores.
+  // ── `puntos` Y `tramos` SON DOS LISTAS DISTINTAS ──────────────────────────────
+  // El primer corte es z = 0 y su tramo tiene extensión nula: para el DIAGRAMA y la tabla
+  // de cotas hace falta —es el pie del perfil, con su q_z— y para INTEGRAR y EXPORTAR es
+  // un renglón de área cero que invita a sumarlo o a dividir por él.
+  it('ningún tramo tiene extensión nula, y los puntos incluyen el pie del perfil', () => {
+    for (const h of [4, 12, 27, 60]) {
+      const { puntos, tramos } = perfilBarlovento({ h, sitio: SITIO, hAlero: h, hCumbre: h });
+      expect(tramos.every(t => t.hasta > t.desde), `h = ${h}`).toBe(true);
+      // El artefacto existe de verdad: si `puntos` no lo trajera, el test no probaría nada.
+      expect(puntos.filter(t => !(t.hasta > t.desde)), `h = ${h}`).toHaveLength(1);
+      expect(puntos[0].z).toBe(0);
+      expect(puntos.length).toBe(tramos.length + 1);
+      // Y los tramos siguen cubriendo la altura entera: no se perdió nada al filtrar.
+      expect(tramos.reduce((a, t) => a + (t.hasta - t.desde), 0)).toBeCloseTo(h, 9);
+    }
+  });
+
   it('trae señaladas la base, el alero y la altura media', () => {
-    const p = perfilBarlovento({ h: 11.46, sitio: SITIO, hAlero: 6, hCumbre: 16.92 });
+    const p = perfilBarlovento({ h: 11.46, sitio: SITIO, hAlero: 6, hCumbre: 16.92 }).puntos;
     const todas = p.flatMap(t => t.marcas ?? []);
     expect(todas).toContain("alero");
     expect(todas).toContain("altura media h");
@@ -168,38 +185,38 @@ describe('perfil de la pared a barlovento', () => {
   // altura media son la misma cota; quedarse con la última haría que la tabla dijera sólo
   // «altura media h» y callara que ahí también está el alero.
   it('con cubierta plana las tres cotas coinciden y se informan JUNTAS', () => {
-    const p = perfilBarlovento({ h: 8, sitio: SITIO, hAlero: 8, hCumbre: 8 });
+    const p = perfilBarlovento({ h: 8, sitio: SITIO, hAlero: 8, hCumbre: 8 }).puntos;
     const t = p.find(x => x.z === 8);
     expect(t.marcas).toEqual(expect.arrayContaining(["alero", "cumbrera", "altura media h"]));
     expect(t.marca).toMatch(/alero.*=.*altura media h/);
   });
 
   it('una cumbrera por encima de la altura media no entra en la tabla de la pared', () => {
-    const p = perfilBarlovento({ h: 11.46, sitio: SITIO, hAlero: 6, hCumbre: 16.92 });
+    const p = perfilBarlovento({ h: 11.46, sitio: SITIO, hAlero: 6, hCumbre: 16.92 }).puntos;
     expect(p.every(t => t.z <= 11.46 + 1e-9)).toBe(true);
     expect(p.some(t => t.marca === "cumbrera")).toBe(false);
   });
 
   it('el número de puntos se puede pedir, y queda acotado como en la planilla', () => {
-    const pocos = perfilBarlovento({ h: 40, sitio: SITIO, puntos: 2 });
-    const muchos = perfilBarlovento({ h: 40, sitio: SITIO, puntos: 26 });
+    const pocos = perfilBarlovento({ h: 40, sitio: SITIO, puntos: 2 }).puntos;
+    const muchos = perfilBarlovento({ h: 40, sitio: SITIO, puntos: 26 }).puntos;
     expect(muchos.length).toBeGreaterThan(pocos.length);
     // fuera de rango se acota en vez de romper
-    expect(perfilBarlovento({ h: 40, sitio: SITIO, puntos: 500 }).length)
-      .toBe(perfilBarlovento({ h: 40, sitio: SITIO, puntos: 26 }).length);
+    expect(perfilBarlovento({ h: 40, sitio: SITIO, puntos: 500 }).puntos.length)
+      .toBe(perfilBarlovento({ h: 40, sitio: SITIO, puntos: 26 }).puntos.length);
   });
 
   // q NO decrece nunca, pero sí se repite: por debajo de 5 m el perfil está congelado, así
   // que dos tramos consecutivos ahí tienen exactamente el mismo q.
   it('la presión dinámica no decrece, y se repite en la zona congelada', () => {
-    const p = perfilBarlovento({ h: 40, sitio: SITIO });
+    const p = perfilBarlovento({ h: 40, sitio: SITIO }).puntos;
     for (let i = 1; i < p.length; i++) expect(p[i].q).toBeGreaterThanOrEqual(p[i - 1].q);
     const bajos = p.filter(t => t.z <= 5);
     expect(new Set(bajos.map(t => t.q.toFixed(9))).size).toBe(1);
   });
 
   it('cada tramo trae su Kz y su q, que es lo que la tabla tiene que mostrar', () => {
-    for (const t of perfilBarlovento({ h: 25, sitio: SITIO })) {
+    for (const t of perfilBarlovento({ h: 25, sitio: SITIO }).puntos) {
       expect(t.kz).toBeGreaterThan(0);
       expect(t.q).toBeGreaterThan(0);
     }

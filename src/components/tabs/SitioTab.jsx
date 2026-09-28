@@ -53,11 +53,29 @@ export function SitioTab() {
         desc="Art. 1.5. El 102-2025 eliminó el factor de importancia y lo reemplazó por tres
           mapas, uno por período de retorno, así que la categoría de riesgo cambia V
           directamente en vez de multiplicarla después.">
-        <Campo label="Localidad"
-          ayuda="Las 29 ciudades de la tabla de la Figura 1.5-1D. Si el sitio no está, se elige «fuera de la tabla» y V sale de una de las otras tres vías.">
-          <Sel v={d.ciudad} set={set("ciudad")} w={260}
-            opciones={[["", "— Sitio fuera de la tabla —"], ...CIUDADES.map(([n]) => [n, n])]} />
-        </Campo>
+        {/* ── QUÉ ROL CUMPLE LA LOCALIDAD, SEGÚN EL ORIGEN DE V ───────────────
+            ⚠ ANTES ERA SIEMPRE «Localidad» Y SIEMPRE SE USABA. Interpolando entre
+            isotacas, el sitio está fuera de la tabla POR DEFINICIÓN, y si en el
+            desplegable había quedado «Neuquén» la comparación contra el mapa y la región
+            con detritus salían de Neuquén. Ahora el campo cambia de nombre y de efecto
+            junto con el origen, en vez de quedar ahí pareciendo un dato inocuo. */}
+        {d.origenV === "interpolado" ? (
+          <Aviso tono="info" titulo="Sin localidad: el sitio está fuera de la tabla">
+            Interpolando entre isotacas, la <b style={{ color: c.txt }}>V interpolada ES la
+            lectura del mapa</b>: no hay ninguna ciudad contra la cual contrastarla. Para la
+            región con detritus, la V del sitio se lleva a la Figura 1.5-1A por la
+            proporción entre mapas de la C 1.5-6.1.
+          </Aviso>
+        ) : (
+          <Campo label={d.origenV === "manual" ? "Ciudad de referencia (mapa)" : "Localidad"}
+            ayuda={d.origenV === "manual"
+              ? "Sólo para contrastar la V adoptada contra el mapa y para evaluar la región con detritus. Con «sin referencia» no se compara contra ninguna ciudad y la región con detritus pasa a ser una declaración."
+              : "Las 29 ciudades de la tabla de la Figura 1.5-1D. Si el sitio no está, se elige «fuera de la tabla» y V sale de una de las otras tres vías."}>
+            <Sel v={d.ciudad} set={set("ciudad")} w={260}
+              opciones={[["", d.origenV === "manual" ? "— Sin referencia —"
+                : "— Sitio fuera de la tabla —"], ...CIUDADES.map(([n]) => [n, n])]} />
+          </Campo>
+        )}
         <Campo label="Categoría de riesgo"
           ayuda="Tabla 1.14-1. I son construcciones de bajo riesgo para la vida humana; II es el caso general; III y IV son las de gran ocupación y las esenciales, y comparten el mapa de 1.700 años.">
           <Sel v={d.riesgo} set={set("riesgo")} opciones={["I", "II", "III", "IV"]} w={100} />
@@ -429,10 +447,15 @@ export function SitioTab() {
         <Salida label="Modo"
           v={cerr.modo === "calculado" ? "Calculado a partir de aberturas" : "Declarado"} />
         <Salida label="Coeficiente de presión interna GC_pi"
-          v={`±${f(Math.abs(act.GCpi), 2)}`} />
+          v={`±${f(Math.abs(act.GCpi), cerr.RiAplicado === 1 ? 2 : 4)}`}
+          ayuda={cerr.RiAplicado === 1
+            ? "De la Tabla 1.11-1, con R_i = 1,0 (art. 1.11.1)."
+            : `De la Tabla 1.11-1 (±${f(Math.abs(cerr.gcpiTabla), 2)}), reducido por R_i = ${f(cerr.RiAplicado, 4)} de la expresión (1.11-1).`} />
         {cerr.Ri != null && (
-          <Salida label="Factor de reducción R_i" v={f(cerr.Ri, 3)}
-            ayuda="Expresión (1.11-1). Sólo aplica a parcialmente cerrados." />
+          <Salida label="Factor de reducción R_i"
+            v={`${f(cerr.RiAplicado, 4)}${cerr.modoRi === "uno"
+              ? ` — la expresión daría ${f(cerr.Ri, 4)}, no aplicado` : " — expresión (1.11-1)"}`}
+            ayuda="Sólo aplica a parcialmente cerrados. Cuál se adopta se elige en la pantalla Cerramiento." />
         )}
         <Nota>{cerr.motivo}</Nota>
       </Card>

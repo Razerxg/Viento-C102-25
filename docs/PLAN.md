@@ -194,6 +194,81 @@ transcribible exacto porque sus quiebres caen sobre líneas de grilla.
 
 ---
 
+## Revisión del proyectista — correcciones ✅
+
+Revisadas por fuera desde `720463b`. Las tres correcciones y las dos menores, en orden.
+
+### 1 · `R_i` se mostraba y no se aplicaba
+
+`edificio.js` tomaba `GC_pi = gcpiDe(cerramiento)` sin `R_i`: con una puerta abierta la
+pantalla informaba `R_i` y las presiones usaban el ±0,55 de tabla. Las dos cosas son
+defendibles por separado —adoptar 1,0 es admisible y conservador— pero juntas **la
+pantalla se contradecía a sí misma**: el número estaba a la vista y no era el que se usó.
+
+- Selector en Cerramiento, **por defecto `R_i = 1,0`** (art. 1.11.1).
+- El valor elegido llega a **todos** los consumidores: presiones, resultantes, envolvente,
+  silos, capítulo 4 y exportación. El silo comparte la envolvente del edificio, así que
+  comparte su `R_i`: con el GC_pi sin reducir, dos pantallas informarían presiones
+  internas distintas para el mismo cerramiento.
+- La pantalla, la traza y el CSV/JSON dicen **cuál se aplicó**. Con 1,0 se sigue mostrando
+  el valor de la expresión, rotulado *no aplicado*, y cuánto más alta queda la presión
+  interna por adoptarlo.
+- Donde la expresión **no interviene** —cualquier clasificación que no sea parcialmente
+  cerrado— se dice eso, en vez de informar un `1,0` pelado que parecería un resultado.
+
+### 2 · Ciudad incoherente con el origen de `V`
+
+`resolverV()` y `regionDetritus()` usaban `d.ciudad` cualquiera fuera el origen.
+
+| Origen | Antes | Ahora |
+|---|---|---|
+| tabla | ciudad | ciudad |
+| **interpolado** | ciudad quedada del paso anterior | **sin ciudad**: el sitio está fuera de la tabla por definición y la V interpolada ES la lectura del mapa |
+| **v50** | ciudad | ciudad si la hay; para detritus, `V_A = v₅₀·√1,5`, **exacto** por la misma expresión |
+| **manual** | «Localidad» | **«Ciudad de referencia (mapa)»**, con «sin referencia» |
+
+Para la región con detritus fuera de la tabla, la V del sitio se lleva a la Figura 1.5-1A
+por la proporción entre mapas de la **C 1.5-6.1**: `V_A = V_cat·√(1,00/I_cat)`, con
+`I = 0,87 / 1,00 / 1,15`; y a la 1.5-1B con `V_B = V_A·√1,15`. Antes esto era siempre una
+declaración, aunque la app ya tuviera la lectura del mapa.
+
+La conversión se **contrasta contra la propia tabla de ciudades** —las 29—, que es una
+verificación cruzada y no una cuenta escrita dos veces: Bahía Blanca da
+`72,2/√1,15 = 67,33` contra los 67,4 tabulados, 0,11 % de diferencia. La tabla está
+redondeada a 0,1 m/s, así que la tolerancia del test es relativa.
+
+⚠ **Una cifra del pedido sale distinta.** Categoría III interpolada con 63,0 m/s da
+`63,0/√1,15 = 58,75` → **58,7 m/s**, no 58,8. La conclusión no cambia: está por debajo de
+los 63 m/s y **no es región con detritus**. El `v50 = 48 → 58,8` sí cierra exacto
+(`48·√1,5 = 58,79`).
+
+### 3 · Definición de abertura
+
+El texto decía «lo que define a una abertura es que deje pasar el aire», que es **la mitad
+de la definición**. Va el texto literal del art. 1.2, y con él la decisión que la pantalla
+tiene que hacer explícita: una puerta o portón **diseñados para la presión del Capítulo 5
+y que se mantienen cerrados durante el viento de diseño NO son abertura** (art. 1.10.2.1).
+Las dos condiciones van juntas.
+
+### 4a · La envolvente de cubierta, en los dos sentidos
+
+«La mayor presión sobre cada área» de la nota 2 **no dice «la mayor succión»**. Con las
+dos direcciones succionando, envolver hacia arriba es lo que manda; cuando el faldón a
+barlovento recibe **presión**, quedarse sólo con ésa toma en cada celda la **menor** de las
+dos presiones descendentes, que es lo contrario de envolver. Los casos 3 y 4 generan ahora
+los dos estados. La de arriba gobierna el levantamiento y el anclaje; la de abajo, la
+compresión de correas y la flexión de los pórticos.
+
+### 4b · El tramo de extensión nula, resuelto en el motor
+
+`perfilBarlovento` devuelve `puntos` —las cotas con su `q_z`, `z = 0` incluido, para
+tablas y diagramas— y `tramos` —sólo con `hasta > desde`, para integrar y exportar—.
+Antes se filtraba en la exportación, y eso obligaba a que **cada salida nueva se acordara
+de saltearlo**: la que se olvidara mostraría un tramo fantasma sin que nada fallara.
+
+Verificación: 47 tests nuevos, **17 mutaciones corridas y 16 muertas**. La que sobrevive
+es un reordenamiento de `deTabla ?? conv?.V` que el propio guardián vuelve inalcanzable.
+
 ## Fase 3 — procedencia, esquema y exportación ✅ (primer bloque)
 
 ### Procedencia en toda salida

@@ -38,6 +38,42 @@ export function ri(volumenInterno, areaAberturas) {
   return Math.min(1.0, r);
 }
 
+/**
+ * LAS DOS VÍAS DEL ART. 1.11.1 PARA `R_i`.
+ *
+ * ⚠ DURANTE UN TIEMPO `R_i` SE CALCULABA, SE MOSTRABA Y NO SE APLICABA. La pantalla de
+ * Cerramiento informaba `R_i = 0,9327` y las presiones se seguían calculando con ±0,55 en
+ * vez de ±0,513. Las dos cosas eran defendibles por separado —adoptar 1,0 es admisible y
+ * conservador— pero juntas la pantalla se contradecía a sí misma, que es el peor de los
+ * dos mundos: el número está a la vista y no es el que se usó.
+ *
+ * Por defecto va **1,0**, que es lo conservador y lo que la app venía haciendo de hecho.
+ * Adoptar la expresión es una decisión del proyectista y queda registrada.
+ */
+export const MODOS_RI = [
+  { id: "uno", label: "R_i = 1,0 (conservador, art. 1.11.1)", valor: 1.0,
+    nota: "El art. 1.11.1 admite adoptar 1,0 en cualquier caso. Es el lado seguro: no "
+      + "reduce la presión interna." },
+  { id: "expresion", label: "R_i de la expresión (1.11-1)", valor: null,
+    nota: "Reduce la presión interna por el volumen interior: un volumen grande no alcanza "
+      + "a presurizarse al ritmo de la ráfaga. Sólo aplica a edificios PARCIALMENTE "
+      + "CERRADOS; en los demás la expresión no interviene y R_i vale 1,0." },
+];
+
+/**
+ * El `R_i` que EFECTIVAMENTE se aplica.
+ *
+ * Separado de `ri()` a propósito: `ri()` evalúa la expresión y esto decide si esa
+ * evaluación entra al cálculo. Mezclarlos es cómo se llega a aplicar una reducción en un
+ * edificio cerrado, donde la (1.11-1) no interviene.
+ *
+ * @param {object} o
+ * @param {string} [o.modo]  "uno" | "expresion"
+ * @param {number|null} [o.calculado]  lo que da la expresión, o `null` si no aplica
+ */
+export const riAplicado = ({ modo = "uno", calculado } = {}) =>
+  (modo === "expresion" && typeof calculado === "number" ? calculado : 1.0);
+
 export const gcpiDe = (id) => CERRAMIENTOS.find(c => c.id === id)?.gcpi ?? null;
 
 // ⚠ SE BUSCA POR ID, NUNCA POR GC_pi. «Cerrado» y «parcialmente abierto» comparten el

@@ -472,3 +472,68 @@ describe('consistencia con el motor de una dirección', () => {
     }
   });
 });
+
+// ── LAS DOS ENVOLVENTES DE CUBIERTA DE LA NOTA 2 ───────────────────────────────
+//
+// ⚠ «LA MAYOR PRESIÓN SOBRE CADA ÁREA» NO DICE «LA MAYOR SUCCIÓN». Con las dos
+// direcciones succionando, envolver hacia arriba es lo que manda y la otra no aporta
+// nada. Pero cuando el faldón a barlovento recibe PRESIÓN, quedarse sólo con la de arriba
+// toma en cada celda la MENOR de las dos presiones descendentes, que es lo contrario de
+// envolver.
+describe('la envolvente de cubierta en los dos sentidos', () => {
+  it('con presión hacia abajo en las dos direcciones, se queda con la mayor', () => {
+    // Caso a mano: las dos direcciones empujan hacia abajo (p > 0 ⇒ levantamiento < 0).
+    const bx = { L: 20, signo: +1, zonas: [{ u0: 0, u1: 20, p: 400 }] };
+    const by = { L: 30, signo: +1, zonas: [{ u0: 0, u1: 30, p: 700 }] };
+    const arriba = envolventeCubierta(bx, by, "arriba");
+    const abajo = envolventeCubierta(bx, by, "abajo");
+    // Hacia arriba toma −400·A: la MENOR de las dos presiones descendentes.
+    expect(arriba.V).toBeCloseTo(-400 * 20 * 30, 6);
+    // Hacia abajo toma −700·A, que es la que envuelve de verdad.
+    expect(abajo.V).toBeCloseTo(-700 * 20 * 30, 6);
+    expect(Math.abs(abajo.V)).toBeGreaterThan(Math.abs(arriba.V));
+    expect(abajo.sentido).toBe("abajo");
+  });
+
+  it('con succión en las dos direcciones, la de abajo queda dominada', () => {
+    const bx = { L: 20, signo: +1, zonas: [{ u0: 0, u1: 20, p: -900 }] };
+    const by = { L: 30, signo: +1, zonas: [{ u0: 0, u1: 30, p: -500 }] };
+    expect(envolventeCubierta(bx, by, "arriba").V).toBeCloseTo(900 * 20 * 30, 6);
+    expect(envolventeCubierta(bx, by, "abajo").V).toBeCloseTo(500 * 20 * 30, 6);
+  });
+
+  it('celda por celda, la de abajo nunca está por encima de la de arriba', () => {
+    const bx = { L: 20, signo: +1, zonas: [{ u0: 0, u1: 8, p: -900 }, { u0: 8, u1: 20, p: 300 }] };
+    const by = { L: 30, signo: +1, zonas: [{ u0: 0, u1: 12, p: -200 }, { u0: 12, u1: 30, p: 500 }] };
+    const a = envolventeCubierta(bx, by, "arriba").celdas;
+    const b = envolventeCubierta(bx, by, "abajo").celdas;
+    expect(a).toHaveLength(b.length);
+    for (let i = 0; i < a.length; i++) expect(a[i].p).toBeGreaterThanOrEqual(b[i].p);
+  });
+
+  it('los estados simultáneos se generan en los dos sentidos', () => {
+    const es = barrer();
+    const simult = es.filter(e => e.dirs.length === 2);
+    expect(new Set(simult.map(e => e.sentidoCubierta))).toEqual(new Set(["arriba", "abajo"]));
+    // Y los de un eje no llevan sentido: ahí no hay dos presiones que envolver.
+    expect(es.filter(e => e.dirs.length === 1).every(e => e.sentidoCubierta === null)).toBe(true);
+    // El barrido se duplica en los casos simultáneos, y sólo en ésos.
+    expect(simult.filter(e => e.sentidoCubierta === "arriba").length)
+      .toBe(simult.filter(e => e.sentidoCubierta === "abajo").length);
+  });
+
+  // La cubierta que recibe presión hacia abajo es la de pendiente apreciable con viento
+  // normal: ahí el segundo valor de la nota 3 es positivo.
+  it('con cubierta inclinada, la envolvente de abajo aporta un estado que la otra no da', () => {
+    const geo = { a: "20", b: "40", hAlero: "6", theta: "35", tipo: "dos_aguas", cumbrera: "X" };
+    const es = barrer({}, { ...ENT, geo });
+    const simult = es.filter(e => e.dirs.length === 2);
+    const minA = Math.min(...simult.filter(e => e.sentidoCubierta === "arriba")
+      .map(e => e.levantamiento));
+    const minB = Math.min(...simult.filter(e => e.sentidoCubierta === "abajo")
+      .map(e => e.levantamiento));
+    // El levantamiento más negativo —o sea la mayor carga hacia abajo— sale de la
+    // envolvente descendente.
+    expect(minB).toBeLessThan(minA);
+  });
+});

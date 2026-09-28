@@ -18,6 +18,7 @@
 import { fachada } from './fachadas.js';
 import { CERRAMIENTOS, ri } from '../constants/presionInterna.js';
 import { velocidadDe } from '../constants/velocidades.js';
+import { vDeFigura } from './velocidad.js';
 import { num } from '../lib/parseo.js';
 
 /** Las cuatro paredes, por el sentido de su normal exterior. */
@@ -197,20 +198,42 @@ export function cuentaComoAbertura(ab, { detritus, riesgo }) {
 // cerrado con ±0,55.
 export const UMBRAL_DETRITUS = { V: 63, Vcosta: 58, distanciaCosta: 1500 };
 
-export function regionDetritus({ ciudad, riesgo, esSalud, distanciaCosta, declarada }) {
+/**
+ * @param {object} o
+ * @param {string} [o.ciudad]   `""` o ausente = el sitio no está en la tabla
+ * @param {string} o.riesgo @param {boolean} [o.esSalud]
+ * @param {any} [o.distanciaCosta] @param {boolean} [o.declarada]
+ * @param {string} [o.origen]   de dónde salió la V del sitio
+ * @param {number|null} [o.V]   la V adoptada, de la categoría del edificio
+ * @param {any} [o.v50]         el v50 del 102-2005, cuando el origen es ése
+ */
+export function regionDetritus({ ciudad, riesgo, esSalud, distanciaCosta, declarada,
+  origen, V: Vsitio, v50 }) {
   const figura = (riesgo === "IV" || (riesgo === "III" && esSalud)) ? "B" : "A";
   // La Figura 1.5-1A es el mapa de categoría II; la 1.5-1B, el de III-IV.
-  const V = /** @type {number|null} */ (
+  const deTabla = /** @type {number|null} */ (
     ciudad ? velocidadDe(ciudad, figura === "B" ? "III" : "II") : null);
   const dist = num(distanciaCosta, Infinity);
 
+  // ── FUERA DE LA TABLA, SE CONVIERTE ──────────────────────────────────────────
+  // ⚠ ANTES, SIN CIUDAD, ESTO ERA SIEMPRE UNA DECLARACIÓN. Pero cuando la V se interpoló
+  // entre isotacas o se convirtió de un v50, la V del sitio ya es una lectura del mapa:
+  // lo único que falta es llevarla al mapa de la figura que corresponde, que es la misma
+  // proporción `V ∝ √I` de la C 1.5-6.1. Dejarlo como declaración obligaba a volver al
+  // mapa en papel para algo que la app ya tiene.
+  const conv = deTabla == null
+    ? vDeFigura({ figura, origen, V: Vsitio, riesgo, v50 }) : null;
+  const V = deTabla ?? conv?.V ?? null;
+
   if (V == null) {
-    // Sin ciudad tabulada no hay V de la figura, y la app no puede decidir: pasa a ser una
-    // declaración del proyectista, que es quien tiene el mapa a la vista.
-    return { esRegion: !!declarada, V: null, figura, porDeclaracion: true,
-      motivo: "El sitio no está en la tabla de ciudades, así que no hay V de la "
-        + `Figura 1.5-1${figura} para evaluar la condición. Queda declarado por el `
-        + "proyectista leyendo el mapa.",
+    // Sin V de la figura la app no puede decidir: pasa a ser una declaración del
+    // proyectista, que es quien tiene el mapa a la vista.
+    return { esRegion: !!declarada, V: null, figura, porDeclaracion: true, fuente: "declaracion",
+      conversion: null,
+      motivo: "No hay V de la "
+        + `Figura 1.5-1${figura} para evaluar la condición: el sitio no está en la tabla de `
+        + "ciudades y la velocidad adoptada no se puede llevar a esa figura. Queda "
+        + "declarado por el proyectista leyendo el mapa.",
       ref: "Art. 1.10.3.1" };
   }
   const porV = V >= UMBRAL_DETRITUS.V;
@@ -219,7 +242,8 @@ export function regionDetritus({ ciudad, riesgo, esSalud, distanciaCosta, declar
   const fc = (n) => n.toFixed(1).replace(".", ",");
   return {
     esRegion, V, figura, porDeclaracion: false, porV, porCosta,
-    motivo: esRegion
+    fuente: deTabla != null ? "tabla" : "convertida", conversion: conv,
+    motivo: (conv ? `${conv.cuenta}. ` : "") + (esRegion
       ? (porV
         ? `V = ${fc(V)} m/s de la Figura 1.5-1${figura} ≥ ${UMBRAL_DETRITUS.V} m/s.`
         : `V = ${fc(V)} m/s ≥ ${UMBRAL_DETRITUS.Vcosta} m/s y el sitio está a `
@@ -230,8 +254,10 @@ export function regionDetritus({ ciudad, riesgo, esSalud, distanciaCosta, declar
       + (riesgo === "III" && !esSalud
         ? ` ⚠ Categoría III que no es instalación de salud: se evalúa con la Figura `
           + `1.5-1A —el mapa de 700 años— y no con el de la categoría.`
-        : ""),
-    ref: "Art. 1.10.3.1",
+        : ""))
+      + (conv ? ` La V del sitio se llevó a la Figura 1.5-1${figura} por la proporción `
+        + `entre mapas${conv.exacta ? "" : " de la C 1.5-6.1"}.` : ""),
+    ref: "Art. 1.10.3.1" + (conv ? ` · ${conv.ref}` : ""),
   };
 }
 

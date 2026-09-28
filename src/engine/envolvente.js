@@ -57,6 +57,14 @@ export const CASOS_CARGA = [
 export const SIGNOS_GCPI = ["conInternaPos", "conInternaNeg"];
 /** Los dos valores del faldón a barlovento que exige la nota 3 de la Figura 2.4-1. */
 export const CASOS_NOTA3 = /** @type {const} */ (["negativo", "positivo"]);
+/**
+ * Las dos envolventes por área de la nota 2, en los casos simultáneos.
+ *
+ * «La mayor presión sobre cada área» no dice «la mayor succión»: hay que envolver en los
+ * dos sentidos. La de arriba gobierna el levantamiento y el anclaje; la de abajo, la
+ * compresión de correas y la flexión de los pórticos.
+ */
+export const SENTIDOS_CUBIERTA = /** @type {const} */ (["arriba", "abajo"]);
 
 /** Excentricidad de la carga, para los casos torsionales. */
 export const E_RIGIDA = 0.15;
@@ -218,23 +226,33 @@ export function baseDireccion(analisis, { casoInterno = "conInternaPos",
  * integración es exacta: en cada celda se toma la presión mayor en valor absoluto de
  * levantamiento y se integra.
  */
-export function envolventeCubierta(bx, by) {
+export function envolventeCubierta(bx, by, sentido = "arriba") {
   // Presión de levantamiento por unidad de área, positiva hacia arriba.
   const pDe = (z) => -z.p;
+  // ⚠ LA NOTA 2 DICE «LA MAYOR PRESIÓN», NO «LA MAYOR SUCCIÓN». Con las dos direcciones
+  // succionando, la envolvente hacia arriba es la que manda y la de abajo no aporta. Pero
+  // una cubierta poco inclinada con viento normal recibe PRESIÓN sobre el faldón a
+  // barlovento —el segundo valor de la nota 3, e incluso el primero a partir de cierto
+  // θ—, y ahí la envolvente hacia arriba se queda con la MENOR de las dos presiones
+  // descendentes, que es lo contrario de envolver. Son dos envolventes, no una: la de
+  // arriba gobierna el levantamiento y el anclaje, la de abajo la compresión de correas y
+  // la flexión de los pórticos.
+  const mejor = sentido === "abajo"
+    ? (a, b) => Math.min(a, b)      // la MÁS descendente: la más negativa en levantamiento
+    : (a, b) => Math.max(a, b);
   const celdas = [];
   for (const zx of bx.zonas) {
     for (const zy of by.zonas) {
       const dx = zx.u1 - zx.u0, dy = zy.u1 - zy.u0;
       if (!(dx > 0) || !(dy > 0)) continue;
-      // La MAYOR presión de levantamiento de las dos direcciones, en esta celda.
-      const p = Math.max(pDe(zx), pDe(zy));
+      const p = mejor(pDe(zx), pDe(zy));
       celdas.push({ x0: zx.u0, x1: zx.u1, y0: zy.u0, y1: zy.u1, p, area: dx * dy });
     }
   }
   const V = celdas.reduce((a, c) => a + c.p * c.area, 0);
   const sx = celdas.reduce((a, c) => a + c.p * c.area * (c.x0 + c.x1) / 2, 0);
   const sy = celdas.reduce((a, c) => a + c.p * c.area * (c.y0 + c.y1) / 2, 0);
-  return { V, xBar: Math.abs(V) > 1e-12 ? sx / V : null,
+  return { V, sentido, xBar: Math.abs(V) > 1e-12 ? sx / V : null,
     yBar: Math.abs(V) > 1e-12 ? sy / V : null, celdas };
 }
 
@@ -247,7 +265,8 @@ const brazoDesdeBarlovento = (b, uBar) => (b.signo > 0 ? uBar : b.L - uBar);
  * `cortante` es el módulo de la resultante horizontal: en los casos simultáneos las dos
  * componentes son ortogonales, así que se compone por Pitágoras.
  */
-export function armarEstado({ caso, bx, by, eSigno, flexible, diafragma = "rigido" }) {
+export function armarEstado({ caso, bx, by, eSigno, flexible, diafragma = "rigido",
+  sentidoCubierta = "arriba" }) {
   const partes = [bx, by].filter(Boolean);
   const fp = caso.factorPared, fc = caso.factorCubierta;
 
@@ -268,7 +287,7 @@ export function armarEstado({ caso, bx, by, eSigno, flexible, diafragma = "rigid
   // CADA ÁREA. En los casos por eje, la de esa dirección.
   let V, arm = {};
   if (caso.simultaneo && bx && by) {
-    const env = envolventeCubierta(bx, by);
+    const env = envolventeCubierta(bx, by, sentidoCubierta);
     V = fc * env.V;
     arm = { x: brazoDesdeBarlovento(bx, env.xBar ?? 0),
       y: brazoDesdeBarlovento(by, env.yBar ?? 0), porArea: true };
@@ -310,6 +329,9 @@ export function armarEstado({ caso, bx, by, eSigno, flexible, diafragma = "rigid
 
   return {
     caso: caso.n, label: caso.label,
+    // Sólo los casos simultáneos tienen dos envolventes de cubierta; en los de un eje la
+    // presión de la zona es la que es y no hay nada que envolver.
+    sentidoCubierta: caso.simultaneo ? sentidoCubierta : null,
     casoInterno: partes[0].casoInterno,
     casoNota3: partes.map(b => b.casoNota3).join("/"),
     eSigno: caso.torsion ? eSigno : null,
@@ -377,12 +399,17 @@ export function estadosDeCarga({ analizar, entrada, opc = {} }) {
           // una los dos casos de la nota 3 de CADA eje por separado. Son estados de carga
           // independientes: nada obliga a que los dos ejes adopten el mismo.
           for (const dx of porEje.X) for (const dy of porEje.Y)
-            for (const nx of CASOS_NOTA3) for (const ny of CASOS_NOTA3) {
-              estados.push(armarEstado({ caso,
-                bx: bases[clave(dx.id, casoInterno, nx)],
-                by: bases[clave(dy.id, casoInterno, ny)],
-                eSigno, flexible: opc.flexible, diafragma }));
-            }
+            for (const nx of CASOS_NOTA3) for (const ny of CASOS_NOTA3)
+              // Las DOS envolventes de cubierta de la nota 2: la que maximiza el
+              // levantamiento y la que maximiza la presión hacia abajo. Con las dos
+              // direcciones succionando, la segunda no aporta nada y queda dominada; con
+              // presión sobre el faldón a barlovento, es la que gobierna.
+              for (const sentidoCubierta of SENTIDOS_CUBIERTA) {
+                estados.push(armarEstado({ caso,
+                  bx: bases[clave(dx.id, casoInterno, nx)],
+                  by: bases[clave(dy.id, casoInterno, ny)],
+                  eSigno, flexible: opc.flexible, diafragma, sentidoCubierta }));
+              }
         }
       }
     }

@@ -82,12 +82,10 @@ export function renglonesDe(analisis) {
   const cos = Math.cos(analisis.geo.theta * Math.PI / 180);
   for (const s of analisis.superficies) {
     if (s.tramos) {
+      // El motor ya separa `puntos` de `tramos`: acá llegan sólo los que tienen
+      // extensión. Antes esto se filtraba en este archivo, y eso obligaba a que cada
+      // salida nueva se acordara de saltear el tramo de z = 0.
       for (const t of s.tramos) {
-        // ⚠ EL PERFIL TRAE UN TRAMO DE EXTENSIÓN NULA EN z = 0. Al motor no le molesta
-        // —aporta área cero y fuerza cero— pero en un archivo es un renglón con área 0 al
-        // lado de otros con área real, y eso invita a sumarlo, a promediarlo o a dividir
-        // por él. Se saltea acá y no en el motor, que lo usa como extremo del perfil.
-        if (!(t.hasta > t.desde)) continue;
         out.push({ ...base, superficie: s.id, nombre: s.nombre, tipo: s.tipo,
           zona: `z ${t.desde.toFixed(2)}–${t.hasta.toFixed(2)} m`,
           zDesde: t.desde, zHasta: t.hasta, xDesde: null, xHasta: null,
@@ -186,9 +184,10 @@ const campo = (v, dial) => {
  * @param {Record<string,string>} [o.perfil]  unidades de salida
  * @param {string} [o.proyecto] @param {Date} [o.fecha]
  * @param {boolean} [o.cabecera]  líneas `#` de procedencia antes del encabezado
+ * @param {string|any} [o.cerramiento]  para informar el GC_pi aplicado y su R_i
  */
 export function csvPresiones({ todas, dialecto = DIALECTOS.programa,
-  perfil = PERFILES.datos, proyecto, fecha, cabecera = true }) {
+  perfil = PERFILES.datos, proyecto, fecha, cabecera = true, cerramiento }) {
   const lineas = [];
   if (cabecera) {
     // ⚠ EMPIEZAN CON `#`. Es la convención que entienden pandas, R y la importación de
@@ -196,6 +195,19 @@ export function csvPresiones({ todas, dialecto = DIALECTOS.programa,
     // enseguida. Escribirlas como renglones de datos sería peor: se mezclarían con las
     // presiones sin que nada las distinga.
     for (const [k, v] of procedenciaTexto({ proyecto, fecha })) lineas.push(`# ${k}: ${v}`);
+    // El GC_pi no es una columna —es el mismo en todo el archivo— pero sin él las dos
+    // columnas de presión interna no se pueden reproducir.
+    const cerr = cerramientoDe(cerramiento);
+    if (cerr) {
+      lineas.push(`# Cerramiento: ${cerr.clasificacion}`);
+      if (cerr.gcpiAplicado != null) {
+        lineas.push(`# GC_pi aplicado: ±${cerr.gcpiAplicado.toFixed(4)}`
+          + (cerr.gcpiTabla != null ? ` (tabla ±${cerr.gcpiTabla.toFixed(2)}` : "")
+          + (cerr.Ri ? ` · R_i = ${cerr.Ri.aplicado.toFixed(4)}`
+            + (cerr.Ri.modo === "uno" ? ", art. 1.11.1" : ", expresión (1.11-1)") : "")
+          + (cerr.gcpiTabla != null ? ")" : ""));
+      }
+    }
     for (const c of COLUMNAS) {
       lineas.push(`# columna ${tituloColumna(c, perfil)}: ${c.desc}`);
     }
@@ -225,9 +237,28 @@ export function csvPresiones({ todas, dialecto = DIALECTOS.programa,
  * @param {object} o
  * @param {any[]} o.todas @param {(t:any)=>any} o.resDe
  * @param {any} [o.envCasos] @param {any} [o.sitio] @param {any} [o.geoN]
- * @param {string} [o.cerramiento] @param {(d:any)=>number} [o.gDe]
+ * @param {string|any} [o.cerramiento]  la clasificación, o el objeto completo con R_i
+ * @param {(d:any)=>number} [o.gDe]
  * @param {Record<string,string>} [o.perfil] @param {string} [o.proyecto] @param {Date} [o.fecha]
  */
+/**
+ * El bloque de cerramiento del archivo. Acepta la clasificación pelada —para quien sólo
+ * tiene eso— o el objeto completo de la pantalla, que es el que sabe qué R_i se aplicó.
+ */
+export const cerramientoDe = (c) => {
+  if (c == null) return null;
+  if (typeof c === "string") return { clasificacion: c };
+  return {
+    clasificacion: c.efectiva ?? c.clasificacion ?? null,
+    modo: c.modo ?? null,
+    gcpiTabla: c.gcpiTabla ?? null,
+    gcpiAplicado: c.gcpi ?? null,
+    Ri: { modo: c.modoRi ?? "uno", calculado: c.Ri ?? null, aplicado: c.RiAplicado ?? 1,
+      ref: "Art. 1.11.1 · expresión (1.11-1)" },
+    Vi: c.Vi ?? null,
+  };
+};
+
 export function jsonPresiones({ todas, resDe, envCasos, sitio, geoN, cerramiento, gDe,
   perfil = PERFILES.datos, proyecto, fecha }) {
   const v = (m, x) => (x == null || !Number.isFinite(x) ? null : convertir(m, x, perfil[m]));
@@ -250,7 +281,10 @@ export function jsonPresiones({ todas, resDe, envCasos, sitio, geoN, cerramiento
       alturaAlero: v("longitud", geoN.hAlero), alturaMedia: v("longitud", geoN.h),
       theta: geoN.theta, tipoCubierta: geoN.tipo, cumbrera: geoN.cumbrera,
     },
-    cerramiento: cerramiento ?? null,
+    // ⚠ LA CLASIFICACIÓN SOLA NO ALCANZA. Con R_i aplicado, el GC_pi que se usó NO es el
+    // de la Tabla 1.11-1, y un archivo que informe «parcialmente cerrado» sin decir el
+    // R_i deja a quien lo recibe reconstruyendo un ±0,55 que el cálculo nunca usó.
+    cerramiento: cerramientoDe(cerramiento),
     direcciones: todas.map(an => {
       const r = resDe ? resDe(an) : null;
       return {

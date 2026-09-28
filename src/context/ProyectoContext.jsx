@@ -20,8 +20,7 @@ import { kzt as calcularKzt } from '../engine/topografia.js';
 import { num, opt } from '../lib/parseo.js';
 import { resolverV } from '../engine/velocidad.js';
 import { clasificar, regionDetritus } from '../engine/cerramiento.js';
-import { ri as riDe, CERRAMIENTOS } from '../constants/presionInterna.js';
-import { gcpiDe } from '../constants/presionInterna.js';
+import { ri as riDe, CERRAMIENTOS, riAplicado, gcpiDe } from '../constants/presionInterna.js';
 import { factorRafaga, dimensionesDe } from '../engine/factorRafaga.js';
 import { resultantes, barridoAlero, envolvente } from '../engine/resultantes.js';
 import { estadosDeCarga, envolventeCritica, exencion247 } from '../engine/envolvente.js';
@@ -155,10 +154,16 @@ export function ProyectoProvider({ children }) {
   // ── CERRAMIENTO ─────────────────────────────────────────────────────────────
   // La región con detritus se evalúa acá porque necesita V y la categoría de riesgo, que
   // son datos de Sitio; la clasificación necesita además la geometría, que es de Edificio.
+  // ⚠ LA CIUDAD LA DECIDE `resolverV`, NO EL DESPLEGABLE. Interpolando entre isotacas el
+  // sitio está fuera de la tabla por definición, y si en el selector había quedado
+  // «Neuquén» la región con detritus salía de Neuquén. `vel.ciudadRef` es `null` en ese
+  // caso, y la V del sitio se lleva al mapa de la figura por la proporción de la C 1.5-6.1.
   const detritus = useMemo(() => regionDetritus({
-    ciudad: d.ciudad, riesgo: d.riesgo, esSalud: d.cerr.esSalud,
+    ciudad: vel.ciudadRef, riesgo: d.riesgo, esSalud: d.cerr.esSalud,
     distanciaCosta: d.cerr.distanciaCosta, declarada: d.cerr.detritusDeclarada,
-  }), [d.ciudad, d.riesgo, d.cerr.esSalud, d.cerr.distanciaCosta, d.cerr.detritusDeclarada]);
+    origen: d.origenV ?? "tabla", V: vel.V, v50: vel.v50,
+  }), [vel.ciudadRef, vel.V, vel.v50, d.origenV, d.riesgo, d.cerr.esSalud,
+    d.cerr.distanciaCosta, d.cerr.detritusDeclarada]);
 
   const cerrCalc = useMemo(() => clasificar({
     geo: geoN, aberturas: d.aberturas, detritus, riesgo: d.riesgo,
@@ -169,10 +174,22 @@ export function ProyectoProvider({ children }) {
   // tomar sólo el del recinto que tiene la abertura dominante.
   const ViAuto = cerrCalc.Vi;
   const Vi = opt(d.cerr.Vi) ?? ViAuto;
+  // La expresión (1.11-1) sólo interviene en parcialmente cerrados; en el resto no hay
+  // nada que reducir y `Ri` queda en `null`, que NO es lo mismo que 1,0: uno dice «no
+  // aplica» y el otro «aplica y da 1».
   const Ri = cerrCalc.clasificacion === "parc_cerrado" ? riDe(Vi, cerrCalc.AogTotal) : null;
 
   // La clasificación que EFECTIVAMENTE usa el cálculo.
   const cerramiento = d.cerrModo === "calculado" ? cerrCalc.clasificacion : d.cerramiento;
+
+  // ⚠ R_i SE MOSTRABA Y NO SE APLICABA. La pantalla informaba R_i = 0,9327 y las
+  // presiones usaban ±0,55 en vez de ±0,513. Ahora el modo es una decisión declarada y el
+  // valor elegido viaja a TODOS los consumidores.
+  const modoRi = d.cerr.modoRi ?? "uno";
+  const RiAplicado = riAplicado({ modo: modoRi, calculado: Ri });
+  const gcpiTabla = gcpiDe(cerramiento) ?? 0;
+  const gcpiEfectivo = gcpiTabla * RiAplicado;
+  const riTraza = { modo: modoRi, calculado: Ri, aplicado: RiAplicado };
   const cerr = { ...cerrCalc, Vi, ViAuto, Ri, detritus, modo: d.cerrModo,
     declarada: d.cerramiento, efectiva: cerramiento,
     fundamento: d.cerrFundamento,
@@ -180,7 +197,7 @@ export function ProyectoProvider({ children }) {
     // declarado, mostrar la etiqueta de la calculada junto al GC_pi de la declarada da
     // una pantalla que se contradice a sí misma: decía «Cerrado» y «±0,55».
     label: CERRAMIENTOS.find(x => x.id === cerramiento)?.label ?? "—",
-    gcpi: gcpiDe(cerramiento) ?? 0,
+    gcpiTabla, gcpi: gcpiEfectivo, modoRi, RiAplicado, riTraza,
     motivo: d.cerrModo === "calculado" ? cerrCalc.motivo
       : `Clasificación DECLARADA por el proyectista${d.cerrFundamento
         ? `: ${d.cerrFundamento}` : ", sin fundamento declarado"}.`,
@@ -221,7 +238,9 @@ export function ProyectoProvider({ children }) {
   const G = gDe(DIRECCIONES[Math.min(iDir, 3)], rafaga);
 
   const entrada = useMemo(() => ({ geo: d.geo, sitio, cerramiento, G,
-    modoG: d.modoG }), [d.geo, sitio, cerramiento, G, d.modoG]);
+    modoG: d.modoG, gcpi: gcpiEfectivo, ri: riTraza }),
+  [d.geo, sitio, cerramiento, G, d.modoG, gcpiEfectivo,
+    riTraza.modo, riTraza.calculado, riTraza.aplicado]);
 
   const todas = useMemo(
     () => DIRECCIONES.map(dir => analizarDireccion(
@@ -328,8 +347,11 @@ export function ProyectoProvider({ children }) {
 
   const kdSilo = kdDe(d.silo.kd || "chim_redonda") ?? 1.0;
   const silo = useMemo(() => analizarSilo({
-    datos: d.silo, sitio, kd: kdSilo, G: gCap4, gcpi: gcpiDe(cerramiento) ?? 0,
-  }), [d.silo, sitio, kdSilo, gCap4, cerramiento]);
+    // El silo comparte el cerramiento del edificio, así que comparte también su R_i: si
+    // usara el GC_pi sin reducir, dos pantallas informarían presiones internas distintas
+    // para la misma envolvente.
+    datos: d.silo, sitio, kd: kdSilo, G: gCap4, gcpi: gcpiEfectivo,
+  }), [d.silo, sitio, kdSilo, gCap4, gcpiEfectivo]);
 
   const kdAnexo = kdDe(d.anexo.kd || "chim_redonda") ?? 1.0;
   const anexo = useMemo(() => analizarAnexo({

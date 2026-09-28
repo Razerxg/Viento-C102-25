@@ -47,14 +47,19 @@ describe('renglones por cara y por zona', () => {
     expect(r.reduce((a, x) => a + x.area, 0)).toBeCloseTo(sup.fachada.area, 6);
   });
 
-  // El perfil de la pared a barlovento arranca con un tramo de extensión nula en z = 0.
-  // Al motor no le molesta —área cero, fuerza cero— pero en un archivo es un renglón con
-  // área 0 al lado de otros con área real, y eso invita a sumarlo o a dividir por él.
-  it('no salen tramos de extensión nula', () => {
+  // ⚠ EL FILTRADO VIVE EN EL MOTOR, NO ACÁ. El perfil arranca con un corte en z = 0 cuyo
+  // tramo tiene extensión nula; `perfilBarlovento` lo deja en `puntos` —para el diagrama
+  // y la tabla de cotas— y lo saca de `tramos`. Filtrarlo en la exportación obligaba a
+  // que cada salida nueva se acordara de saltearlo, y la que se olvidara mostraría un
+  // tramo fantasma sin que nada fallara.
+  it('no salen tramos de extensión nula, y el motor ya los separó', () => {
     const an = TODAS[0];
     const sup = an.superficies.find(s => s.id === "pared_barlovento");
-    // Primero: el artefacto existe de verdad, o el test no probaría nada.
-    expect(sup.tramos.filter(t => !(t.hasta > t.desde)).length).toBeGreaterThan(0);
+    expect(sup.tramos.every(t => t.hasta > t.desde)).toBe(true);
+    // El pie del perfil sigue existiendo, en la lista de puntos: la diferencia entre las
+    // dos listas es exactamente ese corte.
+    expect(an.perfil.filter(t => !(t.hasta > t.desde))).toHaveLength(1);
+    expect(an.perfil.length).toBe(sup.tramos.length + 1);
     for (const r of renglonesDe(an).filter(x => x.zDesde != null)) {
       expect(r.zHasta).toBeGreaterThan(r.zDesde);
       expect(r.area).toBeGreaterThan(0);

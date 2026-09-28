@@ -131,6 +131,75 @@ export function desdeV50({ V50, riesgo }) {
     cuenta: `V = ${fc(v)} · √(1,5 · ${fc(I, 2)}) = ${fc(v)} · ${fc(factorV(riesgo), 4)}` };
 }
 
+// ── CONVERSIÓN ENTRE LOS MAPAS DE VELOCIDAD — C 1.5-6.1 ─────────────────────────
+//
+// Los cuatro mapas de la Figura 1.5-1 son el MISMO campo de velocidades con distinto
+// período de retorno, y la relación entre ellos es `V ∝ √I` con el factor de importancia
+// de la Tabla 1.5-2. Es la misma proporción que ya usa `desdeV50`: `V = v50·√(1,5·I)`.
+//
+// ⚠ PARA QUÉ HACE FALTA. La condición de región con detritus del art. 1.10.3.1 se evalúa
+// SIEMPRE contra la Figura 1.5-1A —o la 1.5-1B en salud de categoría III y en categoría
+// IV—, no contra el mapa de la categoría del edificio. Con el sitio en la tabla de
+// ciudades eso se resuelve leyendo la otra columna; fuera de la tabla, la única V que hay
+// es la del sitio, y hay que llevarla al mapa que corresponde.
+//
+// Se comprueba contra la propia tabla: Buenos Aires da V_III/V_II = 59,1/55,1 = 1,0726,
+// y √(1,15/1,00) = 1,07238.
+
+/**
+ * Lleva una V de la categoría `riesgo` al mapa de categoría II, que es la Figura 1.5-1A.
+ * @param {number} V @param {string} riesgo
+ */
+export const aFiguraA = (V, riesgo) => {
+  const I = I_RIESGO[riesgo];
+  return I === undefined ? null : Number(V) * Math.sqrt(I_RIESGO.II / I);
+};
+
+/** De la Figura 1.5-1A a la 1.5-1B, que es el mapa de las categorías III y IV. */
+export const aFiguraB = (Va) => Number(Va) * Math.sqrt(I_RIESGO.III / I_RIESGO.II);
+
+/**
+ * La V de la figura que decide la región con detritus, a partir de la V del sitio.
+ *
+ * Devuelve también la cuenta escrita: una V convertida sin la conversión a la vista no se
+ * puede revisar, y es justamente la que decide si los vidriados se cuentan como abiertos.
+ *
+ * @param {object} o
+ * @param {"A"|"B"} o.figura
+ * @param {string} o.origen  de dónde salió la V del sitio
+ * @param {number|null} [o.V]     la V adoptada, de la categoría del edificio
+ * @param {string} [o.riesgo]
+ * @param {any} [o.v50]           el v50 del 102-2005, cuando el origen es ése
+ */
+export function vDeFigura({ figura, origen, V, riesgo, v50 }) {
+  // ── DESDE v50 ES EXACTO, NO UNA CONVERSIÓN ──────────────────────────────────
+  // La Figura 1.5-1A es el mapa de categoría II, y para categoría II vale I = 1,00: la
+  // misma expresión `V = v50·√(1,5·I)` da `V_A = v50·√1,5` sin ningún factor intermedio.
+  if (origen === "v50") {
+    const v = num(v50);
+    if (!(v > 0)) return null;
+    const Va = v * Math.sqrt(1.5 * I_RIESGO.II);
+    const Vf = figura === "B" ? aFiguraB(Va) : Va;
+    return { V: Vf, exacta: true, ref: "Art. 1.5 · expresión V = v₅₀·√(1,5·I)",
+      cuenta: `V_A = ${fc(v)} · √1,5 = ${fc(Va)} m/s`
+        + (figura === "B" ? ` · V_B = V_A · √1,15 = ${fc(Vf)} m/s` : "") };
+  }
+  if (origen === "interpolado") {
+    const v = Number(V);
+    // ⚠ `Number(null)` ES 0 Y 0 ES FINITO. Sin el `> 0`, una V ausente salía convertida
+    // como 0,00 m/s —un número perfectamente plausible para «no es región con
+    // detritus»— en vez de caer a la declaración del proyectista.
+    if (!(v > 0)) return null;
+    const Va = aFiguraA(v, riesgo);
+    if (Va == null) return null;
+    const Vf = figura === "B" ? aFiguraB(Va) : Va;
+    return { V: Vf, exacta: false, ref: "C 1.5-6.1 · proporción entre mapas",
+      cuenta: `V_A = ${fc(v)} · √(1,00/${fc(I_RIESGO[riesgo], 2)}) = ${fc(Va)} m/s`
+        + (figura === "B" ? ` · V_B = V_A · √1,15 = ${fc(Vf)} m/s` : "") };
+  }
+  return null;
+}
+
 /**
  * Resuelve V y devuelve TODO lo que hace falta para justificarla: el valor, la referencia
  * del mapa, la diferencia, los avisos y la traza.
@@ -147,9 +216,14 @@ export function resolverV({ origen, ciudad, riesgo, interp, manual, v50 }) {
   const avisos = [];
   const push = (tono, ref, texto, extra) => avisos.push({ tono, ref, texto, ...extra });
 
-  // La V que el mapa da para esta ciudad y esta categoría. `null` si el sitio no está en
-  // la tabla: ahí no hay contra qué comparar, y eso también hay que decirlo.
-  const referencia = ciudad ? velocidadDe(ciudad, riesgo) : null;
+  // ── LA CIUDAD NO SIEMPRE ES REFERENCIA ────────────────────────────────────────
+  // ⚠ ANTES SE USABA `ciudad` CUALQUIERA FUERA EL ORIGEN. Interpolando entre isotacas
+  // para un sitio que NO está en la tabla, si en el desplegable había quedado «Neuquén»,
+  // la comparación contra el mapa y la región con detritus salían de Neuquén. El sitio
+  // interpolado está fuera de la tabla POR DEFINICIÓN: la V interpolada ES la lectura del
+  // mapa, y no hay ninguna ciudad contra la cual contrastarla.
+  const usaCiudad = origen !== "interpolado";
+  const referencia = usaCiudad && ciudad ? velocidadDe(ciudad, riesgo) : null;
 
   let V = null, cuenta = null, error = null, detalleOrigen = null;
   if (origen === "interpolado") {
@@ -227,6 +301,10 @@ export function resolverV({ origen, ciudad, riesgo, interp, manual, v50 }) {
 
   return {
     V, referencia, dif, origen, cuenta, fundamento: fundamento ?? null,
+    // Qué ciudad se está usando de referencia, si alguna. Es lo que la región con detritus
+    // necesita para saber si puede leer la tabla o tiene que convertir.
+    ciudadRef: usaCiudad && ciudad ? ciudad : null, usaCiudad,
+    v50: origen === "v50" ? num(v50?.V50) : null,
     documento: String(manual?.documento ?? "").trim() || null,
     detalleOrigen, avisos, fueraDeRango,
     ok: V != null && !fueraDeRango && !avisos.some(a => a.tono === "error"),

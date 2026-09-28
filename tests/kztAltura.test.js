@@ -142,7 +142,7 @@ describe('el perfil de la pared a barlovento', () => {
     for (const exposicion of ["B", "C", "D"]) {
       for (const hAlero of [3, 4.9, 9, 25, 60]) {
         const sitio = { ...LLANO, exposicion };
-        const perfil = perfilBarlovento({ h: hAlero, sitio, hAlero, hCumbre: hAlero, puntos: 10 });
+        const perfil = perfilBarlovento({ h: hAlero, sitio, hAlero, hCumbre: hAlero, puntos: 10 }).puntos;
         for (const t of perfil) {
           expect(t.q, `${exposicion} h=${hAlero} z=${t.hasta}`)
             .toBe(qDinamica({ ...sitio, z: t.hasta }));
@@ -196,7 +196,7 @@ describe('el máximo interior de K_z·K_zt', () => {
         for (const h of [6, 12, 30, 60, 90]) {
           const sitio = { ...LLANO, exposicion, Kzt: null,
             topo: { ...LOMA, exposicion, H_m, Lh_m, x_m } };
-          const perfil = perfilBarlovento({ h, sitio, hAlero: h, hCumbre: h, puntos: 6 });
+          const perfil = perfilBarlovento({ h, sitio, hAlero: h, hCumbre: h, puntos: 6 }).puntos;
           for (const t of perfil) {
             if (!(t.hasta > t.desde)) continue;
             for (let i = 1; i < 40; i++) {
