@@ -204,6 +204,44 @@ La página del PDF del capítulo y la del Reglamento se corresponden con `Cap. 5
 
 ### 5.1 — Paredes y cubiertas por la Parte 1 🔄
 
+| Estado | Ítem | Dónde |
+|---|---|---|
+| ✅ | Las 56 curvas de las Figs. 5.3-1 y 5.3-2A a 2G, y el evaluador | `constants/cyrCurvas.js` + `engine/cyr.js`, con `tests/cyrCurvas.test.js` (24 tests, 10 mutantes sin sobrevivientes) |
+| ⏳ | Clasificador de zonas por punto | `engine/cyrZonas.js` |
+| ⏳ | Selección de figura y `a` | `engine/cyrFiguras.js` |
+| ⏳ | Área efectiva por tipo de elemento | `engine/cyrElementos.js` |
+| ⏳ | Pantalla, croquis de zonas, exportación y capítulo de memoria | |
+| 📥 | Transcripción de las Figs. 5.3-5A y 5B | `docs/verificar-cyr.md`, a controlar contra el PDF |
+
+**Las zonas salen de un clasificador por punto, no de una tabla de escenarios.** Los cuatro
+dibujos de la Fig. C 5-1 son *consecuencia* de la geometría, no casos a codificar:
+`zonaEn(x, y, geo)` devuelve la zona de un punto de la planta y los escenarios aparecen
+solos. El croquis dibuja las regiones que devuelve esa función y el motor la usa para saber
+qué zonas existen; el dibujo no calcula nada. Hay un quinto escenario que **no está en la
+Fig. C 5-1** y sí en el comentario C 5.1 —mayor dimensión < 0,4·h, toda la cubierta en zona
+3—, que también tiene que salir de la geometría.
+
+**Plantas irregulares: fuera del alcance.** La Fig. C 5.3-2 (plantas en L, en T, esquinas
+≥ 135°, la regla de `X ≤ a`) no se implementa, porque la geometría de la app es
+rectangular. Va declarado en el Alcance de la memoria, no como un ⏳.
+
+#### Dos cosas que se midieron sobre las curvas y conviene no volver a discutir
+
+**1. El alero no siempre agrava.** La Fig. 5.3-2A trae dos gráficos, CUBIERTAS y ALERO, y
+no dicen lo mismo: con voladizo la zona 1′ llega a 0,80 **más** de succión (−1,7 contra
+−0,9 en A = 1 m²) y la zona 1 hasta 0,31 más, pero las **zonas 2 y 3 son hasta 0,30 MENOS**
+succionadas, porque su meseta final es −1,1 y la de la cubierta −1,4. La simplificación
+intuitiva —«el voladizo siempre agrava»— haría pasar por buenas dos curvas cambiadas de
+gráfico. Hay test con los tres números.
+
+**2. Las zonas 1 y 2 del alero se cruzan, y el cruce es ruido de redondeo.** Es la única
+excepción al orden de severidad `3 ≤ 2 ≤ 1 ≤ 1′` en todo el capítulo: entre `A = 9,76` y
+`11,0 m²` la zona 1 queda por debajo de la zona 2, hasta **0,0063** en `A = 10 m²`. Sale de
+los coeficientes tal como los imprime el comentario (`−1,7 + 0,1000 log A` contra
+`−2,3 + 0,7063 log A`, iguales en `A = 9,7627`) y está un orden de magnitud por debajo del
+0,1 con que el reglamento redondea sus `(GC_p)`. Queda fijado con test para que no se lo
+vuelva a mirar de cero, y para que se note si algún día cambia un coeficiente.
+
 Módulos nuevos:
 
 | Archivo | Qué contiene |
