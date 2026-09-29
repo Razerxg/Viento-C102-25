@@ -27,6 +27,7 @@ import { RafagaTab } from "./components/tabs/RafagaTab.jsx";
 import { PresionesTab } from "./components/tabs/PresionesTab.jsx";
 import { CroquisTab } from "./components/tabs/CroquisTab.jsx";
 import { ResultantesTab } from "./components/tabs/ResultantesTab.jsx";
+import { CyRTab } from "./components/tabs/CyRTab.jsx";
 import { ResumenTab } from "./components/tabs/ResumenTab.jsx";
 import { SalidasTab } from "./components/tabs/SalidasTab.jsx";
 import { AccesoriosTab } from "./components/tabs/AccesoriosTab.jsx";
@@ -40,6 +41,7 @@ const PANTALLAS = {
   "Guía": GuiaTab, "Sitio": SitioTab, "Edificio": EdificioTab,
   "Cerramiento": CerramientoTab, "Ráfaga": RafagaTab,
   "Presiones": PresionesTab, "Croquis": CroquisTab, "Resultantes": ResultantesTab,
+  "Componentes y revestimientos": CyRTab,
   "Resumen": ResumenTab, "Salidas": SalidasTab,
   "Accesorios": AccesoriosTab, "Silos y tanques": SilosTab,
   "Secciones uniformes": SeccionesTab,

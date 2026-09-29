@@ -18,8 +18,12 @@ export const NAV = [
   // «Salidas» cierra el grupo de resultados y no abre uno propio: exportar no es otra
   // etapa del trabajo, es lo último que se hace con lo que las cuatro pantallas
   // anteriores ya calcularon.
-  { grupo: "Resultados", items: ["Presiones", "Croquis", "Resultantes", "Resumen",
-    "Salidas"] },
+  // «Componentes y revestimientos» va entre Resultantes y Resumen: es el capítulo 5, otro
+  // camino de cálculo sobre el MISMO edificio —comparte V, exposición, K_zt, geometría y
+  // GC_pi, y no pide un solo dato nuevo salvo la lista de elementos—. Por eso no abre un
+  // grupo propio como el capítulo 4, que sí es otro objeto.
+  { grupo: "Resultados", items: ["Presiones", "Croquis", "Resultantes",
+    "Componentes y revestimientos", "Resumen", "Salidas"] },
   // CAPÍTULO 4 APARTE, Y NO ENTRE LOS RESULTADOS DEL EDIFICIO. No es otra salida del mismo
   // cálculo: es OTRO objeto. El capítulo 2 reparte presiones sobre las superficies de un
   // edificio; el 4 da una fuerza resultante sobre una pared libre, una chimenea o una
@@ -46,8 +50,14 @@ export const idxTab = (nombre) => Math.max(0, TABS.indexOf(nombre));
 // Las pantallas del capítulo 4 tampoco lo llevan: el procedimiento direccional del
 // capítulo 2 reparte Cp por dirección, pero un coeficiente de fuerza ya contempla la
 // dirección más desfavorable dentro del propio C_f y de sus casos A, B y C.
+// Componentes y revestimientos tampoco lo lleva, y por un motivo que conviene tener
+// escrito: los (GC_p) del capítulo 5 YA son la envolvente de todas las direcciones —por
+// eso cada elemento tiene un valor positivo y uno negativo y hay que diseñarlo para los
+// dos—. Ofrecer «estás mirando la dirección X+» diría que hay un resultado por dirección,
+// y no lo hay.
 export const SIN_DIRECCION = new Set(["Guía", "Sitio", "Edificio", "Cerramiento", "Ráfaga", "Resumen",
-  "Salidas", "Accesorios", "Silos y tanques", "Secciones uniformes"]);
+  "Salidas", "Componentes y revestimientos", "Accesorios", "Silos y tanques",
+  "Secciones uniformes"]);
 
 // Pantallas que NO llevan la ficha de estado al costado. Los croquis y el resumen usan
 // todo el ancho: en el resumen la ficha duplicaría columnas que la propia tabla ya lista,

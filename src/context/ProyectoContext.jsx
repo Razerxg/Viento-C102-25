@@ -17,6 +17,7 @@ import { analizarDireccion, normalizarGeo, DIRECCIONES } from '../engine/edifici
 import { analizarAccesorio, analizarSilo, familiaDe } from '../engine/otrasEstructuras.js';
 import { analizarAnexo } from '../engine/anexo1.js';
 import { kzt as calcularKzt } from '../engine/topografia.js';
+import { kztEn } from '../engine/presionDinamica.js';
 import { num, opt } from '../lib/parseo.js';
 import { resolverV } from '../engine/velocidad.js';
 import { clasificar, regionDetritus, hayDiscrepancia } from '../engine/cerramiento.js';
@@ -29,6 +30,7 @@ import { consolidar, trazaDelMotor } from '../lib/consolidar.js';
 import { U } from '../lib/unidades.js';
 import { velocidadDe } from '../constants/velocidades.js';
 import { kdDe } from '../constants/direccionalidad.js';
+import { analizarCyR } from '../engine/cyrPresiones.js';
 import { TABS, idxTab } from '../constants/tabs.js';
 import { INICIAL } from '../constants/inicial.js';
 import { migrar, serializar, nombreArchivo } from '../lib/proyecto.js';
@@ -78,6 +80,9 @@ export function ProyectoProvider({ children }) {
   const setSilo = useCallback((k) => (v) => setD(x => ({ ...x, silo: { ...x.silo, [k]: v } })), []);
   const setAnexo = useCallback((k) => (v) => setD(x => ({ ...x, anexo: { ...x.anexo, [k]: v } })), []);
   const setEnv = useCallback((k) => (v) => setD(x => ({ ...x, env: { ...x.env, [k]: v } })), []);
+  const setCyR = useCallback((k) => (v) => setD(x => ({ ...x, cyr: { ...x.cyr, [k]: v } })), []);
+  const setElementosCyR = useCallback((f) => setD(x => ({
+    ...x, elementosCyR: typeof f === "function" ? f(x.elementosCyR ?? []) : f })), []);
 
   // AUTOGUARDADO. Diferido medio segundo: sin la demora se escribe en `localStorage` en
   // cada tecla de cada campo numérico.
@@ -360,6 +365,31 @@ export function ProyectoProvider({ children }) {
       perfil: d.anexo.perfil, thetaPerfil: num(d.anexo.thetaPerfil) },
   }), [d.anexo, sitio, kdAnexo, gCap4]);
 
+  // ── COMPONENTES Y REVESTIMIENTOS — CAPÍTULO 5 ──────────────────────────────
+  //
+  // Otro camino de cálculo sobre el MISMO edificio: no pide un solo dato nuevo salvo la
+  // lista de elementos. Toma V, exposición, altitud, geometría y el GC_pi que ya salió del
+  // cerramiento —con su R_i aplicado—, y su único parámetro propio es el K_d de la fila
+  // «Edificios — componentes y revestimientos» de la Tabla 1.6-1, que es 0,85 igual que el
+  // del SPRFV pero sale de otra fila y conviene que se vea de dónde.
+  //
+  // ⚠ K_zt ENTRA COMO FUNCIÓN Y NO COMO NÚMERO. La figura del capítulo 5 decide si la
+  // altura de referencia es la media o la del alero, y eso recién se sabe adentro del
+  // motor; K_zt hay que evaluarlo a ESA altura. Se pasa `kztDe(z)`, que devuelve una
+  // entrada por dirección, y el motor toma el máximo: C&R es envolvente de todas las
+  // direcciones, así que quedarse con el de una sola dejaría afuera la que agrava.
+  const kdCyR = kdDe("edificio_cyr") ?? 0.85;
+  const elementosCyR = useMemo(() => (d.elementosCyR ?? []).map(el => ({
+    ...el, L: num(el.L), s: num(el.s), area: num(el.area),
+  })), [d.elementosCyR]);
+
+  const cyr = useMemo(() => analizarCyR({
+    geo: geoN, V, exposicion: d.exposicion, altitud: num(d.altitud, 0), kd: kdCyR,
+    kztDe: (z) => DIRECCIONES.map(dir => kztEn(sitioDe(dir), z)),
+    gcpi: Math.abs(gcpiEfectivo), parapeto: !!d.cyr.parapeto, elementos: elementosCyR,
+  }), [geoN, V, d.exposicion, d.altitud, kdCyR, sitioDe, gcpiEfectivo, d.cyr.parapeto,
+    elementosCyR]);
+
   // ── APLICABILIDAD ──────────────────────────────────────────────────────────
   // En qué fila y en qué columna de la Figura 2.4-1 cayó cada dirección, y cuáles de esas
   // lecturas la figura no escribe. Es lo que convierte «el número salió» en «el número
@@ -432,6 +462,7 @@ export function ProyectoProvider({ children }) {
       V, vel, setSub, sitio, geoN, rafaga, rafagaTodas, gDe, gCap4, G,
       todas, act, res, resDe, maxAbs, curvas,
       cerr, cerramiento, envCasos, setEnv, aplic, traza, trazaMotor,
+      cyr, kdCyR, setCyR, elementosCyR: d.elementosCyR, setElementosCyR,
       avisos, avisosPorTab: porTab(avisos), conteo: contar(avisos),
       guardadoEn, nuevo, exportar, importar, fileRef,
       aperturaAvisos, descartarAperturaAvisos: () => setAperturaAvisos([]),

@@ -244,7 +244,7 @@ describe('analizarCyR — de la geometría del proyecto a los elementos verifica
     tipo: "plana", cumbrera: "X", ...g });
   const correr = (g, extra = {}) => analizarCyR({
     geo: geoDe(g), V: 45, exposicion: "B", altitud: 0, kd: 0.85,
-    kztPorDireccion: [1], gcpi: 0.18, elementos: [], ...extra,
+    kztDe: () => [1], gcpi: 0.18, elementos: [], ...extra,
   });
 
   it('elige la figura y la altura que le corresponde, y las declara', () => {
@@ -273,8 +273,8 @@ describe('analizarCyR — de la geometría del proyecto a los elementos verifica
   it('K_zt entra como el MÁXIMO entre las direcciones', () => {
     // C&R es envolvente de todas las direcciones: el (GC_p) ya lo es, así que tomar el
     // K_zt de una sola dirección dejaría afuera justo la que agrava.
-    const uno = correr({}, { kztPorDireccion: [1, 1, 1, 1] });
-    const varias = correr({}, { kztPorDireccion: [1, 1.31, 1.05, 1] });
+    const uno = correr({}, { kztDe: () => [1, 1, 1, 1] });
+    const varias = correr({}, { kztDe: () => [1, 1.31, 1.05, 1] });
     expect(varias.Kzt).toBeCloseTo(1.31, 9);
     expect(varias.qh / uno.qh).toBeCloseTo(1.31, 6);
   });

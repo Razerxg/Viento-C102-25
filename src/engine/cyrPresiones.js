@@ -241,13 +241,16 @@ export const H_PARTE_1 = 20;
  * @param {string} e.exposicion        B, C o D
  * @param {number} e.altitud           en m
  * @param {number} e.kd                de la fila «edificio_cyr» de la Tabla 1.6-1
- * @param {number[]} e.kztPorDireccion K_zt a la altura de la figura, una por dirección
+ * @param {(z: number) => number[]} [e.kztDe]  K_zt a una altura, una entrada por
+ *                                 dirección. Se evalúa a la altura que pide la figura, que
+ *                                 recién se conoce acá adentro: por eso entra como función
+ *                                 y no como número ya calculado.
  * @param {number} e.gcpi              magnitud de (GC_pi), con el R_i ya aplicado
  * @param {boolean} [e.parapeto]
  * @param {{tipo: string, superficie: "pared"|"cubierta", L?: number, s?: number,
  *           area?: number, ubicacion?: string, nombre?: string}[]} [e.elementos]
  */
-export function analizarCyR({ geo, V, exposicion, altitud = 0, kd, kztPorDireccion = [1],
+export function analizarCyR({ geo, V, exposicion, altitud = 0, kd, kztDe = () => [1],
   gcpi, parapeto = false, elementos = [] }) {
   const avisos = [];
   const forma = FORMA_DE_TIPO[geo.tipo] ?? FORMA.OTRA;
@@ -269,7 +272,7 @@ export function analizarCyR({ geo, V, exposicion, altitud = 0, kd, kztPorDirecci
 
   const menor = Math.min(geo.a, geo.b);
   const dimA = dimensionA({ menor, h: hFigura, theta: geo.theta });
-  const Kzt = Math.max(...kztPorDireccion);
+  const Kzt = Math.max(...kztDe(hFigura));
   const qh = q({ z: hFigura, V, exposicion, kd, Kzt, altitud });
 
   const geoZonas = {

@@ -213,7 +213,9 @@ La página del PDF del capítulo y la del Reglamento se corresponden con `Cap. 5
 | ✅ | Presiones, mínimo del art. 5.2.2, nota de parapeto y verificación por elemento | `engine/cyrPresiones.js`, con `tests/cyrPresiones.test.js` |
 | ✅ | **Verificación cruzada contra la Tabla 5.13-2 — 960 valores** | `tests/casos/tabla5132.js` + `tests/cyrTabla5132.test.js` |
 | ✅ | `analizarCyR` — del proyecto a los elementos verificados | `engine/cyrPresiones.js` |
-| ⏳ | Pantalla, croquis de zonas, exportación y capítulo de memoria | |
+| ✅ | Pantalla «Componentes y revestimientos» y croquis de zonas | `components/tabs/CyRTab.jsx` + `components/svg/ZonasCyR.jsx` |
+| 📥 | Los SVG de las configuraciones de zonas, para control contra la Fig. C 5-1 | `docs/zonas/` |
+| ⏳ | Exportación CSV/JSON y capítulo de memoria | |
 | 📥 | Transcripción de las Figs. 5.3-5A y 5B | `docs/verificar-cyr.md`, a controlar contra el PDF |
 
 **Las zonas salen de un clasificador por punto, no de una tabla de escenarios.** Los cuatro

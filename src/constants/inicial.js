@@ -107,6 +107,24 @@ export const INICIAL = {
   // la fila de chimeneas y tanques redondos, que es lo que un silo cilíndrico es.
   silo: { D: "10", H: "18", theta: "25", separacion: "5", elevado: false, C: "",
     kd: "chim_redonda" },
+  // ── COMPONENTES Y REVESTIMIENTOS, CAPÍTULO 5 ───────────────────────────────
+  // `parapeto` es una casilla y no una altura: la nota 5 de la Fig. 5.3-2A no interpola,
+  // dispara con 1 m o más alrededor de TODO el perímetro. Pedir la altura haría creer que
+  // un parapeto de 0,60 m produce media sustitución.
+  cyr: { parapeto: false, zonaVista: "todas" },
+  // Los elementos van en un arreglo de primer nivel, como las aberturas: son una lista que
+  // el usuario edita fila por fila, no un puñado de campos de un formulario.
+  //
+  // La lista arranca con dos ejemplos cargados y no vacía. Una pantalla de C&R sin
+  // elementos no muestra NADA —ni zonas, ni presiones, ni el croquis—, y el usuario tiene
+  // que adivinar que lo primero es agregar una fila. Con una correa y un larguero típicos
+  // se ve de entrada qué hace la pantalla, y borrarlos es un clic.
+  elementosCyR: [
+    { id: "cyr-1", nombre: "Correa de cubierta", tipo: "correa", superficie: "cubierta",
+      L: "6", s: "1.5", area: "" },
+    { id: "cyr-2", nombre: "Larguero de pared", tipo: "larguero", superficie: "pared",
+      L: "4", s: "1.2", area: "" },
+  ],
   // ANEXO I — secciones de forma uniforme. Lleva su propio K_d por el mismo motivo que el
   // silo: un caño redondo va por la fila de chimeneas redondas, no por el 0,85 del edificio.
   anexo: { familia: "redondeada", kd: "chim_redonda",
