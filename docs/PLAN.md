@@ -214,7 +214,7 @@ La página del PDF del capítulo y la del Reglamento se corresponden con `Cap. 5
 | ✅ | **Verificación cruzada contra la Tabla 5.13-2 — 960 valores** | `tests/casos/tabla5132.js` + `tests/cyrTabla5132.test.js` |
 | ✅ | `analizarCyR` — del proyecto a los elementos verificados | `engine/cyrPresiones.js` |
 | ✅ | Pantalla «Componentes y revestimientos» y croquis de zonas | `components/tabs/CyRTab.jsx` + `components/svg/ZonasCyR.jsx` |
-| 📥 | Los SVG de las configuraciones de zonas, para control contra la Fig. C 5-1 | `docs/zonas/` |
+| ✅ | Los SVG de las configuraciones de zonas, **verificados por el proyectista** contra el PDF | `docs/zonas/` — los cinco escenarios, la 2B/2C, la 2D y las de cuatro aguas |
 | ⏳ | Exportación CSV/JSON y capítulo de memoria | |
 | 📥 | Transcripción de las Figs. 5.3-5A y 5B | `docs/verificar-cyr.md`, a controlar contra el PDF |
 
@@ -440,7 +440,8 @@ aplica sobre el **área tributaria real** (C 1.2). Se dice en la pantalla.
    en zona 4, entre +1,7 % y +2,3 % en zona 5 positiva y −0,3 % en zona 5 negativa; y la
    errata de `V = 42,9 m/s`, cubierta zona 2, `A = 1 m²`, donde la tabla repite el −1.468
    N/m² de la columna de 40 m/s y corresponde −1.689.
-3. Los cuatro escenarios de la Fig. C 5-1 dibujados, 📥 para control contra la figura.
+3. ✅ Los escenarios de la Fig. C 5-1 dibujados y controlados contra la figura por el
+   proyectista, incluido el quinto del comentario C 5.1 que la figura no dibuja.
 4. `tests/casos/cyr/`, con `esperado: null` — 📥 los carga el proyectista.
 
 ### 5.2 — Accesorios ⏳

@@ -15,6 +15,7 @@ import { Encabezado, Card, Campo, Sel, Aviso, Nota, Tabla, Th, Td, TdN, Badge,
 import { c, t, MONO } from '../tokens.js';
 import { U } from '../../lib/unidades.js';
 import { ZonasCyR, COLOR_ZONA } from '../svg/ZonasCyR.jsx';
+import { cotasDeZona, LAYOUT } from '../../engine/cyrZonas.js';
 import { TIPOS_LISTA, ETIQUETA_TIPO, TIPO_ELEMENTO } from '../../engine/cyrElementos.js';
 import { P_MINIMA } from '../../engine/cyrPresiones.js';
 
@@ -147,6 +148,33 @@ export function CyRTab() {
           ? <ZonasCyR cyr={cyr} geo={geoN} U={U} />
           : <Vacio titulo="Sin figura aplicable"
               desc="La geometría declarada no corresponde a ninguna figura implementada." />}
+        {/* ── LOS ANCHOS, COMO TABLA ────────────────────────────────────────
+            En el dibujo entran las cotas que caben; acá entran TODAS, incluidas las que en
+            esta planta quedan fuera de escala. Es lo que se transcribe al plano de
+            revestimiento y de correas, así que tiene que poder copiarse renglón a renglón
+            en vez de leerse de un croquis. */}
+        <Tabla minWidth={480}>
+          <thead><tr>
+            <Th>Zona</Th><Th>Qué mide</Th><Th>Expresión</Th>
+            <Th alinear="right">Medida</Th>
+          </tr></thead>
+          <tbody>
+            {[["cubierta", cotasDeZona(cyr.geoZonas)],
+              ["pared", cotasDeZona({ ...cyr.geoZonas, layout: LAYOUT.PARED })]]
+              .flatMap(([sup, filas]) => filas.map((k, i) => (
+                <tr key={`${sup}-${i}`}>
+                  <Td><Zona z={k.zona} /></Td>
+                  <Td>{sup === "pared" ? "Pared — " : ""}{k.que}</Td>
+                  <Td><span style={{ fontFamily: MONO }}>{k.simbolo}</span></Td>
+                  <TdN>{k.valor2 != null
+                    ? `${U.n.longitud(k.valor)} × ${U.n.longitud(k.valor2)} ${U.u.longitud}`
+                    : k.hasta != null ? `${U.n.longitud(k.desde)} a ${U.longitud(k.hasta)}`
+                      : k.desde != null ? `más de ${U.longitud(k.desde)}`
+                        : k.valor != null ? U.longitud(k.valor) : "—"}</TdN>
+                </tr>
+              )))}
+          </tbody>
+        </Tabla>
         <Nota>
           Convención: <b>p positiva empuja hacia la superficie</b> y p negativa se aleja de
           ella (nota 3 de las figuras). El croquis informa: el cálculo se hace igual para

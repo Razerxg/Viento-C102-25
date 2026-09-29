@@ -440,3 +440,89 @@ export function franjasDePared(largo, a) {
     { zona: "5", desde: largo - a, hasta: largo },
   ];
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LOS ANCHOS DE CADA ZONA, PARA ACOTAR
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Es lo que se pasa a los planos de revestimiento y de correas: no alcanza con las
+// dimensiones generales del edificio, hay que poder leer del croquis dónde empieza y dónde
+// termina cada zona.
+//
+// Vive acá y no en el croquis porque la memoria necesita los MISMOS números como texto. Con
+// el dibujo calculando los suyos, un día el croquis dice 3,60 m y la tabla del capítulo
+// 3,75, y no hay forma de saber cuál está bien.
+//
+// Las medidas salen en metros, que es la unidad interna; el formateo —mm en la memoria, m
+// en pantalla— lo hace el perfil de unidades en el borde, como en todo el repositorio.
+
+/**
+ * @typedef {object} CotaZona
+ * @property {string} zona
+ * @property {string} que        qué mide, en palabras
+ * @property {string} simbolo    la expresión del reglamento: «0,6h», «a», «2a»…
+ * @property {number} [valor]    la medida, en m
+ * @property {number} [valor2]   la segunda medida cuando la zona es un rectángulo
+ * @property {number} [desde]    para los anillos: distancia al borde donde empieza
+ * @property {number} [hasta]    y donde termina
+ */
+
+/**
+ * Los anchos acotables de cada zona.
+ * @param {GeoZonas} geo
+ * @returns {CotaZona[]}
+ */
+export function cotasDeZona(geo) {
+  const { layout, h, a } = geo;
+
+  if (layout === LAYOUT.PARED) {
+    return [
+      { zona: "5", que: "franja contra cada esquina vertical", simbolo: "a", valor: a },
+      { zona: "4", que: "el resto de la pared", simbolo: "—" },
+    ];
+  }
+
+  if (layout === LAYOUT.PLANA_H) {
+    // ⚠ ACÁ LAS COTAS SON MÚLTIPLOS DE h Y NO DE `a`. Es la única figura así, y es
+    // justamente lo que alguien copia mal de un croquis al siguiente.
+    return [
+      { zona: "3", que: "L en cada esquina", simbolo: "0,2h × 0,6h",
+        valor: 0.2 * h, valor2: 0.6 * h },
+      { zona: "2", que: "franja desde el borde", simbolo: "0,6h", valor: 0.6 * h },
+      { zona: "1", que: "anillo, del borde", simbolo: "0,6h a 1,2h",
+        desde: 0.6 * h, hasta: 1.2 * h, valor: 0.6 * h },
+      { zona: "1'", que: "interior, a más de 1,2h de todo borde", simbolo: "1,2h",
+        desde: 1.2 * h },
+    ];
+  }
+
+  if (layout === LAYOUT.DOS_AGUAS_CUMBRERA) {
+    return [
+      { zona: "3", que: "en cada extremo de la cumbrera", simbolo: "a × a",
+        valor: a, valor2: a },
+      { zona: "2", que: "franja en cada hastial, y a cada lado de la cumbrera",
+        simbolo: "a", valor: a },
+      { zona: "2", que: "ancho total de la franja de cumbrera", simbolo: "2a", valor: 2 * a },
+      { zona: "1", que: "el resto, aleros incluidos", simbolo: "—" },
+    ];
+  }
+
+  if (layout === LAYOUT.DOS_AGUAS_ESQUINAS) {
+    return [
+      { zona: "3", que: "en las cuatro esquinas", simbolo: "a × a", valor: a, valor2: a },
+      { zona: "2", que: "resto de la franja de hastial", simbolo: "a", valor: a },
+      { zona: "1", que: "el resto — no hay franja de cumbrera", simbolo: "—" },
+    ];
+  }
+
+  if (layout === LAYOUT.CUATRO_AGUAS) {
+    return [
+      { zona: "3", que: "franja en todo el perímetro", simbolo: "a", valor: a },
+      { zona: "2", que: "a cada lado de la cumbrera y de las limatesas", simbolo: "a", valor: a },
+      { zona: "2", que: "ancho total de esa franja", simbolo: "2a", valor: 2 * a },
+      { zona: "1", que: "interior de cada faldón", simbolo: "—" },
+    ];
+  }
+
+  return [];
+}
