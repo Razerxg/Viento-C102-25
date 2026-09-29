@@ -54,6 +54,10 @@ export function fusionar(v) {
   return out;
 }
 
+/** Los campos que la migración al esquema 3 descarta. Los usa el test que los persigue. */
+export const CAMPOS_FUNDAMENTO = ["riesgoFundamento", "cerrFundamento",
+  "env.fundamento247", "vManual.fundamento", "vManual.documento"];
+
 /**
  * MIGRACIONES DE ESQUEMA.
  *
@@ -68,7 +72,34 @@ const MIGRACIONES = {
     const { app, v, ...estado } = x;
     return { app: app ?? APP.id, esquema: 2, datos: estado };
   },
+  // v2 → v3: se descartan los campos de fundamento. La app dejó de pedir que se
+  // justifiquen las decisiones del proyectista; el fundamento lo agrega él a la memoria,
+  // a mano.
+  //
+  // ⚠ SE DESCARTAN EN SILENCIO. No es una pérdida de datos de cálculo: ninguno de los
+  // cinco entraba en ningún número. Avisar al abrir un proyecto viejo sería alarmar por
+  // algo que el usuario no tiene que resolver, y el caso calcula exactamente igual.
+  //
+  // ⚠ BORRAR ACÁ ES SUFICIENTE, Y HUBO QUE PROBARLO. Había además un barrido después de
+  // la fusión —`{ ...INICIAL, ...v }` conserva toda clave que el archivo traiga aunque el
+  // inicial ya no la tenga— y las dos mecánicas hacían exactamente lo mismo: las
+  // mutaciones que anulaban una de las dos no rompían ningún test, porque la otra tapaba
+  // el agujero. Dos mecanismos para un trabajo son uno que un día se borra sin que nada
+  // avise. Queda éste, que es el que corresponde: migrar es convertir un archivo viejo.
+  2: (x) => {
+    const datos = { ...(x.datos ?? {}) };
+    for (const ruta of CAMPOS_FUNDAMENTO) {
+      const [a, b] = ruta.split(".");
+      if (b == null) { delete datos[a]; continue; }
+      if (datos[a] && typeof datos[a] === "object") {
+        datos[a] = { ...datos[a] };
+        delete datos[a][b];
+      }
+    }
+    return { ...x, esquema: 3, datos };
+  },
 };
+
 
 /**
  * Lee cualquier archivo o cualquier estado guardado y devuelve el de hoy.

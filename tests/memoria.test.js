@@ -16,7 +16,6 @@ import { APP, RESPONSABILIDAD } from '../src/constants/version.js';
 /** Arma el estado completo, igual que el contexto. */
 function caso(over = {}) {
   const d = { ...INICIAL, proyecto: "Galpón", exposicion: "C",
-    riesgoFundamento: "Depósito sin ocupación permanente",
     geo: { ...INICIAL.geo, a: "20", b: "30", hAlero: "6", theta: "20",
       tipo: "dos_aguas", cumbrera: "Y" }, ...over };
   const geoN = normalizarGeo(d.geo);
@@ -176,14 +175,25 @@ describe('la procedencia y el alcance', () => {
 });
 
 describe('la categoría de riesgo', () => {
-  it('va como 7.1 con su fundamento', () => {
+  // ⚠ SIN FUNDAMENTO. El capítulo informa la categoría y el mapa que selecciona, que es
+  // lo que hay que poder controlar; por qué se eligió esa categoría lo escribe el
+  // proyectista en la memoria, a mano.
+  it('va como 7.1, con el mapa que selecciona', () => {
     expect(BASE).toContain("### 7.1. Categoría de riesgo — Tabla 1.14-1");
-    expect(BASE).toContain("Depósito sin ocupación permanente");
+    expect(BASE).toContain("Mapa de velocidad que selecciona");
+    expect(BASE).toMatch(/Figura 1\.5-1A/);
   });
 
-  it('sin fundamento lo dice, en vez de callarlo', () => {
-    const md = MD({ riesgoFundamento: "" });
-    expect(md).toContain("Sin fundamento declarado");
+  it('cada categoría nombra su propio mapa', () => {
+    expect(MD({ riesgo: "I" })).toMatch(/Mapa de velocidad que selecciona \| — \| Figura 1\.5-1C/);
+    expect(MD({ riesgo: "II" })).toMatch(/Mapa de velocidad que selecciona \| — \| Figura 1\.5-1A/);
+    expect(MD({ riesgo: "IV" })).toMatch(/Mapa de velocidad que selecciona \| — \| Figura 1\.5-1B/);
+  });
+
+  it('no pide ni menciona un fundamento', () => {
+    const c = BASE.slice(BASE.indexOf("### 7.1."), BASE.indexOf("### 7.2") + 1 || BASE.indexOf("## 8."));
+    expect(c).not.toMatch(/[Ff]undamento/);
+    expect(BASE).not.toContain("Sin fundamento declarado");
   });
 });
 

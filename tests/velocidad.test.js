@@ -6,7 +6,7 @@
 // que el reglamento pone condiciones.
 import { describe, it, expect } from 'vitest';
 import { resolverV, interpolarIsotacas, desdeV50, FUNDAMENTOS_V, ORIGENES_V,
-  RANGO_V, CONDICIONES_1_5_3 } from '../src/engine/velocidad.js';
+  RANGO_V } from '../src/engine/velocidad.js';
 import { CIUDADES, velocidadDe, factorV } from '../src/constants/velocidades.js';
 import { INICIAL } from '../src/context/ProyectoContext.jsx';
 
@@ -83,52 +83,60 @@ describe('conversión desde el V50 del 102-2005', () => {
   });
 });
 
-describe('la regla de avisos según el fundamento', () => {
+// ⚠ LA APP YA NO PIDE FUNDAMENTAR. Había un selector de fundamentos del art. 1.5 y una
+// V menor sin el del 1.5.3 era un aviso de ERROR; también se pedía el documento y la
+// revisión. Ahora la app informa la diferencia contra el mapa y cita el artículo que fija
+// las condiciones, y el fundamento lo escribe el proyectista en la memoria.
+describe('la comparación contra el mapa, sin fundamentos', () => {
   const tonos = (r) => r.avisos.map(a => a.tono);
-  const enNeuquen = (V, fundamento) => resolverV({
-    origen: "manual", ciudad: "Neuquén", riesgo: "II",
-    manual: { V, fundamento, documento: "ESP-001 rev. B" },
-  });
+  const enNeuquen = (V) => resolverV({
+    origen: "manual", ciudad: "Neuquén", riesgo: "II", manual: { V } });
 
   // La referencia: Neuquén categoría II son 58,8 m/s.
-  it('V MAYOR que la del mapa: permitido con cualquier fundamento (art. 1.5.1)', () => {
-    for (const f of FUNDAMENTOS_V) {
-      const r = enNeuquen(70, f.id);
-      expect(tonos(r), f.id).not.toContain("error");
-      expect(r.avisos.some(a => a.tono === "info" && /supera/.test(a.texto)), f.id).toBe(true);
-      expect(r.dif, f.id).toBeGreaterThan(0);
-    }
+  it('V MAYOR que la del mapa: info, y nunca un error', () => {
+    const r = enNeuquen(70);
+    expect(tonos(r)).not.toContain("error");
+    expect(r.avisos.some(a => a.tono === "info" && /supera/.test(a.texto))).toBe(true);
+    expect(r.dif).toBeGreaterThan(0);
+    expect(r.ok).toBe(true);
   });
 
-  it('V MENOR sin el art. 1.5.3: error', () => {
-    for (const f of FUNDAMENTOS_V.filter(x => !x.permiteMenor)) {
-      const r = enNeuquen(48, f.id);
-      expect(tonos(r), f.id).toContain("error");
-      expect(r.ok, f.id).toBe(false);
-    }
-  });
-
-  // El 1.5.3 es el único que habilita apartarse hacia abajo, y cuando se usa hay que
-  // poder mostrar las cinco condiciones: se listan enteras.
-  it('V MENOR con el art. 1.5.3: aviso, no error, con las condiciones listadas', () => {
-    const r = enNeuquen(48, "art1_5_3");
+  // Apartarse hacia abajo está contemplado por el art. 1.5.3; la app no sabe si el
+  // estudio que lo sostiene existe y no lo pregunta. Lo que sí hace es no dejar pasar la
+  // diferencia en silencio.
+  it('V MENOR que la del mapa: aviso, NO error, citando el art. 1.5.3', () => {
+    const r = enNeuquen(48);
     expect(tonos(r)).not.toContain("error");
     expect(tonos(r)).toContain("aviso");
     const a = r.avisos.find(x => x.ref === "Art. 1.5.3");
-    expect(a.lista).toEqual(CONDICIONES_1_5_3);
-    expect(a.lista.length).toBe(5);
-    expect(a.lista.join(" ")).toMatch(/error de muestreo/);
-    expect(a.lista.join(" ")).toMatch(/3 segundos a 10 m/);
+    expect(a.texto).toMatch(/menor que la del mapa/);
+    expect(a.texto).toMatch(/fija las condiciones/);
+    expect(r.ok).toBe(true);
   });
 
-  it('sin fundamento declarado: error', () => {
-    expect(tonos(enNeuquen(70, ""))).toContain("error");
+  it('el aviso de V menor no lista condiciones ni pide nada', () => {
+    const a = enNeuquen(48).avisos.find(x => x.ref === "Art. 1.5.3");
+    expect(a.lista).toBeUndefined();
+    expect(a.texto).not.toMatch(/[Ff]undament/);
+    expect(a.texto).not.toMatch(/[Dd]ocumento/);
   });
 
-  it('fundamento del comitente sin documento: aviso de trazabilidad', () => {
-    const r = resolverV({ origen: "manual", ciudad: "Neuquén", riesgo: "II",
-      manual: { V: 70, fundamento: "comitente", documento: "" } });
-    expect(r.avisos.some(a => /documento/.test(a.texto))).toBe(true);
+  it('ningún aviso pide fundamentar ni pide un documento', () => {
+    for (const origen of ["tabla", "manual", "v50", "interpolado"]) {
+      const r = resolverV({ origen, ciudad: "Neuquén", riesgo: "II",
+        manual: { V: 48 }, v50: { V50: "48" },
+        interp: { V1: "60", V2: "70", d1: "10", d2: "30" } });
+      for (const a of r.avisos) {
+        expect(a.texto, `${origen}: ${a.texto}`).not.toMatch(/Falta declarar/);
+        expect(a.texto, `${origen}: ${a.texto}`).not.toMatch(/Falta indicar el documento/);
+      }
+    }
+  });
+
+  it('`resolverV` no devuelve fundamento ni documento', () => {
+    const r = enNeuquen(70);
+    expect("fundamento" in r).toBe(false);
+    expect("documento" in r).toBe(false);
   });
 
   it('el aviso fijo de qué ES V aparece siempre en la opción manual', () => {

@@ -111,17 +111,6 @@ export function CerramientoTab() {
             <Sel v={d.cerramiento} set={set("cerramiento")} w={240}
               opciones={CERRAMIENTOS.map(x => [x.id, x.label])} />
           </Campo>
-          <Campo label="Fundamento"
-            ayuda="Obligatorio en modo declarado: una clasificación que cambia la presión interna por un factor de tres no puede quedar sin justificar.">
-            <input className="vw-in" type="text" style={{ ...estiloTexto, width: 340 }}
-              value={d.cerrFundamento} placeholder="p. ej. relevamiento de obra, doc. XX rev. A"
-              onChange={e => set("cerrFundamento")(e.target.value)} />
-          </Campo>
-          {!String(d.cerrFundamento ?? "").trim() && (
-            <Aviso tono="error" titulo="Falta el fundamento">
-              En modo declarado hay que decir en qué se funda la clasificación.
-            </Aviso>
-          )}
         </>}
 
         <Divisor>Resultado</Divisor>

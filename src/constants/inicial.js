@@ -11,24 +11,23 @@
 // app, y el que llega por primera vez no sabe qué inventar. Con un caso cargado, la
 // primera pantalla ya muestra presiones y el usuario cambia lo que le interesa.
 
+// ⚠ NO HAY CAMPOS DE FUNDAMENTO. La app registra las DECLARACIONES técnicas —qué modo de
+// cerramiento, qué condiciones del 2.4.7, si el piso es solidario— porque cambian el
+// cálculo, pero no pide justificarlas por escrito. El fundamento lo agrega el proyectista
+// a la memoria, a mano. Había cinco campos de texto libre —categoría de riesgo, V
+// adoptada y su documento, cerramiento declarado, exención del 2.4.7— y dos de ellos
+// producían avisos de nivel ERROR por estar vacíos.
 export const INICIAL = {
   proyecto: "Edificio sin nombre",
   ciudad: "Buenos Aires",
   riesgo: "II",
-  // ── FUNDAMENTO DE LA CATEGORÍA DE RIESGO ────────────────────────────────────
-  // La Tabla 1.14-1 clasifica por USO, OCUPACIÓN y presencia de materiales peligrosos, y
-  // de esa clasificación sale QUÉ MAPA de velocidad se lee: entre categoría II y IV hay
-  // un período de retorno distinto y una V distinta para el mismo sitio. Un desplegable
-  // con cuatro opciones y ningún fundamento es la decisión más pesada del cálculo tomada
-  // sin registro.
-  riesgoFundamento: "",
   // ── ORIGEN DE V, art. 1.5 ───────────────────────────────────────────────────
   // Por defecto la tabla de ciudades, que es lo que la app hacía antes. Los proyectos
   // guardados NO traen este campo, así que la fusión contra `INICIAL` los deja en
   // «tabla», que es exactamente lo que estaban usando.
   origenV: "tabla",
   vInterp: { V1: "", V2: "", d1: "", d2: "" },
-  vManual: { V: "", fundamento: "", documento: "" },
+  vManual: { V: "" },
   vConv: { V50: "" },
   exposicion: "B",
   altitud: "0",
@@ -41,7 +40,6 @@ export const INICIAL = {
   // cargadas, así que calcularlo daría «cerrado» y pisaría en silencio la clasificación
   // que el proyectista había elegido a mano. Los proyectos NUEVOS arrancan en «calculado».
   cerrModo: "calculado",
-  cerrFundamento: "",
   aberturas: [],
   cerr: {
     esSalud: false, distanciaCosta: "", detritusDeclarada: false,
@@ -83,7 +81,7 @@ export const INICIAL = {
   // casos, los dos torsionales incluidos. Es lo conservador y es lo que el reglamento
   // pide salvo que se demuestre lo contrario. El diafragma arranca en rígido, que es lo
   // que hace aplicable el momento torsor tal cual sale de la figura.
-  env: { cond247: [], arts247: [], fundamento247: "", diafragma: "rigido" },
+  env: { cond247: [], arts247: [], diafragma: "rigido" },
 
   // ── CAPÍTULO 4 ──────────────────────────────────────────────────────────────
   // Un caso cargado por defecto, igual que el edificio: abrir en blanco obliga a inventar

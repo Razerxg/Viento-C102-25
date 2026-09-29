@@ -34,8 +34,14 @@ export const APP = {
  *       `datos` y el sobre lleva la procedencia. Antes el archivo mezclaba los dos
  *       niveles, así que un campo del proyecto llamado `app` o `v` habría pisado la
  *       identificación del archivo.
+ *   3 · sin campos de fundamento. La app dejó de pedir que se justifiquen las decisiones
+ *       del proyectista, así que `riesgoFundamento`, `cerrFundamento`,
+ *       `env.fundamento247`, `vManual.fundamento` y `vManual.documento` se descartan al
+ *       abrir. ⚠ ESTA SÍ SUBE LA VERSIÓN aunque «sólo» se borren campos: la fusión
+ *       contra el inicial NO alcanza, porque un archivo viejo los trae y volverían a
+ *       entrar al estado como claves huérfanas que nada lee y que se guardarían otra vez.
  */
-export const ESQUEMA = 2;
+export const ESQUEMA = 3;
 
 /**
  * AVISO DE RESPONSABILIDAD PROFESIONAL.

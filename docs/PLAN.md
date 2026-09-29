@@ -206,6 +206,52 @@ transcribible exacto porque sus quiebres caen sobre líneas de grilla.
 
 ---
 
+## Cambio de criterio — la app no pide fundamentar ✅
+
+**Decisión del proyectista.** Las hipótesis se declaran y figuran en la memoria; los
+fundamentos los agrega él a mano.
+
+Había **cinco campos de texto libre** pidiéndolos, y **dos producían avisos de nivel
+ERROR** por estar vacíos: un proyecto correcto se anunciaba como «a revisar» —y la memoria
+arrancaba con el recuadro **NO APTA PARA EMISIÓN**— por no haber escrito una frase que el
+cálculo no usa.
+
+| Eliminado | En su lugar |
+|---|---|
+| `riesgoFundamento` + campo en Sitio + su aviso | El cap. 7.1 informa la categoría **y el mapa que selecciona** |
+| `FUNDAMENTOS_V`, `CONDICIONES_1_5_3`, `vManual.fundamento`, `vManual.documento` y sus dos avisos | La comparación contra el mapa, con la diferencia porcentual |
+| `cerrFundamento` + campo + aviso de error | El modo **declarado** ya es la declaración |
+| `env.fundamento247` + campo + `sinFundamento` | Qué **artículo** se invocó |
+| Filas de fundamento del cap. 3 de la memoria | Tabla para completar a mano |
+
+**Lo que se conserva, sin pedir nada:** todas las declaraciones técnicas —modo de
+cerramiento, casillas del 2.4.7, piso solidario, pórticos de la nota 7, `R_i`,
+diafragma—, que siguen en «Condiciones de uso y control operativo» como hipótesis del
+cálculo.
+
+**Reglas que cambiaron:**
+
+- ⚠ **V menor que la del mapa: «aviso», no «error».** Apartarse hacia abajo está
+  contemplado por el art. 1.5.3; la app no sabe si el estudio existe y no lo pregunta.
+- La **referencia de V en la traza** sale del **origen** y no de un fundamento.
+- La **discrepancia de cerramiento** pasa a `hayDiscrepancia()`: modo declarado +
+  aberturas cargadas + clasificaciones distintas. Se extrajo del contexto a
+  `engine/cerramiento.js` porque una regla escrita en un `useMemo` no se puede probar.
+
+**Esquema v3.** La migración descarta los cinco campos **en silencio**: ninguno entraba en
+ningún número. Sube de versión aunque «sólo» se borren campos porque la fusión contra el
+inicial **no borra**, y volverían a entrar como claves huérfanas.
+
+**Hallazgo de las mutaciones:** el borrado estaba **duplicado** —en la migración y en un
+barrido posterior a la fusión— y anular cualquiera de los dos no rompía ningún test,
+porque el otro tapaba el agujero. Quedó el de la migración, que es el que corresponde.
+
+`tests/sinFundamentos.test.js` persigue la reaparición de cualquier entrada de fundamento
+en `src/`, **sacando los comentarios antes de mirar**: si leyera el archivo entero, la
+explicación de por qué el campo ya no está lo haría fallar.
+
+Verificación: 26 tests nuevos, **13 mutaciones y las 13 muertas**.
+
 ## Memoria en Markdown ✅
 
 `lib/memoria.js` tiene el formato y `lib/memoriaCapitulos.js` los capítulos: dos cosas que

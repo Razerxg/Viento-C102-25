@@ -505,6 +505,46 @@ casos de la figura, con los dos signos de la excentricidad en los torsionales.
   del art. 1.9.5, que hoy no son datos del modelo. Se adopta `e = ±0,15·B` —el valor de
   **rígidas**— y se avisa en rojo: **puede quedar del lado inseguro**.
 
+## La app NO pide fundamentar decisiones del proyectista
+
+**Las hipótesis se declaran y figuran en la memoria; los fundamentos los agrega el
+proyectista a mano.**
+
+La app registra las **declaraciones técnicas** —modo de cerramiento, condiciones del
+art. 2.4.7, piso solidario, pórticos de la nota 7, `R_i`, diafragma— porque **cambian el
+cálculo** y tienen que estar en la memoria. No pide justificarlas por escrito.
+
+Había **cinco campos de texto libre** pidiéndolo, y **dos producían avisos de nivel
+ERROR** por estar vacíos: un proyecto correcto se anunciaba como «a revisar» —y la memoria
+arrancaba con el recuadro **NO APTA PARA EMISIÓN**— por no haber escrito una frase que el
+cálculo no usa.
+
+| Se eliminó | Qué quedó en su lugar |
+|---|---|
+| `riesgoFundamento` y su campo en Sitio | El capítulo 7.1 informa la categoría **y el mapa que selecciona** |
+| `FUNDAMENTOS_V`, `CONDICIONES_1_5_3`, `vManual.fundamento`, `vManual.documento` | La comparación contra el mapa, con la diferencia porcentual |
+| `cerrFundamento` y su aviso de error | El modo **declarado** ya es la declaración |
+| `env.fundamento247` y `sinFundamento` | Qué **artículo** se invocó, que es lo que cambia el cálculo |
+
+- ⚠ **UNA V MENOR QUE LA DEL MAPA ES UN «aviso», NO UN «error».** Apartarse hacia abajo
+  está contemplado por el art. 1.5.3; la app no sabe si el estudio que lo sostiene existe
+  y no lo pregunta. Lo que sí hace es **no dejar pasar la diferencia en silencio**.
+- **La referencia de V en la traza sale del ORIGEN**, no de un fundamento: «Figura
+  1.5-1D», «Nota 2 de las Figuras 1.5-1 A-C (interpolación)», «Art. 1.5.1 (valor
+  adoptado)» o «Expresión (C 1.5-6.1)».
+- **La discrepancia de cerramiento** ya no depende de que haya fundamento escrito:
+  `hayDiscrepancia()` pide **modo declarado + aberturas cargadas + clasificaciones
+  distintas**. Vive en `engine/cerramiento.js` y no en el contexto porque es una **regla**,
+  y una regla escrita adentro de un `useMemo` no se puede probar.
+- **El capítulo 3 de la memoria va con la tabla para completar a mano.** Inventar filas
+  con lo que la app sí sabe —la norma, que ya tiene su propio capítulo— la llenaría sin
+  decir nada.
+- ⚠ **`tests/sinFundamentos.test.js` EXISTE PARA QUE NO VUELVAN.** Un campo de fundamento
+  es fácil de reintroducir sin querer —parece prolijidad— y nada en el cálculo se rompe
+  cuando aparece. El test **saca los comentarios antes de mirar**: si leyera el archivo
+  entero, la explicación de por qué el campo ya no está lo haría fallar, y la salida sería
+  desactivarlo.
+
 ## Presión interna y coherencia de V — decisiones que no conviene revertir
 
 - ⚠ **`R_i` SE APLICA O NO SE MUESTRA, PERO NO LAS DOS COSAS.** Durante un tiempo se
@@ -584,6 +624,16 @@ casos de la figura, con los dos signos de la excentricidad en los torsionales.
   error: el caso se abre «bien» y el cálculo está roto.
 - **La lista de sub-objetos se DERIVA de `INICIAL`**, no se escribe a mano, y hay un test
   que la contrasta. Uno nuevo que quedara afuera volvería a abrir el mismo agujero.
+- **El esquema subió a v3 al eliminar los campos de fundamento**, aunque «sólo» se borren
+  campos: la fusión contra el inicial **NO alcanza**, porque `{ ...INICIAL, ...v }`
+  conserva toda clave que el archivo traiga aunque el inicial ya no la tenga, y volverían
+  a entrar como claves huérfanas que se guardarían otra vez. Se descartan **en silencio**:
+  ninguno entraba en ningún número, y avisar sería alarmar por algo que el usuario no
+  tiene que resolver.
+- **Borrarlos en la migración es SUFICIENTE, y hubo que probarlo.** Había además un
+  barrido después de la fusión, y las dos mecánicas hacían lo mismo: las mutaciones que
+  anulaban una no rompían ningún test porque la otra tapaba el agujero. **Dos mecanismos
+  para un trabajo son uno que un día se borra sin que nada avise.**
 - **El esquema del archivo separa el sobre de los datos.** En el v1 estaban al mismo
   nivel, así que un campo del proyecto llamado `app` o `v` pisaba la identificación del
   archivo. Sube de versión **sólo cuando un archivo viejo deja de poder leerse tal cual**:

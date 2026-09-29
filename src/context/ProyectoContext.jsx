@@ -19,7 +19,7 @@ import { analizarAnexo } from '../engine/anexo1.js';
 import { kzt as calcularKzt } from '../engine/topografia.js';
 import { num, opt } from '../lib/parseo.js';
 import { resolverV } from '../engine/velocidad.js';
-import { clasificar, regionDetritus } from '../engine/cerramiento.js';
+import { clasificar, regionDetritus, hayDiscrepancia } from '../engine/cerramiento.js';
 import { ri as riDe, CERRAMIENTOS, riAplicado, gcpiDe } from '../constants/presionInterna.js';
 import { factorRafaga, dimensionesDe } from '../engine/factorRafaga.js';
 import { resultantes, barridoAlero, envolvente } from '../engine/resultantes.js';
@@ -194,23 +194,21 @@ export function ProyectoProvider({ children }) {
   const riTraza = { modo: modoRi, calculado: Ri, aplicado: RiAplicado };
   const cerr = { ...cerrCalc, Vi, ViAuto, Ri, detritus, modo: d.cerrModo,
     declarada: d.cerramiento, efectiva: cerramiento,
-    fundamento: d.cerrFundamento,
+
     // ⚠ `label` Y `motivo` SIGUEN A LA CLASIFICACIÓN EFECTIVA, NO A LA CALCULADA. En modo
     // declarado, mostrar la etiqueta de la calculada junto al GC_pi de la declarada da
     // una pantalla que se contradice a sí misma: decía «Cerrado» y «±0,55».
     label: CERRAMIENTOS.find(x => x.id === cerramiento)?.label ?? "—",
     gcpiTabla, gcpi: gcpiEfectivo, modoRi, RiAplicado, riTraza,
     motivo: d.cerrModo === "calculado" ? cerrCalc.motivo
-      : `Clasificación DECLARADA por el proyectista${d.cerrFundamento
-        ? `: ${d.cerrFundamento}` : ", sin fundamento declarado"}.`,
+      : "Clasificación DECLARADA por el proyectista.",
     motivoCalculado: cerrCalc.motivo,
     calculada: cerrCalc.clasificacion,
-    // La discrepancia se informa sólo cuando hay DOS lecturas de verdad: aberturas
-    // cargadas y una clasificación declarada a propósito. El valor por defecto del
-    // desplegable no es una declaración, y avisar por él sería ruido en cada proyecto
-    // nuevo.
-    discrepa: d.aberturas.length > 0 && String(d.cerrFundamento ?? "").trim() !== ""
-      && d.cerramiento !== cerrCalc.clasificacion };
+    // La regla vive en `engine/cerramiento.js`: escrita adentro de este `useMemo` no se
+    // puede probar, y es una regla —cuándo dos lecturas del mismo edificio se
+    // contradicen—, no un detalle de la pantalla.
+    discrepa: hayDiscrepancia({ modo: d.cerrModo, aberturas: d.aberturas,
+      declarada: d.cerramiento, calculada: cerrCalc.clasificacion }) };
 
   // El factor de ráfaga se calcula ANTES del análisis y lo alimenta: cuál de las tres
   // vías del art. 1.9 se adopta cambia TODAS las presiones, así que no puede quedar como
@@ -280,9 +278,8 @@ export function ProyectoProvider({ children }) {
   const esFlexible = rafaga.flexible || d.modoG === "flexible";
 
   const exen = useMemo(() => exencion247({
-    cond247: d.env.cond247, arts247: d.env.arts247,
-    fundamento: d.env.fundamento247, h: geoN.h,
-  }), [d.env.cond247, d.env.arts247, d.env.fundamento247, geoN.h]);
+    cond247: d.env.cond247, arts247: d.env.arts247, h: geoN.h,
+  }), [d.env.cond247, d.env.arts247, geoN.h]);
 
   const envCasos = useMemo(() => {
     const estados = estadosDeCarga({ analizar: analizarConSitio, entrada, opc: {

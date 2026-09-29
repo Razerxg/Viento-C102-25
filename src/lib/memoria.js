@@ -151,11 +151,12 @@ export function memoriaMarkdown(e) {
     `### ${n}.1. Categoría de riesgo — Tabla 1.14-1`, "",
     `La categoría de riesgo **elige el mapa de velocidad**: entre categoría II y IV hay un`,
     `período de retorno distinto y una V distinta para el mismo sitio.`, "",
-    tablaCSVU([["Categoría de riesgo", "—", `**${d.riesgo}**`, "—"]]), "",
-    String(d.riesgoFundamento ?? "").trim()
-      ? `**Fundamento:** ${d.riesgoFundamento}`
-      : "⚠ **Sin fundamento declarado.** La Tabla 1.14-1 clasifica por uso, ocupación y "
-        + "presencia de materiales peligrosos.", "",
+    tablaCSVU([
+      ["Categoría de riesgo", "—", `**${d.riesgo}**`, "—"],
+      ["Mapa de velocidad que selecciona", "—",
+        d.riesgo === "I" ? "Figura 1.5-1C" : d.riesgo === "II" ? "Figura 1.5-1A"
+          : "Figura 1.5-1B", "—"],
+    ]), "",
     ...bv.pasos.map(p => itemDePaso(p, "###"))].join("\n"));
 
   pushBloque("sitio", "Categoría de exposición y factores del sitio");
@@ -210,7 +211,7 @@ export function memoriaMarkdown(e) {
     C.encabezado({ d }),
     C.introduccion({ d }),
     C.alcance({ rafaga, d }),
-    C.documentos({ d, vel }),
+    C.documentos(),
     C.normas({ env }),
     C.materiales(),
     C.geometria({ geoN, act, nFig: figGeometria }),

@@ -350,6 +350,20 @@ export function perfilBarlovento({ h, sitio, hAlero, hCumbre, puntos = 10, zTope
   return { puntos: cotas, tramos: cotas.filter(t => t.hasta > t.desde) };
 }
 
+/**
+ * De dónde salió V, para la referencia de la traza.
+ *
+ * Es el origen y no el fundamento: la app dejó de pedir que se justifique la velocidad,
+ * pero sigue registrando de qué figura o de qué expresión se la leyó, que es lo que se
+ * controla contra el reglamento.
+ */
+const REF_ORIGEN_V = {
+  tabla: "Figura 1.5-1D",
+  interpolado: "Nota 2 de las Figuras 1.5-1 A-C (interpolación)",
+  manual: "Art. 1.5.1 (valor adoptado)",
+  v50: "Expresión (C 1.5-6.1)",
+};
+
 // Qué decir de G según la vía del art. 1.9 que se haya adoptado. Son tres vías y cada
 // una tiene su artículo: informar siempre la primera hace que la traza no se pueda
 // controlar contra la pantalla de Ráfaga.
@@ -408,13 +422,14 @@ export function analizarDireccion({ geo, sitio, cerramiento, G = 0.85, modoG = "
   // herramienta de cálculo tiene que pedir.
   const traza = [
     { paso: "Velocidad básica", simbolo: "V", dec: 1, valor: sitio.V, unidad: "m/s",
-      ref: sitio.vel?.fundamento?.ref ?? "Art. 1.5 · Figuras 1.5-1 A-D",
+      // ⚠ LA REFERENCIA SALE DEL ORIGEN, no de un fundamento declarado. Antes citaba el
+      // artículo del selector de fundamentos, que ya no existe: lo que hay que poder
+      // controlar contra el papel es DE DÓNDE se leyó la velocidad.
+      ref: REF_ORIGEN_V[sitio.vel?.origen] ?? "Art. 1.5 · Figuras 1.5-1 A-D",
       // El ORIGEN de V va en la traza: una velocidad sin origen declarado no se puede
       // revisar, y es el dato del que depende todo el cálculo —la presión va con V²—.
       detalle: "Ráfaga de 3 s a 10 m sobre el terreno, en exposición C."
         + (sitio.vel?.detalleOrigen ? ` ${sitio.vel.detalleOrigen}` : "")
-        + (sitio.vel?.fundamento ? ` Fundamento: ${sitio.vel.fundamento.label}.` : "")
-        + (sitio.vel?.documento ? ` Documento: ${sitio.vel.documento}.` : "")
         + (sitio.vel?.referencia != null
           ? ` V de referencia del mapa: ${fc(sitio.vel.referencia, 1)} m/s`
             + (sitio.vel.dif != null && Math.abs(sitio.vel.dif) > 1e-6

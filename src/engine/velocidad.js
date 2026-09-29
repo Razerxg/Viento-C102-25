@@ -15,9 +15,12 @@
 //
 // ── LO QUE LA APP TIENE QUE IMPEDIR ─────────────────────────────────────────────
 // Que V quede POR DEBAJO de la del mapa sin que nadie lo note. El art. 1.5.1 permite
-// adoptar una V mayor siempre; menor, sólo por el art. 1.5.3 y con un análisis estadístico
-// que lo sostenga. Por eso la V de referencia del mapa se muestra SIEMPRE, junto a la
-// diferencia porcentual, y una V menor sin el fundamento del 1.5.3 es un aviso de ERROR.
+// adoptar una V mayor siempre; menor, sólo por el art. 1.5.3. Por eso la V de referencia
+// del mapa se muestra SIEMPRE, junto a la diferencia porcentual.
+//
+// ⚠ LA APP NO PIDE FUNDAMENTAR. Antes había un selector de fundamentos y una V menor sin
+// el del art. 1.5.3 era un ERROR. Ahora la app informa la diferencia y cita el artículo
+// que fija las condiciones; el fundamento lo agrega el proyectista a la memoria, a mano.
 import { velocidadDe, factorV, I_RIESGO } from '../constants/velocidades.js';
 import { num } from '../lib/parseo.js';
 
@@ -31,49 +34,11 @@ export const ORIGENES_V = [
     detalle: "Nota 2 de las figuras: entre dos isotacas se interpola linealmente con la "
       + "distancia del sitio a cada una." },
   { id: "manual", label: "Valor adoptado por el proyectista",
-    detalle: "V cargada a mano. Exige declarar en qué se funda." },
+    detalle: "V cargada a mano. Se compara igual contra el mapa de la ciudad de "
+      + "referencia, si se elige una." },
   { id: "v50", label: "Convertido desde V50 del CIRSOC 102-2005",
     detalle: "Para especificaciones escritas con la edición anterior. Es la expresión "
       + "(C 1.5-6.1) con la que se construyó la Figura 1.5-1D." },
-];
-
-/**
- * Los fundamentos admisibles para una V adoptada a mano.
- *
- * `permiteMenor` marca el único que habilita una V POR DEBAJO de la del mapa. No es una
- * sutileza: es la diferencia entre un aviso informativo y un error.
- */
-export const FUNDAMENTOS_V = [
-  { id: "comitente", label: "Especificación del comitente o bases de diseño",
-    ref: "Documento contractual", permiteMenor: false, pideDocumento: true,
-    detalle: "El valor viene de un documento del proyecto. Hay que decir cuál y en qué "
-      + "revisión: una V es trazable sólo si se sabe de dónde salió." },
-  { id: "art1_5_1", label: "Art. 1.5.1 — registros o experiencia indican velocidades mayores",
-    ref: "Art. 1.5.1", permiteMenor: false,
-    detalle: "El artículo admite adoptar una velocidad MAYOR que la del mapa cuando los "
-      + "registros o la experiencia en la zona lo indican." },
-  { id: "art1_5_2", label: "Art. 1.5.2 — región especial (terreno montañoso, garganta, quebrada)",
-    ref: "Art. 1.5.2", permiteMenor: false,
-    detalle: "En terreno montañoso, gargantas y quebradas el viento se acelera de forma "
-      + "que el mapa no recoge, y el artículo pide ajustar la velocidad." },
-  { id: "art1_5_3", label: "Art. 1.5.3 — datos climáticos regionales con análisis de valores extremos",
-    ref: "Art. 1.5.3", permiteMenor: true,
-    detalle: "Es el ÚNICO que habilita una V menor que la del mapa, y con condiciones." },
-];
-
-/**
- * Las condiciones que el art. 1.5.3 impone para apartarse hacia abajo. Se listan enteras
- * cuando el caso ocurre: son exactamente lo que hay que poder mostrar en una revisión.
- */
-export const CONDICIONES_1_5_3 = [
-  "Los datos se analizan con procedimientos de valores extremos APROBADOS.",
-  "Se tienen en cuenta la longitud del registro, el error de muestreo, el tiempo de "
-    + "promediación, la altura del anemómetro y su exposición.",
-  "Los valores se ajustan a ráfaga de 3 segundos a 10 m de altura en exposición C.",
-  "La velocidad resultante NO es menor que la correspondiente al intervalo medio de "
-    + "recurrencia de la categoría de riesgo.",
-  "El C 1.5.3 además exige demostrar, con el error de muestreo, que la diferencia contra "
-    + "el mapa NO es casual.",
 ];
 
 /** Aviso fijo de la opción manual: qué ES V, y el error que se comete si se confunde. */
@@ -209,7 +174,7 @@ export function vDeFigura({ figura, origen, V, riesgo, v50 }) {
  * @param {string} e.ciudad   `""` = el sitio no está en la tabla
  * @param {string} e.riesgo
  * @param {{V1?:any,V2?:any,d1?:any,d2?:any}} [e.interp]
- * @param {{V?:any,fundamento?:string,documento?:string}} [e.manual]
+ * @param {{V?:any}} [e.manual]
  * @param {{V50?:any}} [e.v50]
  */
 export function resolverV({ origen, ciudad, riesgo, interp, manual, v50 }) {
@@ -259,17 +224,10 @@ export function resolverV({ origen, ciudad, riesgo, interp, manual, v50 }) {
       + "de 34 a 83 m/s.");
   }
 
-  const fundamento = FUNDAMENTOS_V.find(f => f.id === manual?.fundamento);
-  const esAdoptado = origen === "manual";
-
-  if (esAdoptado) push("info", AVISO_QUE_ES_V.ref, AVISO_QUE_ES_V.texto);
-  if (esAdoptado && !fundamento) {
-    push("error", "Art. 1.5.1", "Falta declarar en qué se funda la velocidad adoptada.");
-  }
-  if (esAdoptado && fundamento?.pideDocumento && !String(manual?.documento ?? "").trim()) {
-    push("aviso", "Trazabilidad", "Falta indicar el documento y la revisión de donde sale "
-      + "la velocidad.");
-  }
+  // Lo que SÍ conviene decir de la opción manual: qué ES V, y el error que se comete si
+  // se la confunde con un V50 del 102-2005. No es un pedido de fundamento: es la
+  // definición del dato que se está cargando.
+  if (origen === "manual") push("info", AVISO_QUE_ES_V.ref, AVISO_QUE_ES_V.texto);
 
   // ── LA COMPARACIÓN CONTRA EL MAPA ─────────────────────────────────────────────
   let dif = null;
@@ -282,16 +240,13 @@ export function resolverV({ origen, ciudad, riesgo, interp, manual, v50 }) {
           + `(${fc(referencia, 1)} m/s). El art. 1.5.1 lo permite: adoptar una velocidad `
           + "mayor que la del mapa es siempre admisible.");
       }
-    } else if (fundamento?.permiteMenor) {
-      push("aviso", "Art. 1.5.3", `La V adoptada es ${fc(Math.abs(dif), 1)} % MENOR que la `
-        + `del mapa (${fc(referencia, 1)} m/s). El art. 1.5.3 lo admite sólo si el estudio `
-        + "cumple TODAS estas condiciones:", { lista: CONDICIONES_1_5_3 });
     } else {
-      push("error", "Art. 1.5.1", `La V adoptada es ${fc(Math.abs(dif), 1)} % MENOR que la `
-        + `del mapa (${fc(referencia, 1)} m/s). El único artículo que habilita apartarse `
-        + "hacia abajo es el 1.5.3, con datos climáticos regionales y análisis estadístico "
-        + `de valores extremos. Con ${fundamento ? "este fundamento" : "el fundamento "
-        + "declarado"} no corresponde.`);
+      // ⚠ ES UN «aviso», NO UN «error». Apartarse hacia abajo está contemplado por el
+      // art. 1.5.3; la app no sabe si el estudio que lo sostiene existe y no lo pregunta.
+      // Lo que sí hace es no dejar pasar la diferencia en silencio.
+      push("aviso", "Art. 1.5.3", `La V adoptada es ${fc(Math.abs(dif), 1)} % menor que la `
+        + `del mapa (${fc(referencia, 1)} m/s). El art. 1.5.3 fija las condiciones para `
+        + "adoptar valores menores.");
     }
   } else if (V != null && origen !== "interpolado") {
     push("aviso", "Art. 1.5.1", "Sin V de referencia del mapa —el sitio no está en la "
@@ -300,12 +255,11 @@ export function resolverV({ origen, ciudad, riesgo, interp, manual, v50 }) {
   }
 
   return {
-    V, referencia, dif, origen, cuenta, fundamento: fundamento ?? null,
+    V, referencia, dif, origen, cuenta,
     // Qué ciudad se está usando de referencia, si alguna. Es lo que la región con detritus
     // necesita para saber si puede leer la tabla o tiene que convertir.
     ciudadRef: usaCiudad && ciudad ? ciudad : null, usaCiudad,
     v50: origen === "v50" ? num(v50?.V50) : null,
-    documento: String(manual?.documento ?? "").trim() || null,
     detalleOrigen, avisos, fueraDeRango,
     ok: V != null && !fueraDeRango && !avisos.some(a => a.tono === "error"),
   };

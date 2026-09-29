@@ -6,7 +6,7 @@
 // apretados a ancho completo y el mapa metido entre dos campos.
 import { useProyecto } from '../../context/ProyectoContext.jsx';
 import { CIUDADES, factorV } from '../../constants/velocidades.js';
-import { ORIGENES_V, FUNDAMENTOS_V } from '../../engine/velocidad.js';
+import { ORIGENES_V } from '../../engine/velocidad.js';
 import { EXPOSICIONES, TERRENO } from '../../constants/exposicion.js';
 import { MapaVelocidad } from '../MapaVelocidad.jsx';
 import { CroquisTopografia } from '../svg/CroquisTopografia.jsx';
@@ -30,10 +30,6 @@ const EXPLICA_EXPOSICION = {
   D: "Superficies planas y sin obstrucciones: barros salinos, lagos y áreas costeras. "
     + "Aplica también tierra adentro cuando el sector de barlovento es agua o llanura lisa.",
 };
-
-// El campo de documento es texto libre, no un número: usa el mismo estilo de input que
-// el resto para que no se vea como un elemento ajeno.
-const estiloTexto = { padding: "6px 8px", borderRadius: 6 };
 
 export function SitioTab() {
   const { d, set, setTopo, setSub, V, vel, sitio, geoN, act, topo, topoBase,
@@ -80,27 +76,6 @@ export function SitioTab() {
           ayuda="Tabla 1.14-1. I son construcciones de bajo riesgo para la vida humana; II es el caso general; III y IV son las de gran ocupación y las esenciales, y comparten el mapa de 1.700 años.">
           <Sel v={d.riesgo} set={set("riesgo")} opciones={["I", "II", "III", "IV"]} w={100} />
         </Campo>
-        {/* ⚠ ES LA DECISIÓN QUE ELIGE EL MAPA. La Tabla 1.14-1 clasifica por uso,
-            ocupación y materiales peligrosos, y de ahí sale qué figura de velocidad se
-            lee: entre categoría II y IV hay un período de retorno distinto y una V
-            distinta para el mismo sitio. Un desplegable de cuatro opciones sin fundamento
-            es la decisión más pesada del cálculo tomada sin registro. */}
-        <Campo label="Fundamento de la categoría"
-          ayuda="Uso y ocupación de la construcción, y si hay materiales peligrosos. Va a la memoria: es lo que permite revisar por qué se leyó ese mapa y no otro.">
-          <input className="vw-in" type="text" style={{ padding: "6px 8px", borderRadius: 6, width: 360 }}
-            value={d.riesgoFundamento ?? ""}
-            placeholder="p. ej. depósito sin ocupación permanente, sin materiales peligrosos"
-            onChange={e => set("riesgoFundamento")(e.target.value)} />
-        </Campo>
-        {!String(d.riesgoFundamento ?? "").trim() && (
-          <Aviso tono="aviso" titulo="Falta el fundamento de la categoría de riesgo">
-            La Tabla 1.14-1 clasifica por uso, ocupación y materiales peligrosos, y de esa
-            clasificación sale <b style={{ color: c.txt }}>qué mapa de velocidad se lee</b>.
-            Entre categoría II y IV hay un período de retorno distinto y una V distinta
-            para el mismo sitio.
-          </Aviso>
-        )}
-
         {/* ── DE DÓNDE SALE V ──────────────────────────────────────────────────
             V es el dato de entrada de todo el cálculo —la presión va con V²— y antes la
             única vía era la tabla. Quien tenía una especificación del comitente, un sitio
@@ -133,28 +108,16 @@ export function SitioTab() {
           </Campo>
         </>}
 
+        {/* ⚠ ACÁ NO SE PIDE FUNDAMENTO. Había un selector de fundamentos del art. 1.5 y
+            un campo de «documento y revisión», y la V adoptada sin ellos era un aviso de
+            ERROR. La app registra el valor y lo compara contra el mapa; por qué se lo
+            adoptó lo escribe el proyectista en la memoria. */}
         {d.origenV === "manual" && <>
           <Divisor>Valor adoptado</Divisor>
-          <Campo label="Velocidad adoptada V" unit="m/s">
+          <Campo label="Velocidad adoptada V" unit="m/s"
+            ayuda="Se compara igual contra el mapa de la ciudad de referencia, si se elige una.">
             <Num v={d.vManual.V} set={setSub("vManual")("V")} />
           </Campo>
-          <Campo label="Fundamento"
-            ayuda="Obligatorio. Es lo que decide si adoptar una V menor que la del mapa está permitido: sólo el art. 1.5.3 lo habilita.">
-            <Sel v={d.vManual.fundamento} set={setSub("vManual")("fundamento")} w={420}
-              opciones={[["", "— Elegir —"], ...FUNDAMENTOS_V.map(x => [x.id, x.label])]} />
-          </Campo>
-          {d.vManual.fundamento && (
-            <Nota>{FUNDAMENTOS_V.find(x => x.id === d.vManual.fundamento)?.detalle}</Nota>
-          )}
-          {FUNDAMENTOS_V.find(x => x.id === d.vManual.fundamento)?.pideDocumento && (
-            <Campo label="Documento y revisión"
-              ayuda="Una V es trazable sólo si se sabe de qué documento salió y en qué revisión.">
-              <input className="vw-in" type="text" style={{ width: 300, ...estiloTexto }}
-                value={d.vManual.documento}
-                placeholder="p. ej. ESP-CIV-001 rev. B"
-                onChange={e => setSub("vManual")("documento")(e.target.value)} />
-            </Campo>
-          )}
         </>}
 
         {d.origenV === "v50" && <>

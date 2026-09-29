@@ -63,21 +63,15 @@ export const alcance = ({ rafaga, d }) => `## 2. Alcance
 ${RESPONSABILIDAD}`;
 
 // ── 3 · DOCUMENTOS DE REFERENCIA ───────────────────────────────────────────────
-export const documentos = ({ d, vel }) => {
-  const f = [["Planos de proyecto", "—", "—"]];
-  if (vel?.documento) f.push(["Documento de la velocidad adoptada", vel.documento, "—"]);
-  if (String(d.cerrFundamento ?? "").trim()) {
-    f.push(["Fundamento de la clasificación de cerramiento", d.cerrFundamento, "—"]);
-  }
-  if (String(d.env?.fundamento247 ?? "").trim()) {
-    f.push(["Fundamento de la exención del art. 2.4.7", d.env.fundamento247, "—"]);
-  }
-  return `## 3. Documentos de referencia
+// ⚠ LA TABLA VA VACÍA A PROPÓSITO. La app no pide fundamentar decisiones, así que no
+// tiene de dónde sacar los documentos del proyecto: se deja el renglón para que el
+// proyectista lo complete a mano. Inventar filas con lo que la app sí sabe —la norma, que
+// ya tiene su propio capítulo— llenaría la tabla sin decir nada.
+export const documentos = () => `## 3. Documentos de referencia
 
-${tabla(["Documento", "Identificación", "Revisión"], f)}
+${tabla(["Documento", "Identificación", "Revisión"], [["Planos de proyecto", "—", "—"]])}
 
-Los documentos sin identificación indicada deben completarse antes de la emisión.`;
-};
+Completar con los documentos del proyecto antes de la emisión.`;
 
 // ── 4 · NORMAS Y REGLAMENTOS ───────────────────────────────────────────────────
 export const normas = ({ env }) => {
@@ -303,9 +297,7 @@ export const condicionesDeUso = ({ cerr, d, env, res, sitio, topo, aplic, vel, r
     env?.exen?.exento
       ? `— declarada: ${[...CONDICIONES_247_2, ...ARTICULOS_247_DECLARADOS]
         .filter(c => (d.env?.cond247 ?? []).includes(c.id) || (d.env?.arts247 ?? []).includes(c.id))
-        .map(c => c.ref).join(", ")}. **Los casos 2 y 4 no se verificaron.** `
-        + (String(d.env?.fundamento247 ?? "").trim()
-          ? `Fundamento: ${d.env.fundamento247}.` : "⚠ **Sin fundamento declarado.**")
+        .map(c => c.ref).join(", ")}. **Los casos 2 y 4 no se verificaron.**`
       : "— se verifican los cuatro casos.");
   item("Comportamiento del diafragma", d.env?.diafragma ?? "rigido",
     d.env?.diafragma !== "rigido"
@@ -324,16 +316,11 @@ export const condicionesDeUso = ({ cerr, d, env, res, sitio, topo, aplic, vel, r
         + "cambia, el factor deja de ser el calculado.**"
       : "— sin accidente topográfico declarado: terreno llano.");
   item("Categoría de riesgo", d.riesgo,
-    String(d.riesgoFundamento ?? "").trim()
-      ? `— ${d.riesgoFundamento}. **Un cambio de uso u ocupación cambia el mapa de `
-        + "velocidad que corresponde leer.**"
-      : "— ⚠ **sin fundamento declarado.** La Tabla 1.14-1 clasifica por uso, ocupación y "
-        + "materiales peligrosos, y de esa clasificación sale qué mapa se lee.");
+    "— Tabla 1.14-1. **Un cambio de uso u ocupación cambia el mapa de velocidad que "
+    + "corresponde leer**, y con él la V de diseño.");
 
   l.push("", "### 17.4. Velocidad básica", "");
   item("Velocidad adoptada", `${num(vel.V, 1)} m/s`, `— ${vel.detalleOrigen ?? ""}`);
-  if (vel.fundamento) item("Fundamento", vel.fundamento.label, vel.documento
-    ? `Documento: ${vel.documento}.` : "");
   item("Factor de efecto de ráfaga", num(rafaga.opciones.find(o => o.id === d.modoG)?.G ?? 0.85, 3),
     "— se adopta la hipótesis de **estructura rígida**: no se determinó n₁. "
     + "Si resultara n₁ < 1 Hz, el art. 1.9.2 exige G_f y estas presiones quedan del lado "

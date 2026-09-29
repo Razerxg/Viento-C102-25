@@ -142,10 +142,9 @@ export const DIAFRAGMAS = [
  * @param {object} o
  * @param {string[]} [o.cond247]   ids de `CONDICIONES_247_2` declarados
  * @param {string[]} [o.arts247]   ids de `ARTICULOS_247_DECLARADOS` declarados
- * @param {string} [o.fundamento]  qué escribió el proyectista
  * @param {number} o.h             altura media de cubierta, para contrastar
  */
-export function exencion247({ cond247 = [], arts247 = [], fundamento = "", h }) {
+export function exencion247({ cond247 = [], arts247 = [], h }) {
   const detalle = CONDICIONES_247_2.map(cd => {
     const declarada = cond247.includes(cd.id);
     const geo = cd.verifica({ h });
@@ -157,9 +156,11 @@ export function exencion247({ cond247 = [], arts247 = [], fundamento = "", h }) 
   const arts = ARTICULOS_247_DECLARADOS.map(a => ({ ...a, declarada: arts247.includes(a.id) }));
   const valida = detalle.some(x => x.declarada && x.geo !== false)
     || arts.some(x => x.declarada);
-  return { exento: valida, detalle, arts, fundamento,
-    desmentidas: detalle.filter(x => x.desmentida),
-    sinFundamento: valida && String(fundamento).trim() === "" };
+  // ⚠ NO SE PIDE FUNDAMENTO. Había un `sinFundamento` que marcaba con error una exención
+  // declarada sin texto. La app registra QUÉ artículo se invocó —que es lo que cambia el
+  // cálculo— y el fundamento lo escribe el proyectista en la memoria.
+  return { exento: valida, detalle, arts,
+    desmentidas: detalle.filter(x => x.desmentida) };
 }
 
 /**

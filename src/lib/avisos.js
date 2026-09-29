@@ -108,14 +108,6 @@ export function avisosDe({ geoN, sitio, cerramiento, rafaga, modoG, n1, analisis
         + "antes de seguir: entre una y otra puede haber un factor de tres en GC_pi." });
   }
 
-  // En modo declarado, el fundamento es obligatorio.
-  if (cerr?.modo === "declarado" && !String(cerr?.fundamento ?? "").trim()) {
-    push({ id: "cerrSinFundamento", tono: "error", tab: "Cerramiento",
-      titulo: "Cerramiento declarado sin fundamento",
-      detalle: "La clasificación está declarada a mano y no dice en qué se funda. Entre "
-        + "«cerrado» y «parcialmente cerrado» hay un factor de tres en la presión "
-        + "interna: no puede quedar sin justificar." });
-  }
   // ⚠ ESTO ERA UN AVISO «info» Y NO LO ES. Un edificio abierto no se resuelve con los Cp
   // de la Figura 2.4-1 sino con los C_N de las Figuras 2.4-4 a 2.4-7, que no están
   // implementados. Los números que la app muestra en ese caso son los de OTRO edificio

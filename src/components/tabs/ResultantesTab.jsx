@@ -253,7 +253,7 @@ export function ResultantesTab() {
           transcripto</b>: son condiciones sobre la distribución de rigideces y la
           regularidad torsional, que dependen del modelo estructural y no de la envolvente
           que esta app calcula. Se registran como declaración, con el artículo y el
-          fundamento, para que quien revise la memoria sepa contra qué contrastar.
+          artículo, para que quien revise la memoria sepa contra qué contrastar.
         </Nota>
         {ARTICULOS_247_DECLARADOS.map(a => (
           <Casilla key={a.id} marcada={d.env.arts247.includes(a.id)}
@@ -261,18 +261,6 @@ export function ResultantesTab() {
             {a.label} <span style={{ color: c.txt3 }}>({a.ref})</span>
           </Casilla>
         ))}
-        <Campo label="Fundamento de la exención"
-          ayuda="Una exención sin fundamento es una casilla tildada: no se puede revisar ni rehacer. Va al reporte junto con el artículo invocado.">
-          <input className="vw-in" type="text" style={{ ...estiloTexto, width: 340 }}
-            value={d.env.fundamento247} placeholder="p. ej. verificación de regularidad torsional, cálculo XX"
-            onChange={e => setEnv("fundamento247")(e.target.value)} />
-        </Campo>
-        {envCasos.exen.sinFundamento && (
-          <Aviso tono="error" titulo="Falta el fundamento">
-            Se declaró la exención del art. 2.4.7 y con eso dejan de verificarse dos de los
-            cuatro casos de carga. Hay que decir en qué se funda.
-          </Aviso>
-        )}
         <Aviso tono={envCasos.exen.exento ? "aviso" : "info"}
           titulo={envCasos.exen.exento ? "Casos 2 y 4 NO verificados"
             : "Se verifican los cuatro casos"}>

@@ -50,11 +50,6 @@ function bloqueVelocidad({ vel, d }) {
       : `La V adoptada difiere en ${pct(vel.dif)} de la del mapa para esta categoría.`,
     tono: vel.dif != null && vel.dif < -1e-9 ? "aviso" : "info",
   }));
-  if (vel.fundamento) {
-    p.push(paso({ id: "V_fund", titulo: "Fundamento de la velocidad adoptada",
-      art: vel.fundamento.ref ?? "Art. 1.5.1", texto: vel.fundamento.label,
-      nota: vel.documento ? `Documento: ${vel.documento}.` : null }));
-  }
   return bloque({ id: "velocidad", titulo: "Velocidad básica del viento", art: "Art. 1.5",
     desc: "Es el dato del que depende todo el cálculo: la presión va con V².", pasos: p });
 }

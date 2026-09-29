@@ -261,6 +261,28 @@ export function regionDetritus({ ciudad, riesgo, esSalud, distanciaCosta, declar
   };
 }
 
+/**
+ * ¿HAY DOS LECTURAS DEL MISMO EDIFICIO QUE NO COINCIDEN?
+ *
+ * Se avisa sólo cuando las dos lecturas existen de verdad: el modo es **declarado** —en
+ * el calculado no hay nada que comparar, porque la clasificación ES la calculada—, hay
+ * aberturas cargadas, y las dos clasificaciones difieren.
+ *
+ * ⚠ ANTES DEPENDÍA DE QUE HUBIERA UN FUNDAMENTO ESCRITO. Ese campo ya no existe, y no
+ * hacía falta: elegir el modo declarado YA es la declaración. Con el modo por defecto y
+ * sin aberturas no hay discrepancia posible, así que el aviso no aparece en cada proyecto
+ * nuevo.
+ *
+ * Vive acá y no en el contexto porque es una REGLA —cuándo dos lecturas se contradicen—,
+ * y una regla escrita adentro de un `useMemo` no se puede probar.
+ *
+ * @param {object} o
+ * @param {string} [o.modo] @param {any[]} [o.aberturas]
+ * @param {string} [o.declarada] @param {string} [o.calculada]
+ */
+export const hayDiscrepancia = ({ modo, aberturas = [], declarada, calculada }) =>
+  modo === "declarado" && aberturas.length > 0 && declarada !== calculada;
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // LA VERIFICACIÓN, PARED POR PARED
 // ═══════════════════════════════════════════════════════════════════════════════

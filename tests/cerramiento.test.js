@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { normalizarGeo } from '../src/engine/edificio.js';
 import { clasificar, regionDetritus, superficiesEnvolvente, areaCubierta,
   volumenInterno, condicionesPared, cuentaComoAbertura, areaAbertura,
-  UMBRAL_DETRITUS } from '../src/engine/cerramiento.js';
+  UMBRAL_DETRITUS, hayDiscrepancia } from '../src/engine/cerramiento.js';
 import { fachada } from '../src/engine/fachadas.js';
 import { ri, gcpiDe } from '../src/constants/presionInterna.js';
 import { velocidadDe } from '../src/constants/velocidades.js';
@@ -383,5 +383,46 @@ describe('modo de determinación y migración de proyectos guardados', () => {
     expect(gcpiDe("cerrado")).toBe(0.18);
     // El factor de tres que se perdería.
     expect(gcpiDe("parc_cerrado") / gcpiDe("cerrado")).toBeCloseTo(3.06, 1);
+  });
+});
+
+// ── CUÁNDO SE AVISA QUE LAS DOS LECTURAS NO COINCIDEN ──────────────────────────
+//
+// ⚠ ANTES DEPENDÍA DE QUE HUBIERA UN FUNDAMENTO ESCRITO. Ese campo ya no existe, y no
+// hacía falta: elegir el modo declarado YA es la declaración.
+describe('la discrepancia entre la clasificación declarada y la calculada', () => {
+  const con = (o) => hayDiscrepancia({ modo: "declarado", aberturas: [{ tipo: "operable" }],
+    declarada: "cerrado", calculada: "parc_cerrado", ...o });
+
+  it('avisa cuando las dos lecturas existen y difieren', () => {
+    expect(con({})).toBe(true);
+  });
+
+  it('en modo calculado no hay nada que comparar', () => {
+    // La clasificación ES la calculada: avisar de una discrepancia consigo misma sería
+    // ruido permanente.
+    expect(con({ modo: "calculado" })).toBe(false);
+  });
+
+  it('sin aberturas cargadas no hay segunda lectura', () => {
+    expect(con({ aberturas: [] })).toBe(false);
+  });
+
+  it('si coinciden, no avisa', () => {
+    expect(con({ declarada: "parc_cerrado" })).toBe(false);
+  });
+
+  it('no depende de ningún fundamento escrito', () => {
+    // La firma no lo acepta, así que pasarlo no puede cambiar el resultado.
+    expect(hayDiscrepancia({ modo: "declarado", aberturas: [{}], declarada: "cerrado",
+      calculada: "abierto", fundamento: "" })).toBe(true);
+    expect(hayDiscrepancia({ modo: "declarado", aberturas: [{}], declarada: "cerrado",
+      calculada: "abierto", fundamento: "lo que sea" })).toBe(true);
+  });
+
+  it('el proyecto por defecto no dispara el aviso', () => {
+    // Modo calculado y sin aberturas: si disparara, aparecería en cada proyecto nuevo.
+    expect(hayDiscrepancia({ modo: "calculado", aberturas: [], declarada: "cerrado",
+      calculada: "cerrado" })).toBe(false);
   });
 });

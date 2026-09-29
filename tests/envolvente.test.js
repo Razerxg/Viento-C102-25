@@ -345,13 +345,16 @@ describe('la exención del art. 2.4.7', () => {
     }
   });
 
-  it('una exención sin fundamento se marca', () => {
-    expect(exencion247({ cond247: ["una_planta"], h: 6 }).sinFundamento).toBe(true);
-    expect(exencion247({ cond247: ["una_planta"], fundamento: " ", h: 6 }).sinFundamento).toBe(true);
-    expect(exencion247({ cond247: ["una_planta"], fundamento: "una nave", h: 6 })
-      .sinFundamento).toBe(false);
-    // Sin exención no hay nada que fundamentar: el aviso sería ruido en cada proyecto.
-    expect(exencion247({ h: 6 }).sinFundamento).toBe(false);
+  // ⚠ LA APP YA NO PIDE FUNDAMENTAR. Había un `sinFundamento` que marcaba con error una
+  // exención declarada sin texto. Lo que la app registra es QUÉ artículo se invocó —que
+  // es lo que cambia el cálculo—; el fundamento lo escribe el proyectista en la memoria.
+  it('no se pide fundamento: la exención se decide por lo declarado', () => {
+    const x = exencion247({ cond247: ["una_planta"], h: 6 });
+    expect(x.exento).toBe(true);
+    expect("sinFundamento" in x).toBe(false);
+    expect("fundamento" in x).toBe(false);
+    // Y lo que sí se conserva es contra qué contrastar: el artículo de cada declaración.
+    expect(x.detalle.find(c => c.id === "una_planta").ref).toBe("art. 2.4.7.2");
   });
 
   it('las tres condiciones del 2.4.7.2 citan el artículo', () => {
