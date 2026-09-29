@@ -207,7 +207,7 @@ La página del PDF del capítulo y la del Reglamento se corresponden con `Cap. 5
 | Estado | Ítem | Dónde |
 |---|---|---|
 | ✅ | Las 56 curvas de las Figs. 5.3-1 y 5.3-2A a 2G, y el evaluador | `constants/cyrCurvas.js` + `engine/cyr.js`, con `tests/cyrCurvas.test.js` (24 tests, 10 mutantes sin sobrevivientes) |
-| ⏳ | Clasificador de zonas por punto | `engine/cyrZonas.js` |
+| ✅ | Clasificador de zonas por punto, `a`, y las cinco zonificaciones | `engine/cyrZonas.js`, con `tests/cyrZonas.test.js` (34 tests, 12 mutantes sin sobrevivientes) |
 | ⏳ | Selección de figura y `a` | `engine/cyrFiguras.js` |
 | ⏳ | Área efectiva por tipo de elemento | `engine/cyrElementos.js` |
 | ⏳ | Pantalla, croquis de zonas, exportación y capítulo de memoria | |
@@ -224,6 +224,28 @@ Fig. C 5-1** y sí en el comentario C 5.1 —mayor dimensión < 0,4·h, toda la 
 **Plantas irregulares: fuera del alcance.** La Fig. C 5.3-2 (plantas en L, en T, esquinas
 ≥ 135°, la regla de `X ≤ a`) no se implementa, porque la geometría de la app es
 rectangular. Va declarado en el Alcance de la memoria, no como un ⏳.
+
+#### Las zonificaciones son CINCO y no una, y la 2C y la 2D no se parecen
+
+Leídas de los diagramas de cada figura, una por una. La diferencia entre la 5.3-2C y la
+5.3-2D es exactamente la que se deduciría mal:
+
+| Zonificación | Figuras | Zona 3 | Zona 2 | Zona 1 |
+|---|---|---|---|---|
+| `planaH` | 5.3-2A | L de esquina de `0,6h × 0,2h` | franja de `0,6h` | anillo de `0,6h` a `1,2h`, y `1′` más adentro |
+| `dosAguasCumbrera` | 5.3-2B · 2C | **extremos de la cumbrera** (`a × a`) | resto de las franjas de hastial y de cumbrera | el resto, **aleros incluidos** |
+| `dosAguasEsquinas` | 5.3-2D | **las cuatro esquinas** | resto de la franja de hastial | el resto — **no hay franja de cumbrera** |
+| `cuatroAguas` | 5.3-2E · 2F · 2G | **todo el perímetro** | franja `a` sobre cumbrera y limatesas | interior de cada faldón |
+| `pared` | 5.3-1 | — (zona 5) | — | — (zona 4) |
+
+Pasados los 27° en dos aguas el pico se va de la cumbrera a las esquinas, y en cuatro aguas
+la zona más succionada es el **alero**, no la cumbrera. Son cuatro dibujos distintos, no
+uno con otros números; por eso hay una zonificación por dibujo y un test que exige que la
+2B ponga zona 2 —y no 3— en la esquina del edificio.
+
+**Los aleros de las Figs. 5.3-2B, 2C y 2D no están zonificados**: en el diagrama la zona 1
+llega hasta el borde. No es una omisión de lectura — la nota 5 de esas figuras manda los
+voladizos de cubierta al art. 5.7, que es la etapa 5.2.
 
 #### Dos cosas que se midieron sobre las curvas y conviene no volver a discutir
 
