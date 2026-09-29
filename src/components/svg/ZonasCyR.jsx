@@ -40,6 +40,9 @@ const etiqueta = (z) => z.replace("'", "′");
 
 const TRAZOS = "7 5";
 
+/** Radio del círculo del número de zona. Se usa también para recortarlo al contorno. */
+const RZ = 11;
+
 export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 660, alto = 560 }) {
   if (!cyr?.geoZonas?.layout) return null;
   const { bx, by, a, h, layout, ejeCumbrera } = cyr.geoZonas;
@@ -107,6 +110,11 @@ export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 660, alto = 560 }
     }
   }
 
+  const unaAguaLayout = layout === LAYOUT.UNA_AGUA_PRIMADA || layout === LAYOUT.UNA_AGUA;
+  const bajaHacia = cyr.geoZonas.pendienteHacia ?? "+Y";
+  const ejePendY = bajaHacia.endsWith("Y");   // la pendiente corre sobre Y
+  const alFinal = bajaHacia.startsWith("+");  // el alero BAJO está en el extremo del eje
+
   // ── Un rótulo por zona, en el punto más «adentro» que tiene esa zona ───────
   // No en el centro de su rectángulo más grande: en cuatro aguas la zona 1 se dibuja como
   // un rectángulo que cubre toda la planta, y su centro es justo donde pasa la cumbrera.
@@ -116,11 +124,27 @@ export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 660, alto = 560 }
     .filter(z => centros[z]).map(z => ({ z, ...centros[z] }));
 
   // ── Cotas de zona, encadenadas desde el borde ───────────────────────────────
+  // En vertiente única el ancho de la franja NO es el mismo en los dos ejes ni en las dos
+  // figuras —lateral 2a en la 5.3-5A y `a` en la 5.3-5B, alero bajo `a` en las dos—, y es
+  // justo lo que se transcribe al plano de correas: se acota cada una con su valor.
+  const anchoLat = layout === LAYOUT.UNA_AGUA_PRIMADA ? 2 * a : a;
+  // La franja que toca el borde x = 0 (para la cota sobre X) y la que toca y = 0 (sobre Y).
+  // Con la pendiente sobre Y, x = 0 es un borde LATERAL; con la pendiente sobre X, es un
+  // alero, y cuál de los dos lo dice `alFinal`. Cada caso tiene su ancho y su símbolo.
+  const franjaEnCero = (ejeEsPendiente) => {
+    if (!ejeEsPendiente) return { ancho: anchoLat, s: anchoLat === a ? "a" : "2a" };
+    // El alero BAJO está en el extremo del eje si `alFinal`; entonces en 0 está el ALTO.
+    return alFinal ? { ancho: 2 * a, s: "2a" } : { ancho: a, s: "a" };
+  };
+  const enX = franjaEnCero(!ejePendY), enY = franjaEnCero(ejePendY);
   const cotasX = layout === LAYOUT.PLANA_H
     ? [{ s: "0,2h", d: 0, ha: 0.2 * h }, { s: "0,6h", d: 0, ha: 0.6 * h },
        { s: "0,6h", d: 0.6 * h, ha: 1.2 * h }]
-    : [{ s: "a", d: 0, ha: a }];
-  const cotaY = layout === LAYOUT.PLANA_H ? { s: "0,2h", d: 0, ha: 0.2 * h } : null;
+    : unaAguaLayout ? [{ s: enX.s, d: 0, ha: enX.ancho }]
+      : [{ s: "a", d: 0, ha: a }];
+  const cotaY = layout === LAYOUT.PLANA_H ? { s: "0,2h", d: 0, ha: 0.2 * h }
+    : unaAguaLayout ? { s: enY.s, d: 0, ha: enY.ancho }
+      : null;
   const conBanda = layout === LAYOUT.DOS_AGUAS_CUMBRERA || layout === LAYOUT.CUATRO_AGUAS;
 
   // ── ELEVACIÓN ───────────────────────────────────────────────────────────────
@@ -132,6 +156,32 @@ export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 660, alto = 560 }
   const XE = (m) => ve.x(m) + xE;
   const YE = (m) => ve.y(m) + yTop;
   const unaAgua = cyr.figura === "5.3-5A" || cyr.figura === "5.3-5B";
+
+  // ── DE QUÉ LADO BAJA LA PENDIENTE ───────────────────────────────────────────
+  // ⚠ EL DIBUJO SIGUE A `pendienteHacia`, NO A UNA CONVENCIÓN FIJA. Rotular «alero alto»
+  // siempre arriba parece inofensivo y no lo es: con la pendiente hacia +Y el croquis
+  // contradecía al clasificador —la zona 3′, que va contra el alero ALTO, aparecía del
+  // lado rotulado «alero bajo»— y el croquis existe justamente para poder controlar eso.
+  // El borde al que LLEGA la pendiente es el bajo; el opuesto, el alto.
+  // Cada borde, en coordenadas de pantalla, con hacia dónde se rota su rótulo para que
+  // corra paralelo al borde —como las notas de las figuras del reglamento—.
+  const borde = (esBajo) => {
+    const enElFinal = alFinal === esBajo;
+    if (ejePendY) {
+      return enElFinal
+        ? { x: X(bx / 2), y: Y(by) - 44, rot: 0, hx: X(bx / 2), hy: Y(by) }
+        : { x: X(bx / 2), y: Y(0) + 20, rot: 0, hx: X(bx / 2), hy: Y(0) };
+    }
+    return enElFinal
+      ? { x: X(bx) + 42, y: Y(by / 2), rot: 90, hx: X(bx), hy: Y(by / 2) }
+      : { x: X(0) - 26, y: Y(by / 2), rot: -90, hx: X(0), hy: Y(by / 2) };
+  };
+  const aleroBajo = borde(true), aleroAlto = borde(false);
+  const rotuloAlero = (b, texto) => (
+    <g transform={`rotate(${b.rot} ${b.x} ${b.y})`}>
+      <Rotulo x={b.x} y={b.y} texto={texto} color={c.txt2} tam={10.5} />
+    </g>
+  );
   const cumbre = geo.hCumbre ?? geo.hAlero;
   const techo = unaAgua
     ? [[0, cumbre], [luz, geo.hAlero]]
@@ -182,35 +232,55 @@ export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 660, alto = 560 }
         stroke={c.txt} strokeWidth="1.6" />
 
       {/* Vertiente única: de qué lado baja la pendiente, que es lo que decide las zonas */}
-      {unaAgua && <>
-        <Flecha x1={X(bx * 0.5)} y1={Y(by * 0.5)} x2={X(bx * 0.5)} y2={Y(by * 0.5) + 34}
-          color={c.txt2} grosor={1.4} />
-        <Rotulo x={X(bx / 2)} y={Y(by) - 30} texto="alero alto" color={c.txt2} tam={10.5} />
-        <Rotulo x={X(bx / 2)} y={Y(0) + 8} texto="alero bajo" color={c.txt2} tam={10.5} />
-      </>}
+      {unaAgua && (() => {
+        // La flecha sale del centro y apunta al alero BAJO: es la dirección en que
+        // desciende el agua, y de un vistazo dice cuál de los dos bordes es cuál.
+        const cx = X(bx / 2), cy = Y(by / 2);
+        const d = Math.hypot(aleroBajo.hx - cx, aleroBajo.hy - cy) || 1;
+        return <>
+          <Flecha x1={cx} y1={cy} x2={cx + 34 * (aleroBajo.hx - cx) / d}
+            y2={cy + 34 * (aleroBajo.hy - cy) / d} color={c.txt2} grosor={1.4} />
+          {rotuloAlero(aleroAlto, "alero alto")}
+          {rotuloAlero(aleroBajo, "alero bajo")}
+        </>;
+      })()}
 
+      {/* El círculo se recorta al contorno: en una franja de ancho `a` el número es más
+          ancho que la franja, y sin esto quedaba mordido por la línea de la planta. */}
       {rotulos.map(r => (
-        <Zona key={r.z} x={X(r.x)} y={Y(r.y)} texto={etiqueta(r.z)} color={c.txt} />
+        <Zona key={r.z} texto={etiqueta(r.z)} color={c.txt}
+          x={Math.min(Math.max(X(r.x), X(0) + RZ), X(bx) - RZ)}
+          y={Math.min(Math.max(Y(by) + RZ, Y(r.y)), Y(0) - RZ)} r={RZ} />
       ))}
 
       <Cota x1={X(0)} y1={Y(by)} x2={X(bx)} y2={Y(by)} desplaz={-20} texto={mm(bx)}
         color={c.txt2} />
       <Cota x1={X(bx)} y1={Y(by)} x2={X(bx)} y2={Y(0)} desplaz={-22} texto={mm(by)}
         color={c.txt2} />
+      {/* Las de cubierta plana van ADENTRO porque son tres encadenadas y abajo no entran:
+          el rótulo «PLANTA» está a 60 px del borde. Las demás son una sola y van afuera,
+          donde no se montan sobre el número de zona de la esquina. */}
       {cotasX.map((k, i) => (k.ha <= bx / 2 + 1e-9 ? (
         <Cota key={`cx${i}`} x1={X(k.d)} y1={Y(0)} x2={X(k.ha)} y2={Y(0)}
-          desplaz={-(18 + i * 17)} texto={`${k.s} = ${mm(k.ha - k.d)}`} color={c.txt2} />
+          desplaz={layout === LAYOUT.PLANA_H ? -(18 + i * 17) : 18}
+          texto={`${k.s} = ${mm(k.ha - k.d)}`} color={c.txt2} />
       ) : null))}
+      {/* En vertiente única esta cota se va al borde DERECHO: la de X ya ocupa la esquina
+          inferior izquierda y las dos etiquetas se tapaban entre sí y con el número de
+          zona de la esquina. */}
       {cotaY && cotaY.ha <= by / 2 + 1e-9 && (
-        <Cota x1={X(0)} y1={Y(cotaY.d)} x2={X(0)} y2={Y(cotaY.ha)} desplaz={18}
+        <Cota x1={unaAguaLayout ? X(bx) : X(0)} y1={Y(cotaY.d)}
+          x2={unaAguaLayout ? X(bx) : X(0)} y2={Y(cotaY.ha)}
+          desplaz={unaAguaLayout ? -18 : 18}
           texto={`${cotaY.s} = ${mm(cotaY.ha - cotaY.d)}`} color={c.txt2} />
       )}
-      {/* La cota de la franja de cumbrera va cerca de una punta y no en el medio: el medio
-          es donde cae el rótulo de la zona 2 y las dos etiquetas se tapaban. */}
+      {/* La cota de la franja de cumbrera no va ni en el medio ni contra una punta: en el
+          medio se monta sobre el rótulo de la zona 2, y contra la punta, sobre el de la
+          zona 3 —que en dos aguas vive justo ahí, en el extremo de la cumbrera—. */}
       {conBanda && (cumbreraX
-        ? <Cota x1={X(bx * 0.14)} y1={Y(by / 2 - a)} x2={X(bx * 0.14)} y2={Y(by / 2 + a)}
+        ? <Cota x1={X(bx * 0.30)} y1={Y(by / 2 - a)} x2={X(bx * 0.30)} y2={Y(by / 2 + a)}
             texto={`2a = ${mm(2 * a)}`} color={c.txt2} />
-        : <Cota x1={X(bx / 2 - a)} y1={Y(by * 0.14)} x2={X(bx / 2 + a)} y2={Y(by * 0.14)}
+        : <Cota x1={X(bx / 2 - a)} y1={Y(by * 0.30)} x2={X(bx / 2 + a)} y2={Y(by * 0.30)}
             texto={`2a = ${mm(2 * a)}`} color={c.txt2} />)}
       <Rotulo x={X(bx / 2)} y={yTop + hFila + 10} texto="PLANTA" color={c.txt2} tam={11}
         peso={600} />

@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   LAYOUT, LAYOUT_DE_FIGURA, dimensionA, zonaEn, zonaEnPared, zonasPresentes,
-  regionesDe, franjasDePared,
+  regionesDe, franjasDePared, cotasDeZona, puntosDeRotulo,
 } from '../src/engine/cyrZonas.js';
 import { FIGURAS_LISTA } from '../src/constants/cyrCurvas.js';
 
@@ -566,5 +566,115 @@ describe('Coherencia del clasificador', () => {
   it('rechaza una zonificación que no existe', () => {
     expect(() => zonaEn(1, 1, { layout: "inventada", bx: 10, by: 10, h: 5, a: 1 }))
       .toThrow(/zonificación desconocida/);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LAS COTAS DE ZONA Y LOS PUNTOS DE RÓTULO
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('cotasDeZona — lo que se transcribe al plano de correas', () => {
+  const geos = {
+    [LAYOUT.PARED]: { layout: LAYOUT.PARED, bx: 40, by: 20, h: 6, a: 2 },
+    [LAYOUT.PLANA_H]: { layout: LAYOUT.PLANA_H, bx: 40, by: 20, h: 6, a: 2 },
+    [LAYOUT.DOS_AGUAS_CUMBRERA]: { layout: LAYOUT.DOS_AGUAS_CUMBRERA, bx: 40, by: 20, h: 6, a: 2, ejeCumbrera: "X" },
+    [LAYOUT.DOS_AGUAS_ESQUINAS]: { layout: LAYOUT.DOS_AGUAS_ESQUINAS, bx: 40, by: 20, h: 6, a: 2, ejeCumbrera: "X" },
+    [LAYOUT.CUATRO_AGUAS]: { layout: LAYOUT.CUATRO_AGUAS, bx: 40, by: 20, h: 6, a: 2, ejeCumbrera: "X" },
+    [LAYOUT.UNA_AGUA_PRIMADA]: { layout: LAYOUT.UNA_AGUA_PRIMADA, bx: 40, by: 20, h: 6, a: 2, pendienteHacia: "+Y" },
+    [LAYOUT.UNA_AGUA]: { layout: LAYOUT.UNA_AGUA, bx: 40, by: 20, h: 6, a: 2, pendienteHacia: "+Y" },
+  };
+
+  it('todos los layouts tienen cotas: ninguno se queda mudo', () => {
+    for (const [nombre, geo] of Object.entries(geos)) {
+      expect(cotasDeZona(geo).length, nombre).toBeGreaterThan(0);
+    }
+  });
+
+  it('el símbolo y el número dicen lo mismo', () => {
+    // Es el control contra el error de tipeo que nadie ve: un renglón que dice «2a» y
+    // lleva el valor de `a` da una franja de la mitad en el plano de revestimiento.
+    const valorDe = { "a": 2, "2a": 4, "4a": 8, "0,2h": 1.2, "0,6h": 3.6, "1,2h": 7.2 };
+    for (const [nombre, geo] of Object.entries(geos)) {
+      for (const k of cotasDeZona(geo)) {
+        for (const [sim, campo] of [[k.simbolo, k.valor], [k.simbolo, k.valor2]]) {
+          if (campo == null) continue;
+          const partes = sim.split(" × ");
+          const esperados = partes.map(x => valorDe[x]);
+          if (esperados.some(x => x === undefined)) continue;   // «—», rangos
+          expect(esperados.some(x => Math.abs(x - campo) < 1e-9),
+            `${nombre}: ${sim} lleva ${campo}`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('⚠ vertiente única: la franja del alero BAJO mide `a` y la lateral cambia con la figura', () => {
+    // El punto de la corrección del proyectista. Si un día alguien «uniforma» estas
+    // cotas a 2a, el plano de correas sale con la franja del alero bajo al doble.
+    const cA = cotasDeZona(geos[LAYOUT.UNA_AGUA_PRIMADA]);
+    const bajoA = cA.find(k => /franja contra el alero BAJO/.test(k.que));
+    expect(bajoA.simbolo).toBe("a");
+    expect(bajoA.valor).toBe(2);
+    expect(cA.find(k => /borde lateral/.test(k.que)).simbolo).toBe("2a");
+
+    const cB = cotasDeZona(geos[LAYOUT.UNA_AGUA]);
+    const bajoB = cB.find(k => /franja contra el alero BAJO/.test(k.que));
+    expect(bajoB.simbolo).toBe("a");
+    expect(cB.find(k => /borde lateral/.test(k.que)).simbolo).toBe("a");
+  });
+
+  it('cada zona cotada existe de verdad en esa planta', () => {
+    // El otro modo de mentir de una tabla de cotas: nombrar una zona que la figura no
+    // tiene. Se controla contra el clasificador, que es la única definición.
+    for (const [nombre, geo] of Object.entries(geos)) {
+      const hay = new Set(zonasPresentes(geo));
+      for (const k of cotasDeZona(geo)) {
+        expect(hay, `${nombre}: zona ${k.zona}`).toContain(k.zona);
+      }
+    }
+  });
+});
+
+describe('puntosDeRotulo — dónde va el número de cada zona', () => {
+  const casos = [
+    { layout: LAYOUT.PLANA_H, bx: 40, by: 20, h: 10 },
+    { layout: LAYOUT.DOS_AGUAS_CUMBRERA, bx: 40, by: 20, h: 6, a: 2, ejeCumbrera: "X" },
+    { layout: LAYOUT.CUATRO_AGUAS, bx: 40, by: 20, h: 6, a: 2, ejeCumbrera: "X" },
+    { layout: LAYOUT.UNA_AGUA_PRIMADA, bx: 20, by: 30, h: 6, a: 2, pendienteHacia: "+Y" },
+    { layout: LAYOUT.UNA_AGUA, bx: 20, by: 30, h: 6, a: 2, pendienteHacia: "-X" },
+  ];
+
+  it('el punto de cada zona CAE en esa zona, y hay uno por zona presente', () => {
+    for (const geo of casos) {
+      const pts = puntosDeRotulo(geo);
+      expect(Object.keys(pts).sort(), geo.layout).toEqual(zonasPresentes(geo).sort());
+      for (const [z, p] of Object.entries(pts)) {
+        expect(zonaEn(p.x, p.y, geo), `${geo.layout}: zona ${z}`).toBe(z);
+      }
+    }
+  });
+
+  it('no hay dos zonas rotuladas en el mismo punto', () => {
+    // Fue un defecto real: en cuatro aguas el ① y el ② caían los dos en el centro de la
+    // planta y el croquis mostraba una zona menos de las que tiene.
+    for (const geo of casos) {
+      const pts = Object.values(puntosDeRotulo(geo));
+      const vistos = new Set(pts.map(p => `${p.x},${p.y}`));
+      expect(vistos.size, geo.layout).toBe(pts.length);
+    }
+  });
+
+  it('el número no se apoya sobre la línea del contorno', () => {
+    // Casi todas las zonas de estas figuras son franjas contra un borde, y el punto «más
+    // adentro» de una franja, sin contar el contorno, es el que está pegado al contorno:
+    // el círculo salía mordido por la línea de la planta. Se exige que quede al menos a
+    // un tercio del ancho de la franja más angosta —`a`, o 0,2h en la cubierta plana—.
+    for (const geo of casos) {
+      const franja = geo.layout === LAYOUT.PLANA_H ? 0.2 * geo.h : geo.a;
+      for (const [z, p] of Object.entries(puntosDeRotulo(geo))) {
+        const d = Math.min(p.x, geo.bx - p.x, p.y, geo.by - p.y);
+        expect(d, `${geo.layout}: zona ${z}`).toBeGreaterThan(franja / 3);
+      }
+    }
   });
 });

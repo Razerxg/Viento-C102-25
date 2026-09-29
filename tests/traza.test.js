@@ -278,6 +278,39 @@ describe('Traza de componentes y revestimientos', () => {
     }
   });
 
+  it('la glosa de `h` sigue a la FIGURA y no al símbolo', () => {
+    // `SIM.h` describe la altura media de cubierta, pero hay figuras que definen su h como
+    // la del ALERO. Con la glosa fija, la traza mostraba «h · altura media de cubierta» al
+    // lado de un valor que era la altura del alero: el número bien y el renglón que lo
+    // explica, mal. Es exactamente el tipo de renglón que se copia a una memoria.
+    const glosa = (c) => c.pasos.find(x => x.id === "cyr_h").donde[0].desc;
+    const bloqueDe = (g) => {
+      const an = analizarCyR({
+        geo: normalizarGeo(g), V: 45, exposicion: "B", kd: 0.85, kztDe: () => [1],
+        gcpi: 0.18,
+        elementos: [{ tipo: "correa", superficie: "cubierta", L: 6, s: 1.5, nombre: "C-1" }],
+      });
+      const b = consolidar({ vel, sitio, topo, geoN, cerr: cerrCyR, rafaga, G,
+        modoG: "defecto", act, res, envCasos, U: Ud, d: {}, cyr: an, kdCyR: 0.85 })
+        .find(x => x.id === "cyr");
+      return [an, b];
+    };
+
+    // Dos aguas de 25°: la Fig. 5.3-2C se lee con la altura MEDIA.
+    const [conMedia, bMedia] = bloqueDe({ a: "20", b: "30", hAlero: "6", theta: "25",
+      tipo: "dos_aguas", cumbrera: "X" });
+    expect(conMedia.altura.cual).toBe("media");
+    expect(glosa(bMedia)).toMatch(/altura media de cubierta/);
+
+    // Vertiente única de 8°: la Fig. 5.3-5A se lee con la altura del ALERO.
+    const [conAlero, bAlero] = bloqueDe({ a: "20", b: "30", hAlero: "6", theta: "8",
+      tipo: "vertiente_unica", pendienteHacia: "+Y" });
+    expect(conAlero.figura).toBe("5.3-5A");
+    expect(conAlero.altura.cual).toBe("alero");
+    expect(glosa(bAlero)).toMatch(/altura del alero/);
+    expect(glosa(bAlero)).not.toMatch(/altura media/);
+  });
+
   it('la fórmula, el «donde:» y el artículo están en cada paso que los necesita', () => {
     const qh = bCyR.pasos.find(x => x.id === "cyr_qh");
     expect(qh.formula).toContain("0,613");

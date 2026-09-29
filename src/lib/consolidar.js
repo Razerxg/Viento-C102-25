@@ -249,7 +249,14 @@ function bloqueCyR({ cyr, cerr, kdCyR, U }) {
   p.push(paso({
     id: "cyr_h", titulo: "Altura de referencia de la figura", art: `Fig. ${cyr.figura}`,
     valor: U.val.longitud(cyr.altura.valor), unidad: U.u.longitud, dec: 2,
-    donde: [con("h", U.val.longitud(cyr.altura.valor), { unidad: U.u.longitud })],
+    // ⚠ LA GLOSA SIGUE A LA FIGURA, NO AL SÍMBOLO. `SIM.h` describe la altura MEDIA de
+    // cubierta, y hay figuras —la 5.3-5A, la 5.3-1 con θ ≤ 10°— que definen su h como la
+    // del ALERO. Con la glosa fija, la traza mostraba «h altura media de cubierta = 6 m»
+    // al lado de un valor que era la altura del alero: el número bien y el renglón que lo
+    // explica, mal.
+    donde: [con("h", U.val.longitud(cyr.altura.valor), { unidad: U.u.longitud,
+      desc: cyr.altura.cual === "alero" ? "altura del alero, que es la que define esta "
+        + "figura" : "altura media de cubierta" })],
     nota: `${cyr.altura.porque}. Esa altura fija las zonas, entra en la dimensión a y es a `
       + "la que se evalúa q_h.",
   }));

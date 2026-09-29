@@ -626,6 +626,33 @@ export function cotasDeZona(geo) {
     ];
   }
 
+  // ⚠ LAS DOS FIGURAS DE VERTIENTE ÚNICA COTEAN DISTINTO EN EL MISMO EJE: la franja
+  // lateral mide 2a en la 5.3-5A y `a` en la 5.3-5B, y la del alero bajo mide `a` en las
+  // dos. Es lo que se transcribe al plano de correas, así que va explícito y no «a».
+  if (layout === LAYOUT.UNA_AGUA_PRIMADA) {
+    return [
+      { zona: "3'", que: "en cada punta de la franja del alero ALTO",
+        simbolo: "2a × 4a", valor: 2 * a, valor2: 4 * a },
+      { zona: "2'", que: "resto de la franja del alero ALTO", simbolo: "2a", valor: 2 * a },
+      { zona: "2'", que: "franja en cada borde lateral", simbolo: "2a", valor: 2 * a },
+      { zona: "3", que: "en cada punta del alero BAJO", simbolo: "2a × 2a",
+        valor: 2 * a, valor2: 2 * a },
+      { zona: "2", que: "franja contra el alero BAJO", simbolo: "a", valor: a },
+      { zona: "1", que: "el resto del faldón", simbolo: "—" },
+    ];
+  }
+
+  if (layout === LAYOUT.UNA_AGUA) {
+    return [
+      { zona: "3", que: "en cada punta de la franja del alero ALTO",
+        simbolo: "2a × 4a", valor: 2 * a, valor2: 4 * a },
+      { zona: "2", que: "resto de la franja del alero ALTO", simbolo: "2a", valor: 2 * a },
+      { zona: "2", que: "franja contra el alero BAJO", simbolo: "a", valor: a },
+      { zona: "2", que: "franja en cada borde lateral", simbolo: "a", valor: a },
+      { zona: "1", que: "el resto del faldón", simbolo: "—" },
+    ];
+  }
+
   return [];
 }
 
@@ -656,18 +683,34 @@ export function puntosDeRotulo(geo, n = 25) {
   }
   const out = {};
   for (const z of new Set(pts.map(p => p.z))) {
-    let mejor = null, mejorD = -1;
-    for (const p of pts) {
-      if (p.z !== z) continue;
+    const propios = pts.filter(p => p.z === z);
+    // El centro de gravedad de la zona, sólo para DESEMPATAR. En una franja larga todos
+    // los puntos del medio están a la misma distancia de la frontera y sin desempate
+    // ganaba el primero del barrido: el número quedaba contra una punta de la franja.
+    const cg = {
+      x: propios.reduce((t, p) => t + p.x, 0) / propios.length,
+      y: propios.reduce((t, p) => t + p.y, 0) / propios.length,
+    };
+    let mejor = null, mejorD = -1, mejorCG = Infinity;
+    for (const p of propios) {
       let d = Infinity;
       for (const q of pts) {
         if (q.z === z) continue;
         const dd = (p.x - q.x) ** 2 + (p.y - q.y) ** 2;
         if (dd < d) d = dd;
       }
+      // ⚠ EL CONTORNO DE LA PLANTA CUENTA COMO FRONTERA. Casi todas las zonas de estas
+      // figuras son franjas contra un borde, y sin esto el punto «más adentro» de una
+      // franja es el que está pegado al contorno: el número salía montado sobre la línea
+      // de la planta, y en una franja angosta, medio afuera del dibujo.
       // Sin otra zona en la planta, cualquier punto sirve: gana el centro.
       if (d === Infinity) { mejor = { x: geo.bx / 2, y: geo.by / 2 }; break; }
-      if (d > mejorD) { mejorD = d; mejor = { x: p.x, y: p.y }; }
+      const dBorde = Math.min(p.x, geo.bx - p.x, p.y, geo.by - p.y) ** 2;
+      if (dBorde < d) d = dBorde;
+      const dCG = (p.x - cg.x) ** 2 + (p.y - cg.y) ** 2;
+      if (d > mejorD + 1e-9 || (Math.abs(d - mejorD) <= 1e-9 && dCG < mejorCG)) {
+        mejorD = d; mejorCG = dCG; mejor = { x: p.x, y: p.y };
+      }
     }
     if (mejor) out[z] = mejor;
   }
