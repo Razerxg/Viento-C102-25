@@ -20,8 +20,12 @@
 // deja de darlo en cuanto aparece el mínimo del art. 5.2.2, que es por elemento y por
 // sentido.
 import { FIGURAS, UBICACION } from "../constants/cyrCurvas.js";
-import { figuraPared, reduccionPared, gcpDeFuente, zonasDe } from "./cyrFiguras.js";
+import {
+  FORMA, figuraCubierta, figuraPared, reduccionPared, gcpDeFuente, zonasDe, alturaDe,
+} from "./cyrFiguras.js";
 import { areaEfectiva, avisoSPRFV } from "./cyrElementos.js";
+import { LAYOUT, LAYOUT_DE_FIGURA, dimensionA, zonasPresentes } from "./cyrZonas.js";
+import { q } from "./presionDinamica.js";
 
 /** Art. 5.2.2 — presión neta mínima de diseño, en N/m². */
 export const P_MINIMA = 800;
@@ -188,10 +192,15 @@ export function verificarElemento(ctx, elemento) {
   // La zona gobernante se decide POR SENTIDO. La de mayor succión no tiene por qué ser la
   // de mayor presión positiva: en la Fig. 5.3-2A el positivo es el mismo en todas las
   // zonas, y ahí gobierna la primera con el mínimo del art. 5.2.2 ya aplicado.
-  const peor = (clave, cmp) => zonas.reduce((a, b) => (cmp(b[clave], a[clave]) ? b : a));
+  // ⚠ EL DESEMPATE MIRA LA PRESIÓN CALCULADA. Cuando el mínimo del art. 5.2.2 gobierna
+  // varias zonas, todas quedan en 800 N/m² y cualquiera «gobierna» por igual; informar la
+  // primera haría decir que manda la zona interior cuando la que empuja el diseño es la de
+  // esquina. Con el desempate, la zona informada es la que de verdad está más exigida.
+  const peor = (clave, calc, cmp) => zonas.reduce((a, b) =>
+    (cmp(b[clave], a[clave]) || (b[clave] === a[clave] && cmp(b[calc], a[calc])) ? b : a));
   const gobierna = {
-    pos: peor("pPos", (x, y) => x > y).zona,
-    neg: peor("pNeg", (x, y) => x < y).zona,
+    pos: peor("pPos", "pPosCalculada", (x, y) => x > y).zona,
+    neg: peor("pNeg", "pNegCalculada", (x, y) => x < y).zona,
   };
 
   return {
@@ -206,3 +215,93 @@ export function verificarElemento(ctx, elemento) {
     sinFigura: false,
   };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EL EDIFICIO ENTERO — arma el contexto y verifica la lista de elementos
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Límite de la Parte 1 (art. 5.3): h ≤ 20 m, o edificio de baja altura (art. 1.2). */
+export const H_PARTE_1 = 20;
+
+/**
+ * Análisis de componentes y revestimientos de un edificio.
+ *
+ * ── POR QUÉ NO HAY DIRECCIÓN ───────────────────────────────────────────────────
+ * El SPRFV del capítulo 2 reparte presiones por dirección de viento; C&R no. Los (GC_p) de
+ * las figuras del capítulo 5 YA son la envolvente de todas las direcciones —por eso el
+ * mismo elemento tiene un valor positivo y uno negativo, y hay que diseñarlo para los
+ * dos—. De ahí que la exposición sea «la que dé las mayores cargas para cualquier
+ * dirección» (art. 1.7.4.4) y que `K_zt` entre como el MÁXIMO sobre las direcciones: tomar
+ * el de una sola dejaría afuera la que agrava.
+ *
+ * @param {object} e
+ * @param {{a:number,b:number,h:number,hAlero:number,theta:number,tipo:string,cumbrera:string}} e.geo
+ *                                 geometría normalizada (`normalizarGeo`)
+ * @param {number} e.V                 velocidad básica, en m/s
+ * @param {string} e.exposicion        B, C o D
+ * @param {number} e.altitud           en m
+ * @param {number} e.kd                de la fila «edificio_cyr» de la Tabla 1.6-1
+ * @param {number[]} e.kztPorDireccion K_zt a la altura de la figura, una por dirección
+ * @param {number} e.gcpi              magnitud de (GC_pi), con el R_i ya aplicado
+ * @param {boolean} [e.parapeto]
+ * @param {{tipo: string, superficie: "pared"|"cubierta", L?: number, s?: number,
+ *           area?: number, ubicacion?: string, nombre?: string}[]} [e.elementos]
+ */
+export function analizarCyR({ geo, V, exposicion, altitud = 0, kd, kztPorDireccion = [1],
+  gcpi, parapeto = false, elementos = [] }) {
+  const avisos = [];
+  const forma = FORMA_DE_TIPO[geo.tipo] ?? FORMA.OTRA;
+  const fuente = figuraCubierta({ forma, theta: geo.theta });
+  const figura = fuente.tipo === "interpolacion" ? fuente.desde : fuente.figura;
+
+  // ── QUÉ ALTURA, Y POR LO TANTO CUÁL q_h ──────────────────────────────────────
+  // La figura decide si es la altura media o la del alero, y esa misma altura es la que
+  // entra en `q_h`, en la dimensión `a` y —en la Fig. 5.3-2A— en las propias zonas.
+  const alt = figura ? alturaDe(figura, geo.theta) : { cual: "media", porque: "sin figura aplicable" };
+  const hFigura = alt.cual === "alero" ? geo.hAlero : geo.h;
+
+  if (geo.h > H_PARTE_1) {
+    avisos.push({ nivel: "error", ref: "art. 5.3",
+      texto: `La altura media de cubierta es ${geo.h.toFixed(2)} m y la Parte 1 del `
+        + `capítulo 5 cubre h ≤ ${H_PARTE_1} m. Para edificios más altos corresponde la `
+        + "Fig. 5.4-1, que todavía no está implementada." });
+  }
+
+  const menor = Math.min(geo.a, geo.b);
+  const dimA = dimensionA({ menor, h: hFigura, theta: geo.theta });
+  const Kzt = Math.max(...kztPorDireccion);
+  const qh = q({ z: hFigura, V, exposicion, kd, Kzt, altitud });
+
+  const geoZonas = {
+    layout: figura ? LAYOUT_DE_FIGURA[figura] : null,
+    bx: geo.a, by: geo.b, h: hFigura, a: dimA.a,
+    ejeCumbrera: /** @type {"X"|"Y"} */ (geo.cumbrera === "Y" ? "Y" : "X"),
+  };
+
+  const ctx = { qh: qh ?? 0, gcpi, fuente, theta: geo.theta, parapeto };
+  if (parapeto && !FIGURAS_CON_NOTA_PARAPETO.includes(figura)) {
+    // Declarar un parapeto y que no cambie nada es justo el silencio que hay que evitar.
+    avisos.push({ nivel: "info", ref: "Fig. 5.3-2A, nota 5",
+      texto: "El parapeto declarado no modifica los (GC_p): la nota que iguala la zona 3 a "
+        + `la 2 está en la Fig. 5.3-2A y acá corresponde la Fig. ${figura ?? "—"}.` });
+  }
+
+  return {
+    fuente, figura, avisos: [...avisos, ...fuente.avisos],
+    altura: { ...alt, valor: hFigura, media: geo.h, alero: geo.hAlero },
+    a: dimA, Kzt, qh,
+    geoZonas,
+    zonasCubierta: geoZonas.layout ? zonasPresentes(geoZonas) : [],
+    zonasPared: zonasPresentes({ ...geoZonas, layout: LAYOUT.PARED }),
+    elementos: elementos.map(el => verificarElemento(ctx, el)),
+    ctx,
+  };
+}
+
+/** Los tipos de cubierta del modelo de la app, a las formas del capítulo 5. */
+export const FORMA_DE_TIPO = {
+  plana: FORMA.PLANA,
+  dos_aguas: FORMA.DOS_AGUAS,
+  cuatro_aguas: FORMA.CUATRO_AGUAS,
+  vertiente_unica: FORMA.VERTIENTE_UNICA,
+};

@@ -212,6 +212,7 @@ La página del PDF del capítulo y la del Reglamento se corresponden con `Cap. 5
 | ✅ | Área efectiva por tipo de elemento | `engine/cyrElementos.js` |
 | ✅ | Presiones, mínimo del art. 5.2.2, nota de parapeto y verificación por elemento | `engine/cyrPresiones.js`, con `tests/cyrPresiones.test.js` |
 | ✅ | **Verificación cruzada contra la Tabla 5.13-2 — 960 valores** | `tests/casos/tabla5132.js` + `tests/cyrTabla5132.test.js` |
+| ✅ | `analizarCyR` — del proyecto a los elementos verificados | `engine/cyrPresiones.js` |
 | ⏳ | Pantalla, croquis de zonas, exportación y capítulo de memoria | |
 | 📥 | Transcripción de las Figs. 5.3-5A y 5B | `docs/verificar-cyr.md`, a controlar contra el PDF |
 
@@ -226,6 +227,29 @@ Fig. C 5-1** y sí en el comentario C 5.1 —mayor dimensión < 0,4·h, toda la 
 **Plantas irregulares: fuera del alcance.** La Fig. C 5.3-2 (plantas en L, en T, esquinas
 ≥ 135°, la regla de `X ≤ a`) no se implementa, porque la geometría de la app es
 rectangular. Va declarado en el Alcance de la memoria, no como un ⏳.
+
+#### Un error que sólo apareció al dibujar
+
+`zonaEn` clasificaba las **paredes** con `min(dx, dy) ≤ a` sobre la planta. Parece
+razonable y está mal: todo punto que esté *sobre* una pared tiene distancia cero al borde
+de la planta, así que **el punto medio de una nave de 40 m —zona 4 sin ninguna duda— salía
+zona 5**.
+
+Pasó dos tandas de tests porque **los dos controles miraban lo mismo**: `zonasPresentes` y
+el barrido denso usaban esa misma función, así que coincidían entre sí estando los dos
+equivocados. Lo destapó armar el croquis.
+
+De ahí sale el criterio para las regiones del dibujo: `regionesDe` es una **segunda
+representación independiente** de la misma regla —una responde «¿qué zona es este punto?» y
+la otra «¿qué figura ocupa cada zona?»—, y hay un test que las cruza sobre 11 geometrías y
+151² puntos cada una, **sin una sola discrepancia en el interior**. Las únicas admitidas
+son las de la línea divisoria misma, donde el clasificador usa `≤` y el dibujo pinta encima
+el rectángulo siguiente: un conjunto de área cero, identificado por que el clasificador
+salta al mover el punto un infinitésimo —en los ocho sentidos, porque en la esquina de un
+anillo mover una sola coordenada no cambia nada—.
+
+Las paredes se clasifican ahora con `zonaEnPared(s, largo, a)`, que es lo que son: una
+posición **a lo largo** de esa pared.
 
 #### La verificación cruzada contra la Tabla 5.13-2 ✅ — cerrada
 

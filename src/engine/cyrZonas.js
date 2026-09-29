@@ -165,9 +165,18 @@ export function zonaEn(x, y, geo) {
   }
 
   if (layout === LAYOUT.PARED) {
-    // Fig. 5.3-1: franja `a` en cada esquina vertical del edificio. Sobre una pared, la
-    // distancia que importa es la horizontal al borde de esa pared.
-    return Math.min(dx, dy) <= a ? "5" : "4";
+    // ⚠ UNA PARED NO ES UN PUNTO DE LA PLANTA. Sus zonas viven sobre una superficie
+    // VERTICAL, y lo que las define es la distancia a las esquinas DE ESA PARED, medida a
+    // lo largo de ella. Clasificar un punto (x, y) de la planta con `min(dx, dy) ≤ a`
+    // parece razonable y está mal: todo punto que esté SOBRE una pared tiene distancia
+    // cero al borde de la planta, así que el punto medio de una nave de 40 m —que es zona
+    // 4 sin ninguna duda— salía zona 5.
+    //
+    // El error pasó dos tandas de tests porque los dos controles que había miraban lo
+    // mismo: `zonasPresentes` y el barrido denso usaban ESTA función, así que coincidían
+    // entre sí estando los dos equivocados. Lo que lo destapó fue dibujarlo.
+    throw new Error("zonaEn: las zonas de pared no se clasifican con un punto de la "
+      + "planta; usar `zonaEnPared(s, largo, a)` con la distancia a lo largo de la pared");
   }
 
   const { u, v, Lu, Lv } = ejes(geo, x, y);
@@ -223,6 +232,21 @@ export function zonaEn(x, y, geo) {
   throw new Error(`zonaEn: zonificación desconocida «${layout}»`);
 }
 
+/**
+ * La zona de un punto de una PARED — Fig. 5.3-1.
+ *
+ * Zona 5 = franja de ancho `a` contra cada esquina vertical; zona 4 = el resto. No depende
+ * de la altura: las franjas de la figura son verticales y llegan de la base al alero.
+ *
+ * @param {number} s      distancia a lo largo de la pared, desde una de sus esquinas, en m
+ * @param {number} largo  largo de esa pared, en m
+ * @param {number} a      dimensión de borde
+ */
+export function zonaEnPared(s, largo, a) {
+  if (!(largo > 0)) throw new Error(`zonaEnPared: largo de pared inválido: ${largo}`);
+  return Math.min(s, largo - s) <= a ? "5" : "4";
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // QUÉ ZONAS EXISTEN EN ESTE EDIFICIO
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -249,11 +273,17 @@ export function zonaEn(x, y, geo) {
  * @returns {string[]} en el orden de la figura
  */
 export function zonasPresentes(geo) {
+  if (geo.layout === LAYOUT.PARED) {
+    // Las dos paredes distintas de un rectángulo: la de largo `bx` y la de largo `by`. La
+    // zona 5 existe siempre —toda pared tiene esquinas— y la 4 sólo si alguna pared es más
+    // larga que sus dos franjas de borde juntas.
+    const hayZona4 = [geo.bx, geo.by].some(L => L > 2 * geo.a);
+    return hayZona4 ? ["4", "5"] : ["5"];
+  }
   const vistas = new Set();
   for (const [x, y] of puntosTestigo(geo)) vistas.add(zonaEn(x, y, geo));
   // El orden de la figura, no el de aparición ni el del `Set`.
-  const orden = geo.layout === LAYOUT.PARED ? ["4", "5"] : ["1'", "1", "2", "3"];
-  return orden.filter(z => vistas.has(z));
+  return ["1'", "1", "2", "3"].filter(z => vistas.has(z));
 }
 
 /**
@@ -292,4 +322,121 @@ function puntosTestigo(geo) {
     for (let x = 0; x <= bx; x += paso) for (let y = 0; y <= by; y += paso) puntos.push([x, y]);
   }
   return puntos;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LAS REGIONES, PARA DIBUJARLAS
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// `zonaEn` responde «¿qué zona es este punto?» y el croquis necesita lo contrario: «¿qué
+// figura ocupa cada zona?». Rasterizar el clasificador daría un dibujo de miles de
+// rectángulos de un píxel, así que las regiones se arman aparte.
+//
+// ⚠ SON DOS REPRESENTACIONES DE LA MISMA REGLA, Y ESO ES A PROPÓSITO. Un test recorre la
+// planta y exige que la zona que da `zonaEn` coincida con la región que la cubre, punto
+// por punto. Escrito al revés —el dibujo derivado del clasificador— el croquis no podría
+// desmentirlo nunca, y fue justamente al dibujar las paredes que apareció que el
+// clasificador las trataba como puntos de la planta.
+//
+// Las piezas se pintan EN ORDEN: la última que cubre un punto es la que manda. Con eso, la
+// cubierta a cuatro aguas se resuelve sin cortar polígonos: fondo de zona 1, encima la
+// banda de cumbrera y limatesas, y encima la franja de perímetro.
+
+/**
+ * @typedef {{tipo: "rect", zona: string, x: number, y: number, w: number, h: number}} PiezaRect
+ * @typedef {{tipo: "banda", zona: string, segmentos: [number,number,number,number][],
+ *            ancho: number}} PiezaBanda
+ */
+
+/** Los cortes de una dimensión: 0, las fronteras desde cada borde, y el largo. */
+function cortes(L, distancias) {
+  const xs = new Set([0, L]);
+  for (const d of distancias) {
+    if (d > 0 && d < L) { xs.add(d); xs.add(L - d); }
+  }
+  return [...xs].sort((p, q) => p - q);
+}
+
+/**
+ * Las piezas que cubren la planta, en orden de pintado.
+ * @param {GeoZonas} geo
+ * @returns {(PiezaRect|PiezaBanda)[]}
+ */
+export function regionesDe(geo) {
+  const { layout, bx, by, h, a } = geo;
+
+  if (layout === LAYOUT.PARED) {
+    throw new Error("regionesDe: las paredes se dibujan en elevación, no en planta; "
+      + "usar `franjasDePared(largo, a)`");
+  }
+
+  if (layout === LAYOUT.CUATRO_AGUAS) {
+    const { Lu, Lv } = ejes(geo, 0, 0);
+    const m = Lv / 2;
+    // En coordenadas (u, v), que después se dan vuelta si la cumbrera corre según Y.
+    const seg = /** @type {[number,number,number,number][]} */ ([
+      [m, m, Lu - m, m],
+      [0, 0, m, m], [0, Lv, m, m], [Lu, 0, Lu - m, m], [Lu, Lv, Lu - m, m],
+    ]);
+    /** @type {(s: [number,number,number,number]) => [number,number,number,number]} */
+    const aXY = ([u1, v1, u2, v2]) => (geo.ejeCumbrera === "Y"
+      ? [v1, u1, v2, u2] : [u1, v1, u2, v2]);
+    return [
+      { tipo: "rect", zona: "1", x: 0, y: 0, w: bx, h: by },
+      // La banda de cumbrera y limatesas es el conjunto de puntos a distancia ≤ a de esos
+      // segmentos: exactamente lo que dibuja un trazo de ancho 2a con puntas y uniones
+      // redondeadas, que es como el croquis la pinta. La misma definición que usa
+      // `zonaEn`, no una aproximación de ella.
+      { tipo: "banda", zona: "2", segmentos: seg.map(aXY), ancho: 2 * a },
+      { tipo: "rect", zona: "3", x: 0, y: 0, w: bx, h: a },
+      { tipo: "rect", zona: "3", x: 0, y: by - a, w: bx, h: a },
+      { tipo: "rect", zona: "3", x: 0, y: 0, w: a, h: by },
+      { tipo: "rect", zona: "3", x: bx - a, y: 0, w: a, h: by },
+    ];
+  }
+
+  // Los tres layouts rectangulares se resuelven con una grilla de celdas: dentro de cada
+  // celda las distancias a los bordes no cruzan ninguna frontera, así que la celda entera
+  // es de una sola zona y alcanza con clasificar su centro.
+  let cortesX, cortesY;
+  if (layout === LAYOUT.PLANA_H) {
+    const d = [0.2 * h, 0.6 * h, 1.2 * h];
+    cortesX = cortes(bx, d); cortesY = cortes(by, d);
+  } else {
+    const { Lu, Lv } = ejes(geo, 0, 0);
+    const enU = cortes(Lu, [a]);
+    // Con cumbrera, la frontera transversal está a `a` de la CUMBRERA —que corre por el
+    // medio— y no de los aleros; sin cumbrera, a `a` de los aleros.
+    const enV = layout === LAYOUT.DOS_AGUAS_CUMBRERA
+      ? [...new Set([0, Math.max(0, Lv / 2 - a), Math.min(Lv, Lv / 2 + a), Lv])].sort((p, q) => p - q)
+      : cortes(Lv, [a]);
+    [cortesX, cortesY] = geo.ejeCumbrera === "Y" ? [enV, enU] : [enU, enV];
+  }
+
+  /** @type {PiezaRect[]} */
+  const piezas = [];
+  for (let i = 1; i < cortesX.length; i++) {
+    for (let j = 1; j < cortesY.length; j++) {
+      const [x0, x1] = [cortesX[i - 1], cortesX[i]];
+      const [y0, y1] = [cortesY[j - 1], cortesY[j]];
+      if (x1 - x0 <= 0 || y1 - y0 <= 0) continue;
+      piezas.push({ tipo: "rect", zona: zonaEn((x0 + x1) / 2, (y0 + y1) / 2, geo),
+        x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+    }
+  }
+  return piezas;
+}
+
+/**
+ * Las franjas de una pared, en elevación: `[{zona, desde, hasta}]` sobre su largo.
+ * @param {number} largo
+ * @param {number} a
+ */
+export function franjasDePared(largo, a) {
+  if (largo <= 2 * a) return [{ zona: "5", desde: 0, hasta: largo }];
+  return [
+    { zona: "5", desde: 0, hasta: a },
+    { zona: "4", desde: a, hasta: largo - a },
+    { zona: "5", desde: largo - a, hasta: largo },
+  ];
 }

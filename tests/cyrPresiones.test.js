@@ -7,10 +7,12 @@
 // y la convención de signos.
 import { describe, it, expect } from 'vitest';
 import {
-  P_MINIMA, PARAPETO_MINIMO, FIGURAS_CON_NOTA_PARAPETO,
-  gcpDeZona, presionDeZona, verificarElemento,
+  P_MINIMA, PARAPETO_MINIMO, FIGURAS_CON_NOTA_PARAPETO, FORMA_DE_TIPO,
+  gcpDeZona, presionDeZona, verificarElemento, analizarCyR,
 } from '../src/engine/cyrPresiones.js';
 import { FORMA, figuraCubierta } from '../src/engine/cyrFiguras.js';
+import { normalizarGeo } from '../src/engine/edificio.js';
+import { q } from '../src/engine/presionDinamica.js';
 import { TIPO_ELEMENTO } from '../src/engine/cyrElementos.js';
 import { FIGURAS } from '../src/constants/cyrCurvas.js';
 
@@ -230,5 +232,123 @@ describe('verificarElemento — todas las zonas, siempre', () => {
     const flojo = verificarElemento(ctx({ qh: 200 }), correa);
     expect(flojo.minimoGobiernaAlgo).toBe(true);
     expect(flojo.zonas.every(z => z.pPos === P_MINIMA)).toBe(true);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EL EDIFICIO ENTERO
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('analizarCyR — de la geometría del proyecto a los elementos verificados', () => {
+  const geoDe = (g) => normalizarGeo({ a: "20", b: "30", hAlero: "6", theta: "0",
+    tipo: "plana", cumbrera: "X", ...g });
+  const correr = (g, extra = {}) => analizarCyR({
+    geo: geoDe(g), V: 45, exposicion: "B", altitud: 0, kd: 0.85,
+    kztPorDireccion: [1], gcpi: 0.18, elementos: [], ...extra,
+  });
+
+  it('elige la figura y la altura que le corresponde, y las declara', () => {
+    const plana = correr({});
+    expect(plana.figura).toBe("5.3-2A");
+    expect(plana.altura.cual).toBe("alero");
+    expect(plana.altura.valor).toBeCloseTo(6, 9);
+
+    // Dos aguas de 25°: Fig. 5.3-2C, que usa la altura MEDIA y no la del alero.
+    const inclinada = correr({ tipo: "dos_aguas", theta: "25" });
+    expect(inclinada.figura).toBe("5.3-2C");
+    expect(inclinada.altura.cual).toBe("media");
+    expect(inclinada.altura.valor).toBeGreaterThan(6);
+    expect(inclinada.altura.valor).toBeCloseTo(inclinada.altura.media, 12);
+  });
+
+  it('q_h se evalúa a la altura de la figura, no a la media siempre', () => {
+    // Es la consecuencia práctica de lo anterior: con θ = 25° la Fig. 5.3-2C pide la
+    // altura media, que en una nave de 20 m de ancho está 2,3 m por encima del alero, y
+    // q_h sube con ella. Usar el alero daría presiones menores en toda la envolvente.
+    const inclinada = correr({ tipo: "dos_aguas", theta: "25" });
+    const alAlero = q({ z: inclinada.altura.alero, V: 45, exposicion: "B", kd: 0.85, Kzt: 1, altitud: 0 });
+    expect(inclinada.qh).toBeGreaterThan(alAlero);
+  });
+
+  it('K_zt entra como el MÁXIMO entre las direcciones', () => {
+    // C&R es envolvente de todas las direcciones: el (GC_p) ya lo es, así que tomar el
+    // K_zt de una sola dirección dejaría afuera justo la que agrava.
+    const uno = correr({}, { kztPorDireccion: [1, 1, 1, 1] });
+    const varias = correr({}, { kztPorDireccion: [1, 1.31, 1.05, 1] });
+    expect(varias.Kzt).toBeCloseTo(1.31, 9);
+    expect(varias.qh / uno.qh).toBeCloseTo(1.31, 6);
+  });
+
+  it('la dimensión `a` se mide con la altura de la figura', () => {
+    const r = correr({});
+    // Nave de 20 × 30 m con alero a 6 m: 10 % de 20 = 2,0 contra 0,4 × 6 = 2,4.
+    expect(r.a.a).toBeCloseTo(2, 9);
+    expect(r.a.gobierna).toMatch(/10 %/);
+  });
+
+  it('avisa —con nivel error— si el edificio se pasa de los 20 m de la Parte 1', () => {
+    const alto = correr({ hAlero: "24" });
+    expect(alto.avisos.some(a => a.nivel === "error" && /Parte 1/.test(a.texto))).toBe(true);
+  });
+
+  it('un parapeto declarado donde la nota no existe lo dice, en vez de no hacer nada', () => {
+    // Declarar un parapeto y que no cambie ningún número es el silencio que hay que
+    // evitar: el proyectista creería que se tuvo en cuenta.
+    const r = correr({ tipo: "dos_aguas", theta: "15" }, { parapeto: true });
+    expect(r.avisos.some(a => /no modifica los \(GC_p\)/.test(a.texto))).toBe(true);
+    const enA = correr({}, { parapeto: true });
+    expect(enA.avisos.some(a => /no modifica los \(GC_p\)/.test(a.texto))).toBe(false);
+  });
+
+  it('informa qué zonas existen en ESTE edificio, cubierta y pared', () => {
+    // Nave de 20 × 30 con h de alero 6 m: 2,4h = 14,4 < 20, así que están las cuatro.
+    expect(correr({}).zonasCubierta).toEqual(["1'", "1", "2", "3"]);
+    // Una caseta de 5 × 6 m con la misma altura no llega a 1,2h = 7,2 m en ninguna
+    // dirección: desaparecen la 1' y la 1, y queda la franja de 0,2h con el interior en
+    // zona 2. Es el cuarto escenario de la Fig. C 5-1, y sale de la geometría.
+    expect(correr({ a: "5", b: "6" }).zonasCubierta).toEqual(["2", "3"]);
+    // Un gabinete de 2,0 × 2,2 m junto al mismo alero está por debajo de 0,4h = 2,4 m:
+    // toda la cubierta es zona 3. Es el quinto escenario, el del comentario C 5.1.
+    expect(correr({ a: "2", b: "2.2" }).zonasCubierta).toEqual(["3"]);
+    expect(correr({}).zonasPared).toEqual(["4", "5"]);
+  });
+
+  it('verifica cada elemento de la lista', () => {
+    const r = correr({}, { elementos: [
+      { tipo: TIPO_ELEMENTO.CORREA, superficie: "cubierta", L: 6, s: 1.5, nombre: "C-1" },
+      { tipo: TIPO_ELEMENTO.LARGUERO, superficie: "pared", L: 4, s: 1.2, nombre: "L-1" },
+    ] });
+    expect(r.elementos).toHaveLength(2);
+    expect(r.elementos[0].zonas.map(z => z.zona)).toEqual(["1'", "1", "2", "3"]);
+    expect(r.elementos[1].zonas.map(z => z.zona)).toEqual(["4", "5"]);
+    expect(r.elementos[0].gobierna.neg).toBe("3");
+  });
+
+  it('con el mínimo gobernando todas las zonas, la gobernante es la MÁS exigida', () => {
+    // Todas quedan en 800 N/m² y cualquiera «gobierna» por igual. Informar la primera
+    // diría que manda la zona interior cuando la que empuja el diseño es la de esquina.
+    const flojo = correr({}, { V: 20, elementos: [
+      { tipo: TIPO_ELEMENTO.CORREA, superficie: "cubierta", L: 6, s: 1.5 }] });
+    const el = flojo.elementos[0];
+    expect(el.zonas.every(z => Math.abs(z.pNeg) === P_MINIMA)).toBe(true);
+    expect(el.gobierna.neg).toBe("3");
+  });
+
+  it('una cubierta sin figura no calcula, y lo dice en todos lados', () => {
+    const r = correr({ tipo: "vertiente_unica", theta: "18" }, { elementos: [
+      { tipo: TIPO_ELEMENTO.CHAPA, superficie: "cubierta", L: 3, s: 1 }] });
+    expect(r.figura).toBeUndefined();
+    expect(r.zonasCubierta).toEqual([]);
+    expect(r.avisos.some(a => a.nivel === "error")).toBe(true);
+    expect(r.elementos[0].sinFigura).toBe(true);
+    // Las paredes siguen teniendo figura: la 5.3-1 no depende del tipo de cubierta.
+    expect(r.zonasPared).toEqual(["4", "5"]);
+  });
+
+  it('los cuatro tipos de cubierta de la app tienen su forma del capítulo 5', () => {
+    expect(FORMA_DE_TIPO).toEqual({
+      plana: FORMA.PLANA, dos_aguas: FORMA.DOS_AGUAS,
+      cuatro_aguas: FORMA.CUATRO_AGUAS, vertiente_unica: FORMA.VERTIENTE_UNICA,
+    });
   });
 });

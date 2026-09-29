@@ -7,7 +7,8 @@
 // estos tests siguen pasando y los de abajo —geometría punto por punto— no.
 import { describe, it, expect } from 'vitest';
 import {
-  LAYOUT, LAYOUT_DE_FIGURA, dimensionA, zonaEn, zonasPresentes,
+  LAYOUT, LAYOUT_DE_FIGURA, dimensionA, zonaEn, zonaEnPared, zonasPresentes,
+  regionesDe, franjasDePared,
 } from '../src/engine/cyrZonas.js';
 import { FIGURAS_LISTA } from '../src/constants/cyrCurvas.js';
 
@@ -244,14 +245,155 @@ describe('Figs. 5.3-2E, 2F y 2G — cuatro aguas', () => {
 describe('Fig. 5.3-1 — paredes', () => {
   const geo = { layout: LAYOUT.PARED, bx: 40, by: 20, h: 6, a: 2 };
 
-  it('la zona 5 es la franja `a` de cada esquina', () => {
-    expect(zonaEn(1, 10, geo)).toBe("5");
-    expect(zonaEn(39, 10, geo)).toBe("5");
-    expect(zonaEn(20, 10, geo)).toBe("4");
+  it('una pared NO se clasifica con un punto de la planta', () => {
+    // Las zonas de pared viven sobre una superficie vertical y se miden a lo largo de esa
+    // pared. La versión anterior usaba `min(dx, dy) ≤ a` sobre la planta, y con eso TODO
+    // punto que estuviera sobre una pared tenía distancia cero al borde de la planta: el
+    // punto medio de una nave de 40 m, que es zona 4 sin ninguna duda, salía zona 5.
+    //
+    // El error pasó dos tandas de tests porque los dos controles miraban lo mismo:
+    // `zonasPresentes` y el barrido denso usaban esa función, así que coincidían entre sí
+    // estando los dos equivocados. Lo destapó dibujarlo.
+    expect(() => zonaEn(20, 0, geo)).toThrow(/no se clasifican con un punto de la planta/);
   });
 
-  it('sólo tiene las zonas 4 y 5, en ese orden', () => {
+  it('la zona 5 es la franja `a` contra cada esquina, medida a lo largo de la pared', () => {
+    expect(zonaEnPared(1, 40, 2)).toBe("5");
+    expect(zonaEnPared(39, 40, 2)).toBe("5");
+    expect(zonaEnPared(20, 40, 2)).toBe("4");    // el punto medio, que antes daba 5
+    expect(zonaEnPared(2, 40, 2)).toBe("5");     // el borde de la franja pertenece a la 5
+    expect(zonaEnPared(2.01, 40, 2)).toBe("4");
+  });
+
+  it('una pared más corta que sus dos franjas es toda zona 5', () => {
+    expect(zonaEnPared(1.5, 3, 2)).toBe("5");
+    expect(franjasDePared(3, 2)).toEqual([{ zona: "5", desde: 0, hasta: 3 }]);
+  });
+
+  it('las franjas de elevación coinciden con el clasificador', () => {
+    const largo = 40, a = 2;
+    for (const f of franjasDePared(largo, a)) {
+      for (let k = 1; k < 20; k++) {
+        const s = f.desde + (f.hasta - f.desde) * k / 20;
+        expect(zonaEnPared(s, largo, a), `s = ${s}`).toBe(f.zona);
+      }
+    }
+  });
+
+  it('sólo tiene las zonas 4 y 5, y la 4 desaparece si el edificio es chico', () => {
     expect(zonasPresentes(geo)).toEqual(["4", "5"]);
+    expect(zonasPresentes({ ...geo, bx: 3, by: 3 })).toEqual(["5"]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LAS REGIONES DEL CROQUIS CONTRA EL CLASIFICADOR
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('regionesDe — el dibujo y el clasificador dicen lo mismo', () => {
+  // Son dos representaciones independientes de la misma regla: una responde «¿qué zona es
+  // este punto?» y la otra «¿qué figura ocupa cada zona?». Que coincidan punto por punto
+  // es lo que convierte al croquis en un control y no en una ilustración.
+  const casos = [
+    { layout: LAYOUT.PLANA_H, bx: 30, by: 40, h: 10 },
+    { layout: LAYOUT.PLANA_H, bx: 8, by: 40, h: 10 },
+    { layout: LAYOUT.PLANA_H, bx: 8, by: 10, h: 10 },
+    { layout: LAYOUT.PLANA_H, bx: 3, by: 3.5, h: 10 },
+    { layout: LAYOUT.DOS_AGUAS_CUMBRERA, bx: 40, by: 20, h: 6, a: 2, ejeCumbrera: "X" },
+    { layout: LAYOUT.DOS_AGUAS_CUMBRERA, bx: 20, by: 40, h: 6, a: 2, ejeCumbrera: "Y" },
+    { layout: LAYOUT.DOS_AGUAS_ESQUINAS, bx: 40, by: 20, h: 6, a: 2, ejeCumbrera: "X" },
+    { layout: LAYOUT.DOS_AGUAS_ESQUINAS, bx: 20, by: 40, h: 6, a: 2, ejeCumbrera: "Y" },
+    { layout: LAYOUT.CUATRO_AGUAS, bx: 40, by: 20, h: 6, a: 2, ejeCumbrera: "X" },
+    { layout: LAYOUT.CUATRO_AGUAS, bx: 20, by: 40, h: 6, a: 2, ejeCumbrera: "Y" },
+    { layout: LAYOUT.CUATRO_AGUAS, bx: 20, by: 20, h: 6, a: 2, ejeCumbrera: "X" },
+  ];
+
+  // La zona que ve el ojo: la ÚLTIMA pieza que cubre el punto, que es como pinta el SVG.
+  const dist = (px, py, [x1, y1, x2, y2]) => {
+    const dx = x2 - x1, dy = y2 - y1, l2 = dx * dx + dy * dy;
+    const t = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / l2));
+    return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+  };
+  const zonaPintada = (piezas, x, y) => {
+    let z = null;
+    for (const p of piezas) {
+      if (p.tipo === "rect") {
+        if (x >= p.x && x <= p.x + p.w && y >= p.y && y <= p.y + p.h) z = p.zona;
+      } else if (p.segmentos.some(s => dist(x, y, s) <= p.ancho / 2)) z = p.zona;
+    }
+    return z;
+  };
+
+  // Un punto está EN UNA FRONTERA si el clasificador salta al moverlo un infinitésimo. Es
+  // la única discrepancia admisible entre las dos representaciones: sobre la línea que
+  // separa dos zonas, `zonaEn` usa ≤ y se queda con la de adentro, mientras que el dibujo
+  // pinta encima el rectángulo siguiente. Es un conjunto de área cero y no se ve; lo que
+  // NO se admite es una discrepancia en el interior de una región.
+  const enFrontera = (x, y, geo) => {
+    const d = 1e-7, z = zonaEn(x, y, geo);
+    // Las cuatro diagonales además de los cuatro ejes: en la ESQUINA de un anillo —donde
+    // `min(dx, dy)` vale lo mismo en las dos direcciones— mover sólo una coordenada no
+    // cambia nada, y el punto igual está sobre la frontera. Con bx = 30, by = 40 y h = 10
+    // eso pasa exactamente en (12, 12), que es la esquina de 1,2h con 1,2h.
+    const P = [[d, 0], [-d, 0], [0, d], [0, -d], [d, d], [d, -d], [-d, d], [-d, -d]];
+    return P.some(([ex, ey]) => {
+      const px = Math.min(Math.max(x + ex, 0), geo.bx);
+      const py = Math.min(Math.max(y + ey, 0), geo.by);
+      return zonaEn(px, py, geo) !== z;
+    });
+  };
+
+  it('cada punto INTERIOR recibe del dibujo la zona que dice el clasificador', () => {
+    for (const geo of casos) {
+      const piezas = regionesDe(geo);
+      const n = 150;
+      let comparados = 0;
+      const fallos = [];
+      for (let i = 0; i <= n; i++) for (let j = 0; j <= n; j++) {
+        const x = geo.bx * i / n, y = geo.by * j / n;
+        comparados++;
+        const esperada = zonaEn(x, y, geo);
+        if (zonaPintada(piezas, x, y) === esperada) continue;
+        if (enFrontera(x, y, geo)) continue;
+        fallos.push([+x.toFixed(4), +y.toFixed(4), esperada, zonaPintada(piezas, x, y)]);
+      }
+      const etiqueta = `${geo.layout} ${geo.bx}×${geo.by}`;
+      expect(comparados, etiqueta).toBe((n + 1) * (n + 1));
+      expect(fallos, `${etiqueta}: ${JSON.stringify(fallos.slice(0, 6))}`).toEqual([]);
+    }
+  });
+
+  it('las piezas cubren toda la planta y ninguna se sale', () => {
+    for (const geo of casos) {
+      for (const p of regionesDe(geo)) {
+        if (p.tipo !== "rect") continue;
+        expect(p.x, geo.layout).toBeGreaterThanOrEqual(-1e-9);
+        expect(p.y, geo.layout).toBeGreaterThanOrEqual(-1e-9);
+        expect(p.x + p.w, geo.layout).toBeLessThanOrEqual(geo.bx + 1e-9);
+        expect(p.y + p.h, geo.layout).toBeLessThanOrEqual(geo.by + 1e-9);
+        expect(p.w * p.h, geo.layout).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('las zonas dibujadas son exactamente las que declara `zonasPresentes`', () => {
+    for (const geo of casos) {
+      const enDibujo = new Set(regionesDe(geo).map(p => p.zona));
+      // El fondo de cuatro aguas puede quedar totalmente tapado: se compara contra lo que
+      // realmente se ve, no contra la lista de piezas.
+      const piezas = regionesDe(geo);
+      const vistas = new Set();
+      for (let i = 0; i <= 60; i++) for (let j = 0; j <= 60; j++) {
+        vistas.add(zonaEn(geo.bx * i / 60, geo.by * j / 60, geo));
+      }
+      expect([...vistas].sort(), geo.layout).toEqual(zonasPresentes(geo).sort());
+      for (const z of vistas) expect(enDibujo, `${geo.layout}: falta la zona ${z}`).toContain(z);
+    }
+  });
+
+  it('las paredes no se dibujan en planta', () => {
+    expect(() => regionesDe({ layout: LAYOUT.PARED, bx: 40, by: 20, h: 6, a: 2 }))
+      .toThrow(/se dibujan en elevación/);
   });
 });
 
@@ -285,8 +427,6 @@ describe('Coherencia del clasificador', () => {
       { layout: LAYOUT.CUATRO_AGUAS, bx: 40, by: 20, h: 6, a: 2, ejeCumbrera: "X" },
       { layout: LAYOUT.CUATRO_AGUAS, bx: 20, by: 20, h: 6, a: 2, ejeCumbrera: "X" },
       { layout: LAYOUT.CUATRO_AGUAS, bx: 30, by: 12, h: 6, a: 3, ejeCumbrera: "X" },
-      { layout: LAYOUT.PARED, bx: 40, by: 20, h: 6, a: 2 },
-      { layout: LAYOUT.PARED, bx: 3, by: 3, h: 6, a: 2 },
     ];
     for (const geo of casos) {
       const vistas = new Set();
@@ -294,7 +434,7 @@ describe('Coherencia del clasificador', () => {
       for (let i = 0; i <= n; i++) for (let j = 0; j <= n; j++) {
         vistas.add(zonaEn(geo.bx * i / n, geo.by * j / n, geo));
       }
-      const orden = geo.layout === LAYOUT.PARED ? ["4", "5"] : ["1'", "1", "2", "3"];
+      const orden = ["1'", "1", "2", "3"];
       const etiqueta = `${geo.layout} ${geo.bx}×${geo.by}`;
       expect(zonasPresentes(geo), etiqueta).toEqual(orden.filter(z => vistas.has(z)));
     }
@@ -306,10 +446,9 @@ describe('Coherencia del clasificador', () => {
       { layout: LAYOUT.DOS_AGUAS_CUMBRERA, bx: 37, by: 19, h: 6, a: 1.9, ejeCumbrera: "X" },
       { layout: LAYOUT.DOS_AGUAS_ESQUINAS, bx: 37, by: 19, h: 6, a: 1.9, ejeCumbrera: "X" },
       { layout: LAYOUT.CUATRO_AGUAS, bx: 37, by: 19, h: 6, a: 1.9, ejeCumbrera: "X" },
-      { layout: LAYOUT.PARED, bx: 37, by: 19, h: 6, a: 1.9 },
     ];
     for (const geo of casos) {
-      const validas = geo.layout === LAYOUT.PARED ? ["4", "5"] : ["1'", "1", "2", "3"];
+      const validas = ["1'", "1", "2", "3"];
       for (let i = 0; i <= 120; i++) for (let j = 0; j <= 120; j++) {
         const z = zonaEn(geo.bx * i / 120, geo.by * j / 120, geo);
         expect(validas, `${geo.layout} en (${i}, ${j})`).toContain(z);
