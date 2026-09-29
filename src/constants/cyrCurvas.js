@@ -325,53 +325,41 @@ export const FIGURAS = {
       },
     },
   },
-};
 
-// ── ORDEN DE LAS FIGURAS ───────────────────────────────────────────────────────
-// Por el mismo motivo que el orden de las zonas: «5.3-1» y «5.3-2A» no parecen enteros y
-// hoy `Object.keys` los devolvería en orden de inserción, pero eso es una casualidad del
-// nombre y no una garantía del lenguaje. Las pantallas recorren esta lista.
-export const FIGURAS_LISTA = ["5.3-1", "5.3-2A", "5.3-2B", "5.3-2C", "5.3-2D", "5.3-2E", "5.3-2F", "5.3-2G"];
-
-// ── LO QUE TODAVÍA NO ESTÁ ─────────────────────────────────────────────────────
-// Las Figs. 5.3-5A y 5.3-5B (vertiente única) NO TIENEN ECUACIÓN en el comentario: son
-// sólo gráfico. Hay que transcribir los quiebres de la figura y que el proyectista los
-// controle contra el PDF antes de que la app las use. Mientras tanto, la selección de
-// figura para vertiente única con θ > 3° devuelve un aviso de nivel error y ningún número.
-//
-// ⚠ ESTÁN TRANSCRIPTAS PERO **NO SE USAN**. Las curvas de abajo salieron de medir el
-// gráfico píxel por píxel, no de una ecuación, así que hasta que el proyectista las
-// controle contra el PDF quedan fuera de `FIGURAS` y de `FIGURAS_LISTA`: la selección de
-// figura sigue devolviendo «no implementada» para vertiente única con θ > 3°.
-//
-// Sacarlas de acá y meterlas en `FIGURAS` es UN SOLO PASO, y es el que no se da sin el
-// visto bueno. Dejarlas transcriptas y accesibles mientras tanto es lo que permite
-// controlarlas: `docs/verificar-cyr.md` se genera de estos mismos datos.
-//
-// ── CÓMO SE LEYERON ────────────────────────────────────────────────────────────
-// Rasterizando la página a 300 y a 600 dpi y midiendo: se calibran los ejes con las
-// líneas de grilla —19 renglones de −3,0 a 0,6 y ocho columnas en 0,1 · 1 · 2 · 5 · 10 ·
-// 20 · 50 · 100 m²— y se sigue cada trazo columna por columna. Las dos lecturas coinciden
-// dentro de 0,003, y el residuo de la calibración del eje vertical es de 0,005.
-//
-// Los quiebres caen en A = 1 y A = 10 m², sobre líneas de grilla rotuladas, y los valores
-// son múltiplos de 0,1: la poligonal reproduce el trazo medido con un desvío máximo de
-// 0,02, que es el ancho de la propia línea del gráfico.
-export const FIGURAS_PENDIENTES = {
+  // ═════════════════════════════════════════════════════════════════════════════
+  // FIGURAS 5.3-5A y 5B — VERTIENTE ÚNICA (págs. Cap. 5-177 y 5-178)
+  // ═════════════════════════════════════════════════════════════════════════════
+  //
+  // ⚠ SON LAS ÚNICAS DEL ALCANCE SIN ECUACIÓN EN EL COMENTARIO. Las Tablas C 5.3-1 a 8 no
+  // las incluyen: la única fuente es el gráfico. Se transcribieron MIDIENDO la imagen
+  // —rasterizada a 300 y a 600 dpi, calibrando los ejes con las líneas de grilla— y no a
+  // ojo, y el proyectista las verificó contra el PDF con una lectura independiente.
+  //
+  // Las dos lecturas coinciden dentro de 0,003, el residuo de la calibración del eje
+  // vertical es 0,005, y la poligonal de dos puntos reproduce el trazo medido en 29 áreas
+  // con un desvío máximo de 0,02 —el ancho de la propia línea del gráfico—. Los quiebres
+  // caen en A = 1 y A = 10 m², sobre líneas de grilla rotuladas, y los valores son
+  // múltiplos de 0,1. El procedimiento y las tablas están en `docs/verificar-cyr.md`, y la
+  // herramienta en `docs/lectura-figuras/leer-grafico.py`.
   "5.3-5A": {
-    titulo: "Cubiertas de vertiente única, 3° < θ ≤ 10°", pagina: "Cap. 5-177",
-    motivo: "sin ecuación en el comentario: hay que transcribir el gráfico",
-    estado: "transcripta — pendiente de verificación del proyectista",
-    // La notación de la figura dice «La altura del alero se utilizará para θ ≤ 10°», y la
-    // figura entera es θ ≤ 10°: siempre altura de alero.
-    alturaH: ALTURA_H.ALERO, zonificaPor: "a",
+    tabla: "— (sin ecuación: transcripción del gráfico)",
+    titulo: "Cubiertas de vertiente única, 3° < θ ≤ 10°",
+    pagina: "Cap. 5-177",
+    superficie: "cubierta",
+    // ⚠ LAS PRIMADAS SON LAS DEL ALERO ALTO. Es lo que distingue esta figura de la 5B, y
+    // ponerlas del lado equivocado daría las succiones más grandes en el borde que no
+    // corresponde, con el croquis espejado y ningún número fuera de rango.
     zonas: ["1", "2", "2'", "3", "3'"],
-    // Zonificación leída del diagrama: franja de 2a en el alero ALTO con zona 3' en los
-    // 4a de cada punta y 2' en el medio; franja de 2a en el alero BAJO con zona 3 en los
-    // 2a de cada punta y 2 en el medio; franjas de 2a arriba y abajo en zona 2'; el resto,
-    // zona 1. No está implementada: se describe en `docs/verificar-cyr.md`.
+    ubicaciones: [UBICACION.CUBIERTA],
+    zonificaPor: "a",
+    // La notación dice «La altura del alero se utilizará para θ ≤ 10°», y la figura entera
+    // es θ ≤ 10°: siempre altura de alero.
+    alturaH: ALTURA_H.ALERO,
     curvas: {
       cubierta: {
+        // ⚠ LAS CURVAS 3 Y 2′ SE CRUZAN en A = 10^0,4 ≈ 2,5 m²: la 3 arranca más
+        // succionada (−1,8 contra −1,6) y termina menos (−1,2 contra −1,5). Es lo que
+        // dibuja la figura, y es donde un trazado a ojo se equivoca de curva. Hay test.
         "1":  { pos: [[1, 0.3], [10, 0.2]], neg: [[1, -1.1], [10, -1.1]] },
         "2":  { pos: [[1, 0.3], [10, 0.2]], neg: [[1, -1.3], [10, -1.2]] },
         "2'": { pos: [[1, 0.3], [10, 0.2]], neg: [[1, -1.6], [10, -1.5]] },
@@ -381,13 +369,14 @@ export const FIGURAS_PENDIENTES = {
     },
   },
   "5.3-5B": {
-    titulo: "Cubiertas de vertiente única, 10° < θ ≤ 30°", pagina: "Cap. 5-178",
-    motivo: "sin ecuación en el comentario: hay que transcribir el gráfico",
-    estado: "transcripta — pendiente de verificación del proyectista",
-    alturaH: ALTURA_H.MEDIA, zonificaPor: "a",
+    tabla: "— (sin ecuación: transcripción del gráfico)",
+    titulo: "Cubiertas de vertiente única, 10° < θ ≤ 30°",
+    pagina: "Cap. 5-178",
+    superficie: "cubierta",
     zonas: ["1", "2", "3"],
-    // Franja de 2a en el alero alto con zona 3 en los 4a de cada punta; franja de a en el
-    // alero bajo y franjas de a arriba y abajo, todas en zona 2; el resto, zona 1.
+    ubicaciones: [UBICACION.CUBIERTA],
+    zonificaPor: "a",
+    alturaH: ALTURA_H.MEDIA,
     curvas: {
       cubierta: {
         "1": { pos: [[1, 0.4], [10, 0.3]], neg: [[1, -1.3], [10, -1.1]] },
@@ -397,6 +386,35 @@ export const FIGURAS_PENDIENTES = {
     },
   },
 };
+
+// ── ORDEN DE LAS FIGURAS ───────────────────────────────────────────────────────
+// Por el mismo motivo que el orden de las zonas: «5.3-1» y «5.3-2A» no parecen enteros y
+// hoy `Object.keys` los devolvería en orden de inserción, pero eso es una casualidad del
+// nombre y no una garantía del lenguaje. Las pantallas recorren esta lista.
+export const FIGURAS_LISTA = ["5.3-1", "5.3-2A", "5.3-2B", "5.3-2C", "5.3-2D", "5.3-2E",
+  "5.3-2F", "5.3-2G", "5.3-5A", "5.3-5B"];
+
+/**
+ * Las figuras cuyas curvas salieron de MEDIR EL GRÁFICO y no de una ecuación.
+ *
+ * No es una lista de pendientes: las dos están activas y el proyectista las verificó
+ * contra el PDF. Se declaran aparte porque la app tiene que poder decirlo —en la memoria y
+ * en el tooltip— y porque el día que aparezca una discrepancia, es el primer lugar donde
+ * mirar. Las demás figuras se verifican solas contra las ecuaciones del comentario; éstas
+ * no tienen contra qué.
+ */
+export const FIGURAS_DE_GRAFICO = ["5.3-5A", "5.3-5B"];
+
+// ── NO QUEDA NINGUNA FIGURA PENDIENTE EN EL ALCANCE ───────────────────────────
+// Las Figs. 5.3-5A y 5B estuvieron transcriptas y desactivadas hasta que el proyectista
+// las controló contra el PDF con una lectura independiente. Ya están arriba, en `FIGURAS`.
+//
+// El registro se deja VACÍO y no borrado: es donde entra la próxima figura que se
+// transcriba —escalonadas, diente de sierra, cúpula—, y `engine/cyrFiguras.js` ya sabe
+// distinguir «no está en el reglamento» de «no está transcripta todavía», que para el
+// proyectista son dos situaciones distintas.
+/** @type {Object<string, {titulo: string, pagina: string, motivo: string}>} */
+export const FIGURAS_PENDIENTES = {};
 
 // ── LAS DOS ERRATAS DEL COMENTARIO ─────────────────────────────────────────────
 // Se registran acá, y no sólo en un comentario suelto, porque son el tipo de cosa que en

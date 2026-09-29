@@ -250,8 +250,8 @@ describe('Traza de componentes y revestimientos', () => {
 
   it('sin figura aplicable el bloque no aparece, en vez de aparecer vacío', () => {
     const sinFig = analizarCyR({
-      geo: normalizarGeo({ a: "20", b: "30", hAlero: "6", theta: "18",
-        tipo: "vertiente_unica" }),
+      geo: normalizarGeo({ a: "20", b: "30", hAlero: "6", theta: "60",
+        tipo: "dos_aguas" }),
       V: 45, exposicion: "B", kd: 0.85, kztDe: () => [1], gcpi: 0.18, elementos: [] });
     const a2 = consolidar({ vel, sitio, topo, geoN, cerr: cerrCyR, rafaga, G, modoG: "defecto",
       act, res, envCasos, U: Ud, d: {}, cyr: sinFig, kdCyR: 0.85 });

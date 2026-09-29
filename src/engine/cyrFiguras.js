@@ -10,7 +10,7 @@
 // cubierta a dos aguas de 50° no es una de 45°, y darle los coeficientes de la 5.3-2D
 // sería inventar una figura que el reglamento no tiene.
 import {
-  FIGURAS, FIGURAS_PENDIENTES, UBICACION, ALTURA_H,
+  FIGURAS, UBICACION, ALTURA_H,
 } from "../constants/cyrCurvas.js";
 import { gcpDeCurva } from "./cyr.js";
 import { LAYOUT_DE_FIGURA } from "./cyrZonas.js";
@@ -122,18 +122,22 @@ export function figuraCubierta({ forma, theta }) {
         ref: "Fig. 5.3-5A, nota 5",
       }]);
     }
-    const pendiente = theta <= 10 ? "5.3-5A" : theta <= 30 ? "5.3-5B" : null;
-    if (!pendiente) {
-      return noImplementada(
-        `Cubierta de vertiente única con θ = ${theta}°: la Fig. 5.3-5B llega hasta 30°.`,
-        "Fig. 5.3-5B");
-    }
-    // Están en el reglamento pero no en el repositorio: no tienen ecuación en el
-    // comentario y su transcripción del gráfico todavía no la verificó el proyectista.
+    // Las dos figuras de vertiente única son las ÚNICAS del alcance sin ecuación en el
+    // comentario: sus curvas se transcribieron midiendo el gráfico. Están verificadas, y
+    // el aviso lo dice igual —es info, no reproche— porque es el primer lugar donde mirar
+    // si algún día un número no cierra.
+    const conAviso = (figura, porque) => fig(figura, porque, [{
+      nivel: "info",
+      texto: `Las curvas de la Fig. ${figura} no tienen ecuación en el comentario: se `
+        + "transcribieron midiendo el gráfico de la figura. Conviene compararlas con el "
+        + "gráfico que dibuja la app.",
+      ref: `Fig. ${figura}`,
+    }]);
+    if (theta <= 10) return conAviso("5.3-5A", "vertiente única con 3° < θ ≤ 10°");
+    if (theta <= 30) return conAviso("5.3-5B", "vertiente única con 10° < θ ≤ 30°");
     return noImplementada(
-      `Cubierta de vertiente única con θ = ${theta}°: corresponde la Fig. ${pendiente}, `
-      + `que todavía no está transcripta (${FIGURAS_PENDIENTES[pendiente].motivo}).`,
-      `Fig. ${pendiente}`);
+      `Cubierta de vertiente única con θ = ${theta}°: la Fig. 5.3-5B llega hasta 30°.`,
+      "Fig. 5.3-5B");
   }
 
   return noImplementada(

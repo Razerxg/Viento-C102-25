@@ -242,6 +242,106 @@ describe('Figs. 5.3-2E, 2F y 2G — cuatro aguas', () => {
   });
 });
 
+describe('Figs. 5.3-5A y 5B — vertiente única', () => {
+  // Nave de 40 × 20 con la cubierta BAJANDO hacia +Y: el alero bajo está en y = 20 y el
+  // alto en y = 0. Con a = 2 las fronteras caen en 2, 4 y 8 m, que son números redondos y
+  // se pueden contar a mano sobre el croquis.
+  const A = { layout: LAYOUT.UNA_AGUA_PRIMADA, bx: 40, by: 20, h: 6, a: 2, pendienteHacia: "+Y" };
+  const B = { layout: LAYOUT.UNA_AGUA, bx: 40, by: 20, h: 6, a: 2, pendienteHacia: "+Y" };
+
+  it('5.3-5A: la franja del alero ALTO lleva 3′ en las puntas y 2′ en el medio', () => {
+    expect(zonaEn(4, 2, A)).toBe("3'");      // dentro de los 4a = 8 m de la punta
+    expect(zonaEn(8, 2, A)).toBe("3'");      // el borde de los 4a pertenece a la 3′
+    expect(zonaEn(8.01, 2, A)).toBe("2'");
+    expect(zonaEn(20, 2, A)).toBe("2'");     // el medio de la franja
+    expect(zonaEn(20, 4, A)).toBe("2'");     // la franja mide 2a = 4 m
+    expect(zonaEn(20, 4.01, A)).toBe("1");
+  });
+
+  it('5.3-5A: contra el alero BAJO, cuadrados de 2a × 2a y franja de ancho a', () => {
+    expect(zonaEn(2, 18, A)).toBe("3");      // el cuadrado de la punta
+    expect(zonaEn(4, 16.01, A)).toBe("3");   // 2a × 2a: llega hasta x = 4 e y = 16
+    expect(zonaEn(4.01, 18.5, A)).toBe("2"); // pasado el cuadrado, la franja del medio
+    expect(zonaEn(4.01, 17, A)).toBe("1");   // y fuera de la franja, que sólo llega a 2 m
+    // ⚠ LA FRANJA DEL ALERO BAJO MIDE a, NO 2a. Medida sobre la planta de la pág.
+    // Cap. 5-177 a 240 dpi: 33 px contra los 66 px de las otras franjas. Con 2a esta línea
+    // daría "2" y la zona 1 de una nave de 20 m de luz se comería 2 m de más.
+    expect(zonaEn(20, 18, A)).toBe("2");
+    expect(zonaEn(20, 17.99, A)).toBe("1");
+  });
+
+  it('5.3-5A: las franjas laterales son zona 2′ de ancho 2a', () => {
+    expect(zonaEn(2, 10, A)).toBe("2'");
+    expect(zonaEn(4, 10, A)).toBe("2'");
+    expect(zonaEn(4.01, 10, A)).toBe("1");
+    expect(zonaEn(38, 10, A)).toBe("2'");    // la lateral opuesta
+  });
+
+  it('5.3-5A: el interior del faldón es zona 1', () => {
+    expect(zonaEn(20, 10, A)).toBe("1");
+    expect(zonaEn(20, 16, A)).toBe("1");
+  });
+
+  it('5.3-5B: la misma planta, sin zonas primadas y con la 3 sólo en el alero alto', () => {
+    expect(zonaEn(4, 2, B)).toBe("3");
+    expect(zonaEn(8, 2, B)).toBe("3");
+    expect(zonaEn(8.01, 2, B)).toBe("2");
+    expect(zonaEn(20, 2, B)).toBe("2");      // franja del alero alto, 2a
+    expect(zonaEn(20, 19, B)).toBe("2");     // franja del alero bajo, a
+    expect(zonaEn(20, 17.99, B)).toBe("1");
+    expect(zonaEn(2, 10, B)).toBe("2");      // franja lateral, de ancho a
+    expect(zonaEn(2.01, 10, B)).toBe("1");
+    expect(zonaEn(20, 10, B)).toBe("1");
+  });
+
+  it('`pendienteHacia` decide cuál alero es el alto: invertirla espeja el croquis', () => {
+    // No es simetría decorativa: el alero alto es el que ve el viento de frente y lleva
+    // las zonas más succionadas. Confundirlo pone la 3′ del lado equivocado.
+    const inv = { ...A, pendienteHacia: "-Y" };
+    expect(zonaEn(4, 2, inv)).toBe("3");     // ahora y = 0 es el alero BAJO
+    expect(zonaEn(4, 18, inv)).toBe("3'");
+    expect(zonaEn(20, 18, inv)).toBe("2'");
+    expect(zonaEn(20, 1, inv)).toBe("2");
+  });
+
+  it('la pendiente sobre X da el mismo dibujo girado 90°', () => {
+    const girada = { layout: LAYOUT.UNA_AGUA_PRIMADA, bx: 20, by: 40, h: 6, a: 2, pendienteHacia: "+X" };
+    for (const [x, y] of [[4, 2], [20, 2], [2, 18], [20, 19], [20, 10], [2, 10]]) {
+      // (x, y) del caso base ↔ (y, x) del girado: el eje de la pendiente pasa de Y a X y
+      // el lateral, de X a Y. Misma cara, mismos bordes, mismas distancias.
+      expect(zonaEn(y, x, girada), `(${x}, ${y})`).toBe(zonaEn(x, y, A));
+    }
+  });
+
+  it('las zonas se listan en el orden de la figura, con cada primada junto a su número', () => {
+    expect(zonasPresentes(A)).toEqual(["1", "2", "2'", "3", "3'"]);
+    expect(zonasPresentes(B)).toEqual(["1", "2", "3"]);
+    // Una cubierta chica queda cubierta entera por las zonas de borde.
+    expect(zonasPresentes({ ...A, bx: 6, by: 5 })).toEqual(["3", "3'"]);
+    expect(zonasPresentes({ ...B, bx: 6, by: 5 })).toEqual(["2", "3"]);
+  });
+
+  it('`zonasPresentes` no se pierde ninguna zona en ninguna planta', () => {
+    // Los puntos testigo se arman con las fronteras a `a` de los bordes, pero estas dos
+    // figuras también cortan a 2a y a 4a. El barrido denso es el control de que los
+    // testigos igual caen en todas las regiones.
+    const orden = ["1'", "1", "2", "2'", "3", "3'"];
+    for (const layout of [LAYOUT.UNA_AGUA_PRIMADA, LAYOUT.UNA_AGUA]) {
+      for (const pendienteHacia of ["+X", "-Y"]) {
+        for (const bx of [4, 9, 14, 30]) for (const by of [4, 11, 25]) for (const a of [1, 2, 3.5]) {
+          const geo = { layout, bx, by, h: 8, a, pendienteHacia };
+          const vistas = new Set();
+          for (let i = 0; i <= 90; i++) for (let j = 0; j <= 90; j++) {
+            vistas.add(zonaEn(bx * i / 90, by * j / 90, geo));
+          }
+          expect(zonasPresentes(geo), `${layout} ${bx}×${by} a=${a} ${pendienteHacia}`)
+            .toEqual(orden.filter(z => vistas.has(z)));
+        }
+      }
+    }
+  });
+});
+
 describe('Fig. 5.3-1 — paredes', () => {
   const geo = { layout: LAYOUT.PARED, bx: 40, by: 20, h: 6, a: 2 };
 
@@ -306,6 +406,13 @@ describe('regionesDe — el dibujo y el clasificador dicen lo mismo', () => {
     { layout: LAYOUT.CUATRO_AGUAS, bx: 40, by: 20, h: 6, a: 2, ejeCumbrera: "X" },
     { layout: LAYOUT.CUATRO_AGUAS, bx: 20, by: 40, h: 6, a: 2, ejeCumbrera: "Y" },
     { layout: LAYOUT.CUATRO_AGUAS, bx: 20, by: 20, h: 6, a: 2, ejeCumbrera: "X" },
+    { layout: LAYOUT.UNA_AGUA_PRIMADA, bx: 40, by: 20, h: 6, a: 2, pendienteHacia: "+Y" },
+    { layout: LAYOUT.UNA_AGUA_PRIMADA, bx: 20, by: 40, h: 6, a: 2, pendienteHacia: "-X" },
+    { layout: LAYOUT.UNA_AGUA_PRIMADA, bx: 12, by: 10, h: 6, a: 2, pendienteHacia: "+X" },
+    { layout: LAYOUT.UNA_AGUA_PRIMADA, bx: 6, by: 5, h: 8, a: 2, pendienteHacia: "+Y" },
+    { layout: LAYOUT.UNA_AGUA, bx: 40, by: 20, h: 6, a: 2, pendienteHacia: "+X" },
+    { layout: LAYOUT.UNA_AGUA, bx: 12, by: 10, h: 6, a: 2, pendienteHacia: "-Y" },
+    { layout: LAYOUT.UNA_AGUA, bx: 6, by: 5, h: 8, a: 2, pendienteHacia: "+Y" },
   ];
 
   // La zona que ve el ojo: la ÚLTIMA pieza que cubre el punto, que es como pinta el SVG.

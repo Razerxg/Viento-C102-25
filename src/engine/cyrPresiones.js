@@ -237,8 +237,12 @@ export const H_PARTE_1 = 20;
  * el de una sola dejaría afuera la que agrava.
  *
  * @param {object} e
- * @param {{a:number,b:number,h:number,hAlero:number,theta:number,tipo:string,cumbrera:string}} e.geo
- *                                 geometría normalizada (`normalizarGeo`)
+ * @param {{a:number,b:number,h:number,hAlero:number,theta:number,tipo:string,cumbrera:string,
+ *           pendienteHacia?:string}} e.geo
+ *                                 geometría normalizada (`normalizarGeo`). `pendienteHacia`
+ *                                 —«+X», «−X», «+Y», «−Y»— lo usan sólo las figuras de
+ *                                 vertiente única, para saber cuál de los dos aleros es el
+ *                                 alto.
  * @param {number} e.V                 velocidad básica, en m/s
  * @param {string} e.exposicion        B, C o D
  * @param {number} e.altitud           en m
@@ -281,6 +285,10 @@ export function analizarCyR({ geo, V, exposicion, altitud = 0, kd, kztDe = () =>
     layout: figura ? LAYOUT_DE_FIGURA[figura] : null,
     bx: geo.a, by: geo.b, h: hFigura, a: dimA.a,
     ejeCumbrera: /** @type {"X"|"Y"} */ (geo.cumbrera === "Y" ? "Y" : "X"),
+    // En vertiente única los dos aleros NO son intercambiables: el ALTO lleva las zonas
+    // más succionadas. `pendienteHacia` dice hacia dónde DESCIENDE la cubierta, y es el
+    // mismo dato que el capítulo 2 ya usa para orientar el faldón.
+    pendienteHacia: geo.pendienteHacia,
   };
 
   const ctx = { qh: qh ?? 0, gcpi, fuente, theta: geo.theta, parapeto };

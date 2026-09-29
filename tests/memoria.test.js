@@ -464,8 +464,8 @@ describe('Capítulo de componentes y revestimientos', () => {
   });
 
   it('sin figura aplicable el capítulo no se escribe, y el Alcance vuelve a excluirlo', () => {
-    // Vertiente única de 18°: la Fig. 5.3-5B no está transcripta todavía.
-    const md = MD({ geo: { ...INICIAL.geo, tipo: "vertiente_unica", theta: "18",
+    // Dos aguas de 60°: las figuras del capítulo llegan hasta 45°.
+    const md = MD({ geo: { ...INICIAL.geo, tipo: "dos_aguas", theta: "60",
       a: "20", b: "30", hAlero: "6" } });
     expect(md).not.toMatch(/## \d+\. Componentes y revestimientos/);
     expect(md).toMatch(/Capítulo 5\): NO están determinados/);

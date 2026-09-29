@@ -45,6 +45,8 @@ export const LAYOUT = {
   DOS_AGUAS_CUMBRERA: "dosAguasCumbrera",
   DOS_AGUAS_ESQUINAS: "dosAguasEsquinas",
   CUATRO_AGUAS: "cuatroAguas",
+  UNA_AGUA_PRIMADA: "unaAguaPrimada",
+  UNA_AGUA: "unaAgua",
 };
 
 /** Qué zonificación usa cada figura. Leído del diagrama de cada una. */
@@ -57,6 +59,8 @@ export const LAYOUT_DE_FIGURA = {
   "5.3-2E": LAYOUT.CUATRO_AGUAS,
   "5.3-2F": LAYOUT.CUATRO_AGUAS,
   "5.3-2G": LAYOUT.CUATRO_AGUAS,
+  "5.3-5A": LAYOUT.UNA_AGUA_PRIMADA,
+  "5.3-5B": LAYOUT.UNA_AGUA,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -115,6 +119,8 @@ export function dimensionA({ menor, h, theta }) {
  * @property {number} h   la altura de la figura (media o de alero, según la figura), en m
  * @property {number} [a] la dimensión de borde; obligatoria salvo en `planaH`
  * @property {"X"|"Y"} [ejeCumbrera]  eje según el que corre la cumbrera
+ * @property {string} [pendienteHacia]  hacia dónde DESCIENDE la cubierta de vertiente
+ *                                 única: "+X", "-X", "+Y" o "-Y"
  */
 
 const distBorde = (t, L) => Math.min(t, L - t);
@@ -203,6 +209,43 @@ export function zonaEn(x, y, geo) {
     return dv <= a ? "3" : "2";
   }
 
+  // ── VERTIENTE ÚNICA ────────────────────────────────────────────────────────
+  // Las dos figuras zonifican respecto de los DOS ALEROS, que no son intercambiables: el
+  // alto es el que ve el viento de frente y lleva las zonas más succionadas. `pendiente`
+  // dice de qué borde BAJA la cubierta, así que el alero ALTO es el opuesto.
+  if (layout === LAYOUT.UNA_AGUA_PRIMADA || layout === LAYOUT.UNA_AGUA) {
+    const dAlto = distA(x, y, geo, false);     // al alero alto
+    const dBajo = distA(x, y, geo, true);      // al alero bajo
+    const dLat = distLateral(x, y, geo);       // a los dos bordes restantes
+
+    if (layout === LAYOUT.UNA_AGUA_PRIMADA) {
+      // Fig. 5.3-5A. Franja de 2a contra el alero ALTO, con zona 3′ en los 4a de cada
+      // punta y 2′ en el medio; franjas de 2a en los bordes laterales, zona 2′; contra el
+      // alero BAJO, cuadrados de 2a × 2a en las puntas —zona 3— y una franja de ancho a
+      // —zona 2— en el medio.
+      //
+      // ⚠ LA FRANJA DEL ALERO BAJO MIDE a Y NO 2a. Medido sobre la planta de la
+      // pág. Cap. 5-177 a 240 dpi, con 301 px de ancho total: la franja del alero alto da
+      // 66 px y los laterales 64 y 66 —o sea 2a—, los cuadrados de zona 3 dan 67 × 65
+      // —2a × 2a— y la franja de zona 2 del alero bajo, 33 px: la mitad.
+      // ⚠ EL ORDEN IMPORTA. Los cuadrados de zona 3 del alero bajo se chequean ANTES que
+      // la franja lateral: en la esquina baja las dos condiciones se cumplen a la vez, y
+      // la figura dibuja ahí el cuadrado. Al revés, la esquina salía 2′ y en una planta
+      // angosta la zona 3 no aparecía nunca.
+      if (dAlto <= 2 * a && dLat <= 4 * a) return "3'";
+      if (dBajo <= 2 * a && dLat <= 2 * a) return "3";
+      if (dAlto <= 2 * a || dLat <= 2 * a) return "2'";
+      if (dBajo <= a) return "2";
+      return "1";
+    }
+
+    // Fig. 5.3-5B. Franja de 2a contra el alero ALTO con zona 3 en los 4a de cada punta;
+    // franja de `a` contra el alero bajo y franjas de `a` en los laterales, zona 2.
+    if (dAlto <= 2 * a && dLat <= 4 * a) return "3";
+    if (dAlto <= 2 * a || dBajo <= a || dLat <= a) return "2";
+    return "1";
+  }
+
   if (layout === LAYOUT.CUATRO_AGUAS) {
     // Figs. 5.3-2E, 2F y 2G: zona 3 en todo el perímetro y zona 2 sobre cumbrera y
     // limatesas. Acá la zona 3 es el ALERO, al revés que en la cubierta a dos aguas.
@@ -230,6 +273,32 @@ export function zonaEn(x, y, geo) {
   }
 
   throw new Error(`zonaEn: zonificación desconocida «${layout}»`);
+}
+
+// ── LOS DOS ALEROS DE UNA VERTIENTE ÚNICA ──────────────────────────────────────
+//
+// `pendienteHacia` es del modelo del capítulo 2 —«+X», «−X», «+Y», «−Y»— y dice hacia
+// dónde DESCIENDE la cubierta. El alero BAJO es el borde al que llega esa pendiente y el
+// ALTO el opuesto. Confundirlos da un croquis espejado y, lo que importa, las zonas más
+// succionadas del lado equivocado.
+const EJE_PENDIENTE = {
+  "+X": { eje: "x", haciaElFinal: true }, "-X": { eje: "x", haciaElFinal: false },
+  "+Y": { eje: "y", haciaElFinal: true }, "-Y": { eje: "y", haciaElFinal: false },
+};
+
+/** Distancia al alero bajo (`bajo = true`) o al alto. */
+function distA(x, y, geo, bajo) {
+  const p = EJE_PENDIENTE[geo.pendienteHacia] ?? EJE_PENDIENTE["+Y"];
+  const [t, L] = p.eje === "x" ? [x, geo.bx] : [y, geo.by];
+  // Con la pendiente hacia el final del eje, el alero bajo está en t = L.
+  const enElFinal = p.haciaElFinal === bajo;
+  return enElFinal ? L - t : t;
+}
+
+/** Distancia al más cercano de los dos bordes restantes. */
+function distLateral(x, y, geo) {
+  const p = EJE_PENDIENTE[geo.pendienteHacia] ?? EJE_PENDIENTE["+Y"];
+  return p.eje === "x" ? distBorde(y, geo.by) : distBorde(x, geo.bx);
 }
 
 /**
@@ -282,8 +351,10 @@ export function zonasPresentes(geo) {
   }
   const vistas = new Set();
   for (const [x, y] of puntosTestigo(geo)) vistas.add(zonaEn(x, y, geo));
-  // El orden de la figura, no el de aparición ni el del `Set`.
-  return ["1'", "1", "2", "3"].filter(z => vistas.has(z));
+  // El orden de la figura, no el de aparición ni el del `Set`. Las primadas de la
+  // vertiente única van junto a su número: en la Fig. 5.3-5A la 2 es la del alero BAJO y
+  // la 2′ la del alto, y listarlas «1, 2, 3, 1′, 2′, 3′» sugeriría dos familias distintas.
+  return ["1'", "1", "2", "2'", "3", "3'"].filter(z => vistas.has(z));
 }
 
 /**
@@ -295,6 +366,25 @@ function puntosTestigo(geo) {
   const { layout, bx, by, h, a } = geo;
   /** @type {[number, number][]} */
   const puntos = [];
+
+  if (layout === LAYOUT.UNA_AGUA_PRIMADA || layout === LAYOUT.UNA_AGUA) {
+    // ⚠ LAS DE VERTIENTE ÚNICA NO SE MUESTREAN POR DISTANCIA AL BORDE MÁS CERCANO. Sus
+    // fronteras están a a, 2a y 4a, y las de un borde no son las del opuesto: la franja
+    // de zona 2 mide `a` contra el alero bajo y 2a contra el alto. En una planta angosta
+    // eso deja bandas que ninguna distancia simétrica visita —una nave de 11 m con
+    // a = 3,5 tiene la zona 1 encerrada entre y = 3,5 y y = 4— y `zonasPresentes` se
+    // perdía una zona entera. Acá el testigo va al centro de cada celda de la grilla de
+    // fronteras, que por construcción es de un solo color.
+    const centros = (L) => {
+      const c = [...new Set([0, L, ...[a, 2 * a, 4 * a].flatMap(d => [d, L - d])
+        .filter(v => v > 0 && v < L)])].sort((p, q) => p - q);
+      const res = [];
+      for (let i = 1; i < c.length; i++) res.push((c[i - 1] + c[i]) / 2);
+      return res;
+    };
+    for (const x of centros(bx)) for (const y of centros(by)) puntos.push([x, y]);
+    return puntos;
+  }
 
   // Distancias al borde que separan zonas, por zonificación.
   const fronteras = layout === LAYOUT.PLANA_H ? [0.2 * h, 0.6 * h, 1.2 * h] : [a];
@@ -395,11 +485,23 @@ export function regionesDe(geo) {
     ];
   }
 
-  // Los tres layouts rectangulares se resuelven con una grilla de celdas: dentro de cada
-  // celda las distancias a los bordes no cruzan ninguna frontera, así que la celda entera
-  // es de una sola zona y alcanza con clasificar su centro.
+  // Los layouts rectangulares se resuelven con una grilla de celdas: dentro de cada celda
+  // las distancias a los bordes no cruzan ninguna frontera, así que la celda entera es de
+  // una sola zona y alcanza con clasificar su centro.
   let cortesX, cortesY;
-  if (layout === LAYOUT.PLANA_H) {
+  if (layout === LAYOUT.UNA_AGUA_PRIMADA || layout === LAYOUT.UNA_AGUA) {
+    // Las fronteras están a a, 2a y 4a de los bordes, y las DOS figuras usan distancias
+    // distintas en el mismo eje: la franja lateral mide 2a en la 5.3-5A y `a` en la 5.3-5B.
+    // Se cortan las tres en los dos ejes en vez de afinar caso por caso. `cortes` es
+    // simétrica y agrega de más —`a` del lado del alero alto, donde no hay ninguna
+    // frontera—, pero un corte de sobra parte una celda en dos del mismo color y no cambia
+    // el dibujo; uno que FALTA pinta media celda con la zona equivocada, que es justo lo
+    // que pasaba con el lateral de la 5.3-5B.
+    const ejeX = (EJE_PENDIENTE[geo.pendienteHacia] ?? EJE_PENDIENTE["+Y"]).eje === "x";
+    const enPend = cortes(ejeX ? bx : by, [a, 2 * a, 4 * a]);
+    const enLat = cortes(ejeX ? by : bx, [a, 2 * a, 4 * a]);
+    [cortesX, cortesY] = ejeX ? [enPend, enLat] : [enLat, enPend];
+  } else if (layout === LAYOUT.PLANA_H) {
     const d = [0.2 * h, 0.6 * h, 1.2 * h];
     cortesX = cortes(bx, d); cortesY = cortes(by, d);
   } else {

@@ -399,8 +399,10 @@ describe('Exportación de componentes y revestimientos', () => {
   it('un elemento sin figura viaja igual, con las presiones en blanco', () => {
     // Que desaparezca del archivo haría creer que no estaba en la lista.
     const sinFig = analizarCyR({
-      geo: normalizarGeo({ a: "20", b: "30", hAlero: "6", theta: "18",
-        tipo: "vertiente_unica" }),
+      // Dos aguas de 60°: las figuras del capítulo llegan hasta 45°. Era vertiente
+      // única de 18°, que dejó de servir de ejemplo cuando se activaron las 5.3-5A y 5B.
+      geo: normalizarGeo({ a: "20", b: "30", hAlero: "6", theta: "60",
+        tipo: "dos_aguas" }),
       V: 45, exposicion: "B", kd: 0.85, kztDe: () => [1], gcpi: 0.18,
       elementos: [{ tipo: "chapa", superficie: "cubierta", L: 3, s: 1, nombre: "CH-1" }],
     });

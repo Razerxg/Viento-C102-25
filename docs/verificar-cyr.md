@@ -1,11 +1,18 @@
-# 📥 A verificar — Figuras 5.3-5A y 5.3-5B, cubiertas de vertiente única
+# ✅ Verificado — Figuras 5.3-5A y 5.3-5B, cubiertas de vertiente única
 
-**Qué hay que hacer con este documento:** controlar cada renglón contra el PDF del
-capítulo 5 y avisar. Hasta entonces las dos figuras están **transcriptas pero desactivadas**:
-viven en `FIGURAS_PENDIENTES` de `src/constants/cyrCurvas.js`, fuera de `FIGURAS` y de
-`FIGURAS_LISTA`, y la selección de figura sigue devolviendo «no implementada» para
-vertiente única con θ > 3°. Activarlas es mover el bloque; es el paso que no se da sin el
-visto bueno.
+**Estado: verificadas por el proyectista contra el PDF y ACTIVADAS.** Las dos figuras
+viven en `FIGURAS` y en `FIGURAS_LISTA` de `src/constants/cyrCurvas.js`, y la selección de
+figura las devuelve para vertiente única con 3° < θ ≤ 30°. `FIGURAS_PENDIENTES` quedó
+vacío.
+
+Con una corrección de la lectura original, que está abajo en su lugar: **la franja de zona
+2 contra el alero BAJO de la Fig. 5.3-5A mide `a`, no 2a.**
+
+El documento se conserva como el registro de cómo se leyeron: son las **únicas** curvas del
+alcance sin ecuación en el comentario, y el día que un número no cierre éste es el primer
+lugar donde mirar. La app lo dice sola: cuando la figura elegida es una de estas dos,
+`figuraCubierta` agrega un aviso de nivel *info* que avisa que las curvas salen de medir el
+gráfico y sugiere compararlas contra el gráfico que dibuja la pantalla.
 
 ## Por qué éstas y no las otras
 
@@ -79,7 +86,7 @@ para θ ≤ 10°», y la figura entera es θ ≤ 10°).
 | **3′** | negativo, recta | 1 → 10 | −2,6 → −1,6 |
 | **3′** | negativo, meseta | A ≥ 10 | **−1,6** |
 
-⚠ **Las curvas 3 y 2′ se cruzan** alrededor de A ≈ 3 m²: la 3 arranca más succionada
+⚠ **Las curvas 3 y 2′ se cruzan** en **A = 10^0,4 ≈ 2,5 m²** —no en ≈ 3—: la 3 arranca más succionada
 (−1,8 contra −1,6) y termina menos (−1,2 contra −1,5). No es un error de lectura; es lo
 que dibuja la figura, y conviene mirarlo con atención porque es donde un trazado a ojo se
 equivoca de curva.
@@ -88,13 +95,23 @@ equivoca de curva.
 
 - Franja de **2a** contra el alero **ALTO**: zona **3′** en los **4a** de cada punta,
   zona **2′** en el medio.
-- Franja de **2a** contra el alero **BAJO**: zona **3** en los **2a** de cada punta,
-  zona **2** en el medio.
+- Contra el alero **BAJO**: cuadrados de **2a × 2a** en las puntas, zona **3**, y una
+  franja de ancho **a** en el medio, zona **2**.
 - Franjas de **2a** en los dos bordes restantes: zona **2′**.
 - El resto: zona **1**.
 
-**No está implementada**: al activar las curvas hay que agregar esta zonificación a
-`engine/cyrZonas.js` como un layout propio, con su test de regiones.
+⚠ **CORRECCIÓN DE LA LECTURA ORIGINAL — LA FRANJA DEL ALERO BAJO MIDE `a`, NO 2a.** Medido
+por el proyectista sobre la planta de la pág. Cap. 5-177 a 240 dpi, con 301 px de ancho
+total: la franja del alero alto da 66 px y las laterales 64 y 66 —o sea 2a—, los cuadrados
+de zona 3 dan 67 × 65 —2a × 2a— y la franja de zona 2 del alero bajo, **33 px: la mitad**.
+Con 2a, en una nave de 20 m de luz la zona 1 arrancaba 2 m más adentro de lo que dibuja la
+figura, y ese anillo quedaba menos succionado de lo que corresponde.
+
+**Implementada** en `engine/cyrZonas.js` como `LAYOUT.UNA_AGUA_PRIMADA`, con su test de
+regiones. ⚠ **El orden de los chequeos importa:** los cuadrados de zona 3 del alero bajo se
+prueban ANTES que la franja lateral, porque en la esquina baja las dos condiciones se
+cumplen a la vez y la figura dibuja ahí el cuadrado. Al revés, la esquina salía 2′ y en una
+planta angosta la zona 3 no aparecía nunca.
 
 ---
 
@@ -129,6 +146,12 @@ equivoca de curva.
 
 No hay zonas primadas: es la diferencia visible con la 5.3-5A.
 
+**Implementada** como `LAYOUT.UNA_AGUA`. Notar que las franjas laterales miden **a** acá y
+**2a** en la 5.3-5A: es la misma distancia en el mismo eje con dos valores distintos según
+la figura, y por eso la grilla de celdas del croquis corta en `a`, `2a` y `4a` en los dos
+ejes en vez de afinar caso por caso. Un corte de sobra parte una celda en dos del mismo
+color; uno que falta pinta media celda con la zona equivocada.
+
 ---
 
 ## Qué mirar, en orden de riesgo
@@ -140,4 +163,7 @@ No hay zonas primadas: es la diferencia visible con la 5.3-5A.
 3. **Que los quiebres estén en 1 y 10 m²** y no en 2 o en 20.
 4. **La zona 1 de la 5A es una recta horizontal** en −1,1: es la única curva de las dos
    figuras que no cambia con el área.
-5. **La zonificación**, sobre todo cuál alero lleva las zonas primadas.
+5. **La zonificación**, sobre todo cuál alero lleva las zonas primadas. Quién es el alero
+   alto sale de `pendienteHacia` —el mismo dato que el capítulo 2 ya usa para orientar el
+   faldón—: si está al revés, el croquis sale espejado y las zonas más succionadas quedan
+   del lado equivocado.

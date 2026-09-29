@@ -189,8 +189,8 @@ La página del PDF del capítulo y la del Reglamento se corresponden con `Cap. 5
 | 5.3-2E | Cuatro aguas, 7°–20° | 38 | 172 | **Tabla C 5.3-6** | 5.1 |
 | 5.3-2F | Cuatro aguas, 20°–27° | 39 | 173 | **Tabla C 5.3-7** — zonas 2 y 3 comparten curva | 5.1 |
 | 5.3-2G | Cuatro aguas, `θ = 45°` | 40 | 174 | **Tabla C 5.3-8** | 5.1 |
-| 5.3-5A | Vertiente única, 3°–10° | 43 | 177 | **No tiene ecuación** — transcripción del gráfico, 📥 a verificar | 5.1 |
-| 5.3-5B | Vertiente única, 10°–30° | 44 | 178 | **No tiene ecuación** — transcripción del gráfico, 📥 a verificar | 5.1 |
+| 5.3-5A | Vertiente única, 3°–10° | 43 | 177 | **No tiene ecuación** — transcripción del gráfico, ✅ verificada | 5.1 |
+| 5.3-5B | Vertiente única, 10°–30° | 44 | 178 | **No tiene ecuación** — transcripción del gráfico, ✅ verificada | 5.1 |
 | C 5-1 | Los cuatro escenarios de zonas de cubierta | 70 | 204 | Leída de la figura | 5.1 |
 | C 5.3-2 | Plantas irregulares: `X ≤ a` y esquinas ≥ 135° | 72 | 206 | Leída de la figura | 5.1 |
 | Tabla 5.13-2 | Presiones del procedimiento simplificado | 65–69 | 199–203 | Transcripción — **test cruzado**, no método | 5.1 |
@@ -206,9 +206,9 @@ La página del PDF del capítulo y la del Reglamento se corresponden con `Cap. 5
 
 | Estado | Ítem | Dónde |
 |---|---|---|
-| ✅ | Las 56 curvas de las Figs. 5.3-1 y 5.3-2A a 2G, y el evaluador | `constants/cyrCurvas.js` + `engine/cyr.js`, con `tests/cyrCurvas.test.js` (24 tests, 10 mutantes sin sobrevivientes) |
-| ✅ | Clasificador de zonas por punto, `a`, y las cinco zonificaciones | `engine/cyrZonas.js`, con `tests/cyrZonas.test.js` (34 tests, 12 mutantes sin sobrevivientes) |
-| ✅ | Selección de figura, interpolación 27°–45°, altura y reducción de pared | `engine/cyrFiguras.js`, con `tests/cyrFiguras.test.js` (37 tests, 15 mutantes sin sobrevivientes) |
+| ✅ | Las 72 curvas de las Figs. 5.3-1, 5.3-2A a 2G y 5.3-5A/5B, y el evaluador | `constants/cyrCurvas.js` + `engine/cyr.js`, con `tests/cyrCurvas.test.js` (28 tests, 10 mutantes sin sobrevivientes) |
+| ✅ | Clasificador de zonas por punto, `a`, y las siete zonificaciones | `engine/cyrZonas.js`, con `tests/cyrZonas.test.js` (50 tests, 12 mutantes sin sobrevivientes) |
+| ✅ | Selección de figura, interpolación 27°–45°, altura y reducción de pared | `engine/cyrFiguras.js`, con `tests/cyrFiguras.test.js` (39 tests, 15 mutantes sin sobrevivientes) |
 | ✅ | Área efectiva por tipo de elemento | `engine/cyrElementos.js` |
 | ✅ | Presiones, mínimo del art. 5.2.2, nota de parapeto y verificación por elemento | `engine/cyrPresiones.js`, con `tests/cyrPresiones.test.js` |
 | ✅ | **Verificación cruzada contra la Tabla 5.13-2 — 960 valores** | `tests/casos/tabla5132.js` + `tests/cyrTabla5132.test.js` |
@@ -216,7 +216,7 @@ La página del PDF del capítulo y la del Reglamento se corresponden con `Cap. 5
 | ✅ | Pantalla «Componentes y revestimientos» y croquis de zonas | `components/tabs/CyRTab.jsx` + `components/svg/ZonasCyR.jsx` |
 | ✅ | Los SVG de las configuraciones de zonas, **verificados por el proyectista** contra el PDF | `docs/zonas/` — los cinco escenarios, la 2B/2C, la 2D y las de cuatro aguas |
 | ✅ | Exportación CSV/JSON y capítulo de memoria | `lib/exportar.js` + `lib/memoriaCapitulos.js` |
-| 📥 | **Figs. 5.3-5A y 5B — transcriptas y DESACTIVADAS** | `docs/verificar-cyr.md`. Viven en `FIGURAS_PENDIENTES`, fuera de `FIGURAS_LISTA`: activarlas es mover el bloque, y es el paso que no se da sin el visto bueno |
+| ✅ | **Figs. 5.3-5A y 5B — verificadas por el proyectista y ACTIVADAS** | `docs/verificar-cyr.md`. Están en `FIGURAS` y `FIGURAS_LISTA`, con sus dos layouts (`UNA_AGUA_PRIMADA` y `UNA_AGUA`) y sus tests de regiones. `FIGURAS_PENDIENTES` quedó vacío. Corrección del proyectista: la franja de zona 2 contra el alero BAJO de la 5A mide `a`, no 2a |
 
 **Las zonas salen de un clasificador por punto, no de una tabla de escenarios.** Los cuatro
 dibujos de la Fig. C 5-1 son *consecuencia* de la geometría, no casos a codificar:
@@ -372,7 +372,7 @@ Módulos nuevos:
 | `engine/cyrElementos.js` | Área efectiva `A` por tipo de elemento, con la cuenta a la vista |
 | `components/tabs/CyRTab.jsx` | La pantalla |
 | `components/svg/ZonasCyR.jsx` | Planta de cubierta y elevaciones con las zonas acotadas en mm |
-| `docs/verificar-cyr.md` | Tabla `zona · tramo · A · GC_p` de las Figs. 5.3-5A y 5B, 📥 para que el proyectista la controle contra el PDF |
+| `docs/verificar-cyr.md` | Tabla `zona · tramo · A · GC_p` de las Figs. 5.3-5A y 5B, ✅ verificada contra el PDF. Queda como el registro de cómo se leyeron: son las únicas curvas del alcance sin ecuación |
 
 Tocan además `lib/exportar.js` (CSV y JSON de C&R), `lib/consolidar.js` (bloque de traza),
 `lib/memoriaCapitulos.js` (capítulo «Componentes y revestimientos (Cap. 5)», después de los
@@ -462,10 +462,30 @@ puede repetir no se puede auditar. Dos trampas que costaron una versión del scr
   en la lista. Con la lista sola, un renglón faltante corre todos los de abajo 0,2 y el
   error es invisible.
 
-Hallazgo de la lectura: **en la 5.3-5A las curvas 3 y 2′ se cruzan** en A ≈ 3 m² —la 3
+Hallazgo de la lectura: **en la 5.3-5A las curvas 3 y 2′ se cruzan** en A = 10^0,4 ≈ 2,5 m² —la 3
 arranca más succionada, −1,8 contra −1,6, y termina menos, −1,2 contra −1,5—. Es lo que
 dibuja la figura, y es justo donde un trazado a ojo se equivoca de curva. Queda fijado con
 test.
+
+**Verificadas por el proyectista**, con una corrección de la zonificación de la 5.3-5A: la
+franja de zona 2 contra el alero **BAJO** mide **`a`, no 2a**. Medido a 240 dpi sobre la
+planta de la pág. Cap. 5-177 —301 px de ancho total—: franja del alero alto 66 px y
+laterales 64 y 66 (2a), cuadrados de zona 3 del alero bajo 67 × 65 (2a × 2a), franja de
+zona 2 del alero bajo **33 px**. Con 2a, la zona 1 de una nave de 20 m arrancaba 2 m más
+adentro de lo que dibuja la figura.
+
+Dos cosas que aparecieron al implementar la zonificación y quedaron con test:
+
+- **El orden de los chequeos importa en la 5.3-5A.** En la esquina del alero bajo se
+  cumplen a la vez «cuadrado de zona 3» y «franja lateral de zona 2′», y la figura dibuja
+  el cuadrado: si se prueba primero la franja, en una planta angosta la zona 3 no aparece
+  nunca.
+- **La misma distancia vale distinto en cada figura:** la franja lateral mide 2a en la 5A y
+  `a` en la 5B. Por eso tanto la grilla de celdas del croquis como los puntos testigo de
+  `zonasPresentes` cortan en `a`, `2a` y `4a` en los dos ejes. No es prolijidad: muestrear
+  sólo por distancia al borde más cercano dejaba bandas sin visitar —una nave de 11 m con
+  a = 3,5 tiene la zona 1 encerrada entre y = 3,5 e y = 4— y `zonasPresentes` se perdía una
+  zona entera.
 
 ### 5.2 — Accesorios ⏳
 

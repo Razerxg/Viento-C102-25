@@ -15,7 +15,8 @@
 // control cruzado contra la Tabla 5.13-2, que llega después y es independiente de veras.
 import { describe, it, expect } from 'vitest';
 import {
-  FIGURAS, FIGURAS_LISTA, FIGURAS_PENDIENTES, ERRATAS, UBICACION, ALTURA_H, ETIQUETA_ALTURA_H,
+  FIGURAS, FIGURAS_LISTA, FIGURAS_PENDIENTES, FIGURAS_DE_GRAFICO, ERRATAS, UBICACION,
+  ALTURA_H, ETIQUETA_ALTURA_H,
 } from '../src/constants/cyrCurvas.js';
 import { gcpDeCurva, gcp } from '../src/engine/cyr.js';
 
@@ -238,8 +239,11 @@ describe('Forma de las curvas', () => {
     }
   }
 
-  it('hay 56 curvas y todas están bien formadas', () => {
-    expect(todas).toHaveLength(56);
+  it('hay 72 curvas y todas están bien formadas', () => {
+    // 4 de paredes + 16 de la 5.3-2A (dos ubicaciones) + 36 de las 2B a 2G + 16 de las dos
+    // de vertiente única. El número está escrito para que agregar una figura y olvidarse
+    // de mirar sus curvas haga fallar este test.
+    expect(todas).toHaveLength(72);
     for (const [donde, curva] of todas) {
       expect(curva.length, donde).toBeGreaterThanOrEqual(2);
       for (let i = 1; i < curva.length; i++) {
@@ -361,8 +365,8 @@ describe('Forma de las curvas', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('Qué declara cada figura', () => {
-  it('las ocho figuras están en la lista y la lista no sale de Object.keys', () => {
-    expect(FIGURAS_LISTA).toHaveLength(8);
+  it('las diez figuras están en la lista y la lista no sale de Object.keys', () => {
+    expect(FIGURAS_LISTA).toHaveLength(10);
     expect(new Set(FIGURAS_LISTA)).toEqual(new Set(Object.keys(FIGURAS)));
   });
 
@@ -406,11 +410,15 @@ describe('Qué declara cada figura', () => {
     // Confundir la altura media con la del alero cambia las zonas de la 5.3-2A, la
     // dimensión `a` de todas las demás y la altura a la que se evalúa q_h: tres cosas a la
     // vez y ninguna visible en el resultado.
-    expect(FIGURAS["5.3-2A"].alturaH).toBe(ALTURA_H.ALERO);
+    // La 5.3-5A dice «La altura del alero se utilizará para θ ≤ 10°» y la figura ENTERA es
+    // θ ≤ 10°: siempre alero, sin condición, igual que la 5.3-2A.
+    for (const fig of ["5.3-2A", "5.3-5A"]) {
+      expect(FIGURAS[fig].alturaH, fig).toBe(ALTURA_H.ALERO);
+    }
     for (const fig of ["5.3-1", "5.3-2B", "5.3-2E", "5.3-2F"]) {
       expect(FIGURAS[fig].alturaH, fig).toBe(ALTURA_H.ALERO_SI_THETA_10);
     }
-    for (const fig of ["5.3-2C", "5.3-2D", "5.3-2G"]) {
+    for (const fig of ["5.3-2C", "5.3-2D", "5.3-2G", "5.3-5B"]) {
       expect(FIGURAS[fig].alturaH, fig).toBe(ALTURA_H.MEDIA);
     }
     for (const fig of FIGURAS_LISTA) {
@@ -418,84 +426,72 @@ describe('Qué declara cada figura', () => {
     }
   });
 
-  it('cada figura dice de qué tabla del comentario salen sus números', () => {
-    const tablas = FIGURAS_LISTA.map(f => FIGURAS[f].tabla);
-    expect(tablas).toEqual(["C 5.3-1", "C 5.3-2", "C 5.3-3", "C 5.3-4",
-                            "C 5.3-5", "C 5.3-6", "C 5.3-7", "C 5.3-8"]);
+  it('cada figura dice de dónde salen sus números y en qué página está', () => {
+    const conEcuacion = FIGURAS_LISTA.filter(f => !FIGURAS_DE_GRAFICO.includes(f));
+    expect(conEcuacion.map(f => FIGURAS[f].tabla)).toEqual(
+      ["C 5.3-1", "C 5.3-2", "C 5.3-3", "C 5.3-4", "C 5.3-5", "C 5.3-6", "C 5.3-7", "C 5.3-8"]);
+    // Las dos de vertiente única no tienen tabla, y lo DICEN: dejar el campo vacío haría
+    // creer que la transcripción tiene la misma clase de respaldo que las otras ocho.
+    for (const f of FIGURAS_DE_GRAFICO) {
+      expect(FIGURAS[f].tabla, f).toMatch(/sin ecuación/);
+    }
     for (const fig of FIGURAS_LISTA) {
       expect(FIGURAS[fig].pagina, fig).toMatch(/^Cap\. 5-\d{3}$/);
       expect(FIGURAS[fig].titulo, fig).toBeTruthy();
     }
   });
 
-  it('las figuras de vertiente única están declaradas como pendientes, no faltando', () => {
-    // No tienen ecuación en el comentario: son sólo gráfico. Que estén en una lista aparte
-    // —y no simplemente ausentes— es lo que permite que la selección de figura diga «esta
-    // figura todavía no está transcripta» en vez de «no aplica ninguna».
-    expect(Object.keys(FIGURAS_PENDIENTES)).toEqual(["5.3-5A", "5.3-5B"]);
-    for (const [fig, d] of Object.entries(FIGURAS_PENDIENTES)) {
-      expect(FIGURAS_LISTA, fig).not.toContain(fig);
-      expect(d.motivo, fig).toMatch(/transcribir el gráfico/);
+  it('las de vertiente única están ACTIVAS, y declaradas como lectura de gráfico', () => {
+    // Estuvieron transcriptas y desactivadas hasta que el proyectista las controló contra
+    // el PDF. Que sigan declaradas aparte no es un resabio: son las únicas del alcance sin
+    // ecuación contra la cual verificarse, y el día que un número no cierre es el primer
+    // lugar donde mirar.
+    expect(FIGURAS_DE_GRAFICO).toEqual(["5.3-5A", "5.3-5B"]);
+    for (const f of FIGURAS_DE_GRAFICO) {
+      expect(FIGURAS_LISTA, f).toContain(f);
+      expect(FIGURAS[f], f).toBeTruthy();
     }
-  });
-
-  it('están TRANSCRIPTAS y DESACTIVADAS al mismo tiempo', () => {
-    // ⚠ ES EL TEST QUE IMPIDE QUE SE ACTIVEN SOLAS. Las curvas salieron de medir el
-    // gráfico píxel por píxel, no de una ecuación: hasta que el proyectista las controle
-    // contra el PDF, tienen que estar completas —para poder controlarlas— y fuera del
-    // cálculo. Las dos cosas a la vez.
-    for (const [fig, d] of Object.entries(FIGURAS_PENDIENTES)) {
-      expect(d.estado, fig).toMatch(/pendiente de verificación del proyectista/);
-      expect(d.curvas?.cubierta, fig).toBeTruthy();
-      expect(new Set(Object.keys(d.curvas.cubierta)), fig).toEqual(new Set(d.zonas));
-      expect(FIGURAS[fig], fig).toBeUndefined();
-    }
-  });
-
-  it('sus curvas cumplen las mismas propiedades que las transcriptas de ecuación', () => {
-    for (const [fig, d] of Object.entries(FIGURAS_PENDIENTES)) {
-      for (const z of d.zonas) {
-        const { pos, neg } = d.curvas.cubierta[z];
-        const donde = `${fig} zona ${z}`;
-        for (const [c, signo] of [[pos, 1], [neg, -1]]) {
-          expect(c.length, donde).toBeGreaterThanOrEqual(2);
-          for (let i = 1; i < c.length; i++) {
-            expect(c[i][0], `${donde}: áreas crecientes`).toBeGreaterThan(c[i - 1][0]);
-            expect(Math.abs(c[i][1]), `${donde}: pierde magnitud con A`)
-              .toBeLessThanOrEqual(Math.abs(c[i - 1][1]));
-          }
-          for (const [, g] of c) expect(Math.sign(g) === signo || g === 0, donde).toBe(true);
-        }
-        // Los quiebres están en 1 y 10 m², sobre líneas de grilla rotuladas.
-        expect(neg.map(x => x[0]), donde).toEqual([1, 10]);
-        // Y los valores son múltiplos de 0,1, que es como los imprime el gráfico.
-        for (const [, g] of neg) expect(Math.round(g * 10) / 10, donde).toBeCloseTo(g, 10);
-      }
-      // El positivo es el mismo en todas las zonas, como en las figuras con ecuación.
-      const positivos = new Set(d.zonas.map(z => JSON.stringify(d.curvas.cubierta[z].pos)));
-      expect(positivos.size, fig).toBe(1);
-    }
+    // Y ya no queda ninguna figura pendiente dentro del alcance.
+    expect(Object.keys(FIGURAS_PENDIENTES)).toEqual([]);
   });
 
   it('la 5.3-5A tiene las zonas primadas y la 5.3-5B no', () => {
-    // Es la diferencia visible entre las dos figuras, y la que decide cuántas zonas hay
-    // que dibujar el día que se activen.
-    expect(FIGURAS_PENDIENTES["5.3-5A"].zonas).toEqual(["1", "2", "2'", "3", "3'"]);
-    expect(FIGURAS_PENDIENTES["5.3-5B"].zonas).toEqual(["1", "2", "3"]);
+    // Es la diferencia visible entre las dos figuras, y la que decide cuántas zonas se
+    // verifican y se dibujan.
+    expect(FIGURAS["5.3-5A"].zonas).toEqual(["1", "2", "2'", "3", "3'"]);
+    expect(FIGURAS["5.3-5B"].zonas).toEqual(["1", "2", "3"]);
   });
 
   it('en la 5.3-5A las curvas 3 y 2′ SE CRUZAN, y no es un error de lectura', () => {
     // La 3 arranca más succionada (−1,8 contra −1,6) y termina menos (−1,2 contra −1,5).
-    // Es lo que dibuja la figura, y es donde un trazado a ojo se equivoca de curva. Queda
-    // fijado para que el día que alguien «corrija» el cruce, el test lo frene.
-    const c = FIGURAS_PENDIENTES["5.3-5A"].curvas.cubierta;
+    // Se cruzan en A = 10^0,4 ≈ 2,5 m². Es lo que dibuja la figura, y es donde un trazado
+    // a ojo se equivoca de curva: queda fijado para que el día que alguien «corrija» el
+    // cruce, el test lo frene.
+    const c = FIGURAS["5.3-5A"].curvas.cubierta;
     expect(gcp(c["3"].neg, 1)).toBeLessThan(gcp(c["2'"].neg, 1));
     expect(gcp(c["3"].neg, 100)).toBeGreaterThan(gcp(c["2'"].neg, 100));
+    const cruce = 10 ** 0.4;
+    expect(gcp(c["3"].neg, cruce)).toBeCloseTo(gcp(c["2'"].neg, cruce), 6);
   });
 
   it('la zona 1 de la 5.3-5A no cambia con el área', () => {
-    const c = FIGURAS_PENDIENTES["5.3-5A"].curvas.cubierta["1"].neg;
+    const c = FIGURAS["5.3-5A"].curvas.cubierta["1"].neg;
     for (const A of AREAS) expect(gcp(c, A), `A = ${A}`).toBeCloseTo(-1.1, 10);
+  });
+
+  it('los quiebres de las dos leídas de gráfico están en 1 y 10 m²', () => {
+    // Sobre líneas de grilla rotuladas, y con valores múltiplos de 0,1: es lo que hace que
+    // la lectura sea una transcripción y no una estimación.
+    for (const f of FIGURAS_DE_GRAFICO) {
+      for (const z of FIGURAS[f].zonas) {
+        const { pos, neg } = FIGURAS[f].curvas.cubierta[z];
+        expect(neg.map(x => x[0]), `${f} zona ${z}`).toEqual([1, 10]);
+        expect(pos.map(x => x[0]), `${f} zona ${z}`).toEqual([1, 10]);
+        for (const [, g] of [...neg, ...pos]) {
+          expect(Math.round(g * 10) / 10, `${f} zona ${z}`).toBeCloseTo(g, 10);
+        }
+      }
+    }
   });
 });
 

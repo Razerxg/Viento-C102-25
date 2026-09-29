@@ -110,22 +110,41 @@ describe('Cubiertas a cuatro aguas — y la interpolación de C 5.3.2', () => {
   });
 });
 
-describe('Vertiente única — el tramo que sí está y los dos que faltan', () => {
+describe('Vertiente única — las dos figuras transcriptas y lo que queda afuera', () => {
   it('con θ ≤ 3° la nota 5 de la 5.3-5A manda a la 5.3-2A', () => {
     const r = figuraCubierta({ forma: FORMA.VERTIENTE_UNICA, theta: 3 });
     expect(r.figura).toBe("5.3-2A");
     expect(r.avisos[0].ref).toBe("Fig. 5.3-5A, nota 5");
   });
 
-  it('entre 3° y 30° la figura existe en el reglamento pero no está transcripta', () => {
+  it('entre 3° y 30° resuelve a la 5.3-5A o a la 5.3-5B según la pendiente', () => {
     for (const [theta, fig] of [[5, "5.3-5A"], [10, "5.3-5A"], [20, "5.3-5B"], [30, "5.3-5B"]]) {
       const r = figuraCubierta({ forma: FORMA.VERTIENTE_UNICA, theta });
-      expect(r.tipo, `θ = ${theta}°`).toBe("noImplementada");
-      // El motivo distingue «no está en el reglamento» de «no está en el repositorio»,
-      // que para el proyectista son dos situaciones distintas.
-      expect(r.motivo, `θ = ${theta}°`).toContain(fig);
-      expect(r.motivo, `θ = ${theta}°`).toMatch(/todavía no está transcripta/);
+      expect(r.tipo, `θ = ${theta}°`).toBe("figura");
+      expect(r.figura, `θ = ${theta}°`).toBe(fig);
     }
+  });
+
+  it('avisa que las curvas salen de medir el gráfico, no de una ecuación', () => {
+    // Son las dos ÚNICAS figuras del alcance sin ecuación en el comentario: el aviso es
+    // el primer lugar donde mirar si algún día un número no cierra.
+    for (const theta of [5, 20]) {
+      const r = figuraCubierta({ forma: FORMA.VERTIENTE_UNICA, theta });
+      const a = r.avisos[0];
+      expect(a.nivel, `θ = ${theta}°`).toBe("info");
+      expect(a.texto, `θ = ${theta}°`).toMatch(/no tienen ecuación en el comentario/);
+      expect(a.ref, `θ = ${theta}°`).toBe(`Fig. ${r.figura}`);
+    }
+  });
+
+  it('cada figura trae su zonificación: la 5.3-5A con zonas primadas, la 5B sin ellas', () => {
+    const a = figuraCubierta({ forma: FORMA.VERTIENTE_UNICA, theta: 8 });
+    expect(layoutDe(a)).toBe(LAYOUT.UNA_AGUA_PRIMADA);
+    expect(zonasDe(a)).toEqual(["1", "2", "2'", "3", "3'"]);
+
+    const b = figuraCubierta({ forma: FORMA.VERTIENTE_UNICA, theta: 20 });
+    expect(layoutDe(b)).toBe(LAYOUT.UNA_AGUA);
+    expect(zonasDe(b)).toEqual(["1", "2", "3"]);
   });
 
   it('pasados los 30° no hay figura en el reglamento', () => {

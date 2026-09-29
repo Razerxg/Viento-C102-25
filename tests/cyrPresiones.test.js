@@ -335,7 +335,7 @@ describe('analizarCyR — de la geometría del proyecto a los elementos verifica
   });
 
   it('una cubierta sin figura no calcula, y lo dice en todos lados', () => {
-    const r = correr({ tipo: "vertiente_unica", theta: "18" }, { elementos: [
+    const r = correr({ tipo: "dos_aguas", theta: "60" }, { elementos: [
       { tipo: TIPO_ELEMENTO.CHAPA, superficie: "cubierta", L: 3, s: 1 }] });
     expect(r.figura).toBeUndefined();
     expect(r.zonasCubierta).toEqual([]);
