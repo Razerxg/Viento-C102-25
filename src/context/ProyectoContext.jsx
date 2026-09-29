@@ -401,8 +401,8 @@ export function ProyectoProvider({ children }) {
   // formatos, lo que pasa es que el panel se corrige y la memoria queda atrás —o al
   // revés— y dos salidas de la misma corrida dicen cosas distintas.
   const traza = useMemo(() => consolidar({ vel, sitio, topo, geoN, cerr, rafaga, G,
-    modoG: d.modoG, act, res, envCasos, U, d }),
-  [vel, sitio, topo, geoN, cerr, rafaga, G, d.modoG, act, res, envCasos, d]);
+    modoG: d.modoG, act, res, envCasos, U, d, cyr, kdCyR }),
+  [vel, sitio, topo, geoN, cerr, rafaga, G, d.modoG, act, res, envCasos, d, cyr, kdCyR]);
   const trazaMotor = useMemo(() => trazaDelMotor(act), [act]);
 
   const avisos = useMemo(() => avisosDe({

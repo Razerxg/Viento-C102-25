@@ -10,7 +10,8 @@ import { resolverV } from '../src/engine/velocidad.js';
 import { kzt } from '../src/engine/topografia.js';
 import { clasificar, regionDetritus } from '../src/engine/cerramiento.js';
 import { riAplicado, gcpiDe } from '../src/constants/presionInterna.js';
-import { U } from '../src/lib/unidades.js';
+import { U, unidades, PERFILES } from '../src/lib/unidades.js';
+import { analizarCyR } from '../src/engine/cyrPresiones.js';
 
 // ── UN CASO COMPLETO, ARMADO COMO LO ARMA EL CONTEXTO ──────────────────────────
 const GEO = { a: "20", b: "30", hAlero: "6", theta: "25", tipo: "dos_aguas", cumbrera: "Y" };
@@ -222,5 +223,96 @@ describe('la traza del motor se conserva aparte', () => {
     const suyos = new Set(trazaDelMotor(act).pasos.map(p => p.id));
     const otros = new Set(TRAZA.flatMap(b => b.pasos.map(p => p.id)));
     for (const id of suyos) expect(otros.has(id), id).toBe(false);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EL BLOQUE DE COMPONENTES Y REVESTIMIENTOS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('Traza de componentes y revestimientos', () => {
+  const geo = normalizarGeo({ a: "20", b: "30", hAlero: "6", theta: "0", tipo: "plana",
+    cumbrera: "X" });
+  const cyr = analizarCyR({
+    geo, V: 45, exposicion: "B", altitud: 0, kd: 0.85, kztDe: () => [1], gcpi: 0.18,
+    elementos: [{ tipo: "correa", superficie: "cubierta", L: 6, s: 1.5, nombre: "C-1" }],
+  });
+  const cerrCyR = { gcpi: 0.18, RiAplicado: 1, modoRi: "uno", label: "Cerrado" };
+  const Ud = unidades(PERFILES.datos);
+  const arbol = consolidar({ vel, sitio, topo, geoN, cerr: cerrCyR, rafaga, G,
+    modoG: "defecto", act, res, envCasos, U: Ud, d: {}, cyr, kdCyR: 0.85 });
+  const bCyR = arbol.find(b => b.id === "cyr");
+
+  it('el bloque existe y va ÚLTIMO, después de cerrar el SPRFV', () => {
+    expect(bCyR).toBeTruthy();
+    expect(arbol[arbol.length - 1].id).toBe("cyr");
+  });
+
+  it('sin figura aplicable el bloque no aparece, en vez de aparecer vacío', () => {
+    const sinFig = analizarCyR({
+      geo: normalizarGeo({ a: "20", b: "30", hAlero: "6", theta: "18",
+        tipo: "vertiente_unica" }),
+      V: 45, exposicion: "B", kd: 0.85, kztDe: () => [1], gcpi: 0.18, elementos: [] });
+    const a2 = consolidar({ vel, sitio, topo, geoN, cerr: cerrCyR, rafaga, G, modoG: "defecto",
+      act, res, envCasos, U: Ud, d: {}, cyr: sinFig, kdCyR: 0.85 });
+    expect(a2.find(b => b.id === "cyr")).toBeUndefined();
+  });
+
+  it('⚠ NO CALCULA: cada valor del bloque es idénticamente el del motor', () => {
+    // Es la regla de todo el consolidador y acá importa el doble, porque el bloque tiene
+    // que repetir presiones, áreas y coeficientes. Una cuenta hecha de nuevo sería una
+    // segunda definición, y el día que las dos se separen la memoria informaría un número
+    // que el cálculo nunca usó.
+    const de = (id) => bCyR.pasos.find(x => x.id === id);
+    expect(de("cyr_qh").valor).toBe(Ud.val.presion(cyr.qh));
+    expect(de("cyr_h").valor).toBe(Ud.val.longitud(cyr.altura.valor));
+    expect(de("cyr_min").valor).toBe(Ud.val.presion(800));
+    expect(de("cyr_gcpi").valor).toBe(Math.abs(cerrCyR.gcpi));
+    expect(de("cyr_A_C-1").valor).toBe(Ud.val.area(cyr.elementos[0].area.A));
+    // Y las presiones de cada zona, dígito por dígito contra el motor.
+    for (const z of cyr.elementos[0].zonas) {
+      const p = de(`cyr_z_C-1_${z.zona}`);
+      expect(p, `zona ${z.zona}`).toBeTruthy();
+      expect(p.texto).toContain(Ud.val.presion(z.pPos).toFixed(3).replace(".", ","));
+      expect(p.texto).toContain(Ud.val.presion(z.pNeg).toFixed(3).replace(".", ","));
+    }
+  });
+
+  it('la fórmula, el «donde:» y el artículo están en cada paso que los necesita', () => {
+    const qh = bCyR.pasos.find(x => x.id === "cyr_qh");
+    expect(qh.formula).toContain("0,613");
+    expect(qh.donde.map(x => x.sim)).toContain("K_zt");
+    expect(qh.nota).toMatch(/TAMBIÉN en las paredes/);
+    const p = bCyR.pasos.find(x => x.id === "cyr_p");
+    expect(p.formula).toBe("p = q_h · [ (GC_p) − (GC_pi) ]");
+    expect(p.art).toContain("5.3-1");
+    for (const x of bCyR.pasos) expect(x.art, x.id).toBeTruthy();
+  });
+
+  it('dice cuándo gobierna el mínimo, y con qué presión sin él', () => {
+    // Sin ese par, la traza mostraría 800 N/m² sin manera de saber si salió de la
+    // expresión o del piso del art. 5.2.2.
+    const flojo = analizarCyR({ geo, V: 20, exposicion: "B", kd: 0.85, kztDe: () => [1],
+      gcpi: 0.18, elementos: [{ tipo: "correa", superficie: "cubierta", L: 6, s: 1.5,
+        nombre: "C-1" }] });
+    const b = consolidar({ vel, sitio, topo, geoN, cerr: cerrCyR, rafaga, G, modoG: "defecto",
+      act, res, envCasos, U: Ud, d: {}, cyr: flojo, kdCyR: 0.85 }).find(x => x.id === "cyr");
+    const z = b.pasos.find(x => x.id === "cyr_z_C-1_3");
+    expect(z.nota).toMatch(/Gobierna el mínimo del art\. 5\.2\.2/);
+    expect(z.nota).toMatch(/sin él/);
+    expect(z.tono).toBe("aviso");
+    expect(b.pasos.find(x => x.id === "cyr_min").tono).toBe("aviso");
+  });
+
+  it('la dimensión a aparece salvo en la 5.3-2A, que zonifica por h', () => {
+    expect(bCyR.pasos.find(x => x.id === "cyr_zonas")).toBeTruthy();
+    expect(bCyR.pasos.find(x => x.id === "cyr_a")).toBeUndefined();
+    const conA = analizarCyR({
+      geo: normalizarGeo({ a: "20", b: "30", hAlero: "6", theta: "15", tipo: "dos_aguas",
+        cumbrera: "X" }),
+      V: 45, exposicion: "B", kd: 0.85, kztDe: () => [1], gcpi: 0.18, elementos: [] });
+    const b = consolidar({ vel, sitio, topo, geoN, cerr: cerrCyR, rafaga, G, modoG: "defecto",
+      act, res, envCasos, U: Ud, d: {}, cyr: conA, kdCyR: 0.85 }).find(x => x.id === "cyr");
+    expect(b.pasos.find(x => x.id === "cyr_a").valor).toBe(Ud.val.longitud(conA.a.a));
   });
 });

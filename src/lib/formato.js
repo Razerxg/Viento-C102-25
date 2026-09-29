@@ -25,3 +25,22 @@ export const fmt = {
 export const hora = (fecha) => fecha
   ? fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
   : null;
+
+/**
+ * Número con separador de miles, para los croquis y la memoria.
+ *
+ * ⚠ NO ES `toLocaleString`. El separador del navegador depende del idioma del SISTEMA, no
+ * del documento: la misma memoria abierta en una máquina en inglés saldría con «1,224.45».
+ * Un documento de cálculo no puede cambiar de notación según quién lo abra.
+ *
+ * Vivía sólo en `lib/memoria.js`. Se mudó acá cuando los croquis pasaron a acotar en
+ * milímetros: «3600» sin punto de miles no se lee de un vistazo en un plano, y una segunda
+ * implementación al lado de la de la memoria es cómo se llega a que el croquis diga 3.600
+ * y la tabla 3600.
+ */
+export function miles(n, dec = 2) {
+  if (n == null || !Number.isFinite(Number(n))) return "—";
+  const [ent, frac] = Math.abs(Number(n)).toFixed(dec).split(".");
+  const conMiles = ent.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${Number(n) < 0 ? "−" : ""}${conMiles}${frac ? `,${frac}` : ""}`;
+}

@@ -17,6 +17,7 @@
 //   · figuras como `> **[FIGURA N — descripción]**`
 //   · coma decimal y punto de miles, perfil «memoria» de unidades
 //   · los resultados clave en negrita
+import { miles as num } from './formato.js';
 import { unidades, PERFILES } from './unidades.js';
 import { APP, RESPONSABILIDAD, procedenciaTexto } from '../constants/version.js';
 import { valorDe, puntosDe } from './traza.js';
@@ -31,12 +32,16 @@ const U = unidades(PERFILES.memoria);
  * con «1,224.45» y en una en español con «1.224,45». Un documento de cálculo no puede
  * cambiar de notación según quién lo abra.
  */
-export function num(n, dec = 2) {
-  if (n == null || !Number.isFinite(Number(n))) return "—";
-  const [ent, frac] = Math.abs(Number(n)).toFixed(dec).split(".");
-  const miles = ent.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  return `${Number(n) < 0 ? "−" : ""}${miles}${frac ? `,${frac}` : ""}`;
-}
+// ⚠ `num` VIVE EN `lib/formato.js` y acá sólo se re-exporta. Se mudó cuando los croquis
+// pasaron a acotar en milímetros: dos implementaciones del mismo formato es cómo se llega
+// a que el croquis diga 3.600 y la tabla 3600.
+//
+// Va con `import` + `export`, y no con `export { … } from`, porque la forma corta NO crea
+// el binding local: este mismo archivo usa `num()` en media docena de lugares y con el
+// re-export puro quedaba sin definir —el módulo cargaba y reventaba recién al armar la
+// memoria—.
+export { num };
+
 
 /** Una tabla de Markdown, con los anchos que hagan falta. */
 export const tabla = (encabezados, filas) => [
@@ -202,7 +207,8 @@ export function memoriaMarkdown(e) {
   // reglamento.
   if (cyr?.figura) {
     push("Componentes y revestimientos — Capítulo 5, art. 5.3",
-      C.componentesYRevestimientos({ cyr, cerr, kdCyR, nFig: nf() }));
+      C.componentesYRevestimientos({ cyr, cerr, kdCyR, nFig: nf(), nFigCurvas: nf(),
+        bloque: bloque("cyr") }));
   }
 
   if (conEquipo) {

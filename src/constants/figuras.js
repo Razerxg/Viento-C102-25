@@ -109,6 +109,90 @@ export const FIGURAS = {
   // ── ANEXO I ────────────────────────────────────────────────────────────────────
   // Acá la figura no ilustra la tabla: LA FORMA ES LA TABLA. Ninguna de estas filas se
   // puede identificar por un nombre —«elipse d/b = 1/2 con r/b = 1/12»— sin ver el dibujo.
+  // ── CAPÍTULO 5 — COMPONENTES Y REVESTIMIENTOS ─────────────────────────────
+  //
+  // Entran TODAS las del alcance, que es una excepción al criterio de arriba y tiene
+  // motivo: acá la app no dibuja «algo mejor». El croquis de zonas es del caso concreto,
+  // pero el (GC_p) sale de una CURVA que el reglamento publica sólo como gráfico —en las
+  // 5.3-5A y 5B, sin siquiera ecuación en el comentario—. Poder abrir la figura al lado
+  // del gráfico de la app es lo que permite controlar la transcripción, que es
+  // justamente lo que este capítulo necesita.
+  "5.3-1": {
+    archivo: "fig-5-3-1-paredes",
+    titulo: "Figura 5.3-1 — (GC_p) de paredes, h ≤ 20 m",
+    ref: "Capítulo 5, pág. 5-166",
+    nota: "Zona 5 en la franja `a` de cada esquina vertical, zona 4 en el resto. El "
+      + "positivo es el mismo para las dos. La nota 5 es la que reduce los (GC_p) de "
+      + "pared un 10 % cuando θ ≤ 10°.",
+  },
+  "5.3-2A": {
+    archivo: "fig-5-3-2A",
+    titulo: "Figura 5.3-2A — cubiertas a dos aguas, θ ≤ 7°",
+    ref: "Capítulo 5, pág. 5-168",
+    nota: "La ÚNICA que zonifica por h y no por `a`: franja de 0,6h, L de esquina de "
+      + "0,6h × 0,2h, anillo hasta 1,2h y zona 1′ adentro. Trae DOS gráficos —CUBIERTAS y "
+      + "ALERO— que no son dos edificios sino dos ubicaciones del elemento. La nota 5 es "
+      + "la del parapeto y la 7 la que mide `a` desde el borde exterior del voladizo.",
+  },
+  "5.3-2B": {
+    archivo: "fig-5-3-2B", titulo: "Figura 5.3-2B — dos aguas, 7° < θ ≤ 20°",
+    ref: "Capítulo 5, pág. 5-169",
+    nota: "Zona 3 en los EXTREMOS DE LA CUMBRERA, no en las esquinas del edificio. Los "
+      + "aleros no están zonificados: la zona 1 llega hasta el borde.",
+  },
+  "5.3-2C": {
+    archivo: "fig-5-3-2C", titulo: "Figura 5.3-2C — dos aguas, 20° < θ ≤ 27°",
+    ref: "Capítulo 5, pág. 5-170",
+    nota: "Misma zonificación que la 5.3-2B, con otros coeficientes.",
+  },
+  "5.3-2D": {
+    archivo: "fig-5-3-2D", titulo: "Figura 5.3-2D — dos aguas, 27° < θ ≤ 45°",
+    ref: "Capítulo 5, pág. 5-171",
+    nota: "⚠ OTRA zonificación: zona 3 en las CUATRO ESQUINAS y sin franja de cumbrera. "
+      + "Pasados los 27° el pico se va de la cumbrera a la esquina.",
+  },
+  "5.3-2E": {
+    archivo: "fig-5-3-2E", titulo: "Figura 5.3-2E — cuatro aguas, 7° < θ ≤ 20°",
+    ref: "Capítulo 5, pág. 5-172",
+    nota: "Zona 3 en TODO EL PERÍMETRO —acá la más succionada es el alero, no la "
+      + "cumbrera— y zona 2 en una franja `a` a cada lado de la cumbrera y de las "
+      + "limatesas.",
+  },
+  "5.3-2F": {
+    archivo: "fig-5-3-2F", titulo: "Figura 5.3-2F — cuatro aguas, 20° < θ ≤ 27°",
+    ref: "Capítulo 5, pág. 5-173",
+    nota: "Las zonas 2 y 3 COMPARTEN curva: con esa pendiente la esquina deja de ser más "
+      + "desfavorable que el borde. Entre 27° y 45° se interpola linealmente en θ entre "
+      + "esta figura y la 5.3-2G.",
+  },
+  "5.3-2G": {
+    archivo: "fig-5-3-2G", titulo: "Figura 5.3-2G — cuatro aguas, θ = 45°",
+    ref: "Capítulo 5, pág. 5-174",
+    nota: "Es de UN SOLO ÁNGULO, no de un rango: es el extremo de la interpolación que "
+      + "manda el comentario C 5.3.2 para 27° < θ < 45°.",
+  },
+  "5.3-5A": {
+    archivo: "fig-5-3-5A", titulo: "Figura 5.3-5A — vertiente única, 3° < θ ≤ 10°",
+    ref: "Capítulo 5, pág. 5-177",
+    nota: "Zonas primadas del lado del alero ALTO. Sus curvas NO tienen ecuación en el "
+      + "comentario: se transcribieron midiendo el gráfico, así que conviene compararlas "
+      + "con las que dibuja la app. La nota 5 manda a la Fig. 5.3-2A para θ ≤ 3°.",
+  },
+  "5.3-5B": {
+    archivo: "fig-5-3-5B", titulo: "Figura 5.3-5B — vertiente única, 10° < θ ≤ 30°",
+    ref: "Capítulo 5, pág. 5-178",
+    nota: "Sin zonas primadas. Tampoco tiene ecuación en el comentario.",
+  },
+  "C5-1": {
+    archivo: "fig-C5-1-escenarios",
+    titulo: "Figura C 5-1 — los cuatro escenarios de zonas de cubierta",
+    ref: "Comentario del capítulo 5, pág. 5-204",
+    nota: "Qué zonas existen según la planta frente a h: con la menor dimensión mayor que "
+      + "2,4h aparecen las cuatro; por debajo van desapareciendo la 1′, después la 1. El "
+      + "comentario C 5.1 agrega un quinto caso que la figura no dibuja —mayor dimensión "
+      + "menor que 0,4h, toda la cubierta en zona 3—.",
+  },
+
   "I.1a": { archivo: "anexo-I1-a", titulo: "Tabla I.1 — formas prismáticas redondeadas",
     ref: "Anexo I, pág. 248", nota: "Primera parte: cilindros lisos y rugosos, elipses y "
       + "cuadrados con aristas redondeadas." },

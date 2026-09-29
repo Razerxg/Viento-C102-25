@@ -42,6 +42,63 @@ export function Dim({ x1, y1, x2, y2, texto, desplaz = 0, color = "#52514e", tam
   );
 }
 
+// ── COTA ESTILO PLANO ───────────────────────────────────────────────────────────
+//
+// La `Dim` de arriba marca los extremos con puntitos, que es legible en pantalla y no es
+// lo que se dibuja en un plano. Ésta lleva **marcas a 45°** en los extremos y líneas de
+// referencia hasta el objeto acotado, como cualquier croquis de taller, y el texto va
+// SOBRE la línea con fondo opaco.
+//
+// Existen las dos porque no compiten: los croquis del capítulo 2 muestran presiones y sus
+// cotas son informativas; las del capítulo 5 son las que se transcriben al plano de
+// revestimiento, y ahí el dibujo tiene que parecerse a un plano.
+export function Cota({ x1, y1, x2, y2, texto, desplaz = 0, color = "var(--txt2)",
+  tam = 10.5, marca = 5 }) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const n = Math.hypot(dx, dy) || 1;
+  const [ux, uy] = [dx / n, dy / n];
+  const [ox, oy] = [-uy * desplaz, ux * desplaz];
+  const [ax, ay, bx, by] = [x1 + ox, y1 + oy, x2 + ox, y2 + oy];
+  const [mx, my] = [(ax + bx) / 2, (ay + by) / 2];
+  const ancho = String(texto).length * tam * 0.56 + 8;
+  // La marca a 45°, en la dirección de la línea de cota.
+  const tick = (px, py) => {
+    const [tx, ty] = [(ux + uy) * marca, (uy - ux) * marca];
+    return <line x1={px - tx} y1={py - ty} x2={px + tx} y2={py + ty}
+      stroke={color} strokeWidth="1" />;
+  };
+  return (
+    <g>
+      <line x1={ax} y1={ay} x2={bx} y2={by} stroke={color} strokeWidth="0.9" />
+      {desplaz !== 0 && <>
+        <line x1={x1} y1={y1} x2={ax + ox * 0.18} y2={ay + oy * 0.18} stroke={color}
+          strokeWidth="0.6" opacity="0.7" />
+        <line x1={x2} y1={y2} x2={bx + ox * 0.18} y2={by + oy * 0.18} stroke={color}
+          strokeWidth="0.6" opacity="0.7" />
+      </>}
+      {tick(ax, ay)}{tick(bx, by)}
+      <rect x={mx - ancho / 2} y={my - tam * 0.72} width={ancho} height={tam * 1.35}
+        fill="var(--sup)" rx="2" />
+      <text x={mx} y={my} fill={color} fontSize={tam} textAnchor="middle"
+        dominantBaseline="central">{texto}</text>
+    </g>
+  );
+}
+
+// ── RÓTULO DE ZONA, EN CÍRCULO ──────────────────────────────────────────────────
+// Como en las figuras del reglamento: círculo con el fondo de la tarjeta, borde y número
+// en color de texto. Nada de color de relleno, así se lee igual en los dos temas —que es
+// justamente lo que fallaba cuando las zonas se pintaban de celeste y amarillo fijos—.
+export function Zona({ x, y, texto, r = 11, color = "var(--txt)", tam = 11.5 }) {
+  return (
+    <g>
+      <circle cx={x} cy={y} r={r} fill="var(--sup)" stroke={color} strokeWidth="1.1" />
+      <text x={x} y={y + 0.5} fill={color} fontSize={tam} fontWeight="600"
+        textAnchor="middle" dominantBaseline="central">{texto}</text>
+    </g>
+  );
+}
+
 // ── FLECHA ──────────────────────────────────────────────────────────────────────
 // El largo es proporcional al valor, así que dos flechas comparables se comparan mirando.
 export function Flecha({ x1, y1, x2, y2, color = "#52514e", grosor = 2, cabeza = 7 }) {

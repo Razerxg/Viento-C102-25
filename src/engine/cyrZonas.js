@@ -526,3 +526,48 @@ export function cotasDeZona(geo) {
 
   return [];
 }
+
+/**
+ * Dónde poner el rótulo de cada zona: el punto más «adentro» que tiene.
+ *
+ * ── POR QUÉ NO ES EL CENTRO DEL RECTÁNGULO MÁS GRANDE ──────────────────────────
+ * Era lo que hacía el croquis, y en cuatro aguas ponía el ① y el ② EN EL MISMO PUNTO: la
+ * zona 1 se dibuja como un rectángulo que cubre toda la planta —después tapado por la
+ * banda y por el perímetro— y su centro es el centro de la planta, que es justo donde pasa
+ * la cumbrera. El ② quedaba encima del ① y el croquis mostraba una zona menos.
+ *
+ * Acá se busca, sobre una grilla, el punto de la zona que queda MÁS LEJOS de cualquier
+ * punto de otra zona. Es la misma idea que el «polo de inaccesibilidad» de un polígono, y
+ * no depende de cómo esté partida la zona en piezas de dibujo.
+ *
+ * @param {GeoZonas} geo
+ * @param {number} [n]  puntos por lado de la grilla
+ * @returns {Object<string, {x: number, y: number}>}
+ */
+export function puntosDeRotulo(geo, n = 25) {
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      const x = geo.bx * (i + 0.5) / n, y = geo.by * (j + 0.5) / n;
+      pts.push({ x, y, z: zonaEn(x, y, geo) });
+    }
+  }
+  const out = {};
+  for (const z of new Set(pts.map(p => p.z))) {
+    let mejor = null, mejorD = -1;
+    for (const p of pts) {
+      if (p.z !== z) continue;
+      let d = Infinity;
+      for (const q of pts) {
+        if (q.z === z) continue;
+        const dd = (p.x - q.x) ** 2 + (p.y - q.y) ** 2;
+        if (dd < d) d = dd;
+      }
+      // Sin otra zona en la planta, cualquier punto sirve: gana el centro.
+      if (d === Infinity) { mejor = { x: geo.bx / 2, y: geo.by / 2 }; break; }
+      if (d > mejorD) { mejorD = d; mejor = { x: p.x, y: p.y }; }
+    }
+    if (mejor) out[z] = mejor;
+  }
+  return out;
+}

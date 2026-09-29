@@ -111,7 +111,7 @@ export const INICIAL = {
   // `parapeto` es una casilla y no una altura: la nota 5 de la Fig. 5.3-2A no interpola,
   // dispara con 1 m o más alrededor de TODO el perímetro. Pedir la altura haría creer que
   // un parapeto de 0,60 m produce media sustitución.
-  cyr: { parapeto: false, zonaVista: "todas" },
+  cyr: { parapeto: false, sombrear: false, zonaVista: "todas" },
   // Los elementos van en un arreglo de primer nivel, como las aberturas: son una lista que
   // el usuario edita fila por fila, no un puñado de campos de un formulario.
   //

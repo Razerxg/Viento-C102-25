@@ -393,12 +393,34 @@ describe('Capítulo de componentes y revestimientos', () => {
     expect(BASE).toMatch(/rige también en las paredes/);
   });
 
-  it('lista los parámetros con su símbolo y su unidad', () => {
-    for (const s of ["Figura de cubierta adoptada", "Altura de referencia",
-      "Presión dinámica a la altura de la figura", "Dimensión de borde",
-      "Presión neta mínima de diseño — art. 5.2.2"]) {
-      expect(BASE, s).toContain(s);
+  it('los parámetros generales salen de la TRAZA, no reescritos en el capítulo', () => {
+    // El bloque `cyr` del árbol consolidado ya trae figura, altura, q_h, `a`, (GC_pi), la
+    // expresión (5.3-1) y el mínimo, cada uno con su fórmula, su «donde:» y su artículo.
+    // Reescribirlos en el capítulo sería la tercera versión de los mismos números —panel,
+    // memoria y capítulo— y la primera en quedar atrás.
+    const cap = capitulo(BASE, "Componentes y revestimientos");
+    for (const s of ["Figura aplicable", "Altura de referencia de la figura",
+      "Presión dinámica", "Dimensión de borde", "Presión de diseño",
+      "Presión neta mínima"]) {
+      expect(cap, s).toContain(s);
     }
+    // Con su fórmula y su artículo, que es lo que hace que se pueda rehacer la cuenta.
+    expect(cap).toContain("p = q_h · [ (GC_p) − (GC_pi) ]");
+    expect(cap).toMatch(/Art\. 5\.2\.2/);
+  });
+
+  it('los pasos POR ELEMENTO no entran al capítulo: los reemplaza la tabla', () => {
+    // Son uno por elemento y por zona. En el panel están, porque ahí no hay tabla; acá
+    // dirían lo mismo que la tabla de abajo, renglón por renglón.
+    const cap = capitulo(BASE, "Componentes y revestimientos");
+    expect(cap).not.toMatch(/### .*— área efectiva de viento/);
+    expect(cap).not.toMatch(/### .*— zona \d/);
+  });
+
+  it('lleva la figura de las curvas (GC_p) usadas', () => {
+    const cap = capitulo(BASE, "Componentes y revestimientos");
+    expect(cap).toMatch(/\[FIGURA \d+ — curvas \(GC_p\) usadas/);
+    expect(cap).toMatch(/reducción del 10 % en paredes/);
   });
 
   it('lleva la tabla de anchos de zona, que es lo que va al plano', () => {

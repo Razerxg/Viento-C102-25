@@ -388,3 +388,44 @@ describe('registro de figuras', () => {
     expect(figuraDe("no existe")).toBeNull();
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LOS CROQUIS DEL CAPÍTULO 5 NO PUEDEN TENER COLORES FIJOS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('Croquis de componentes y revestimientos — todo sale de los tokens', () => {
+  // ⚠ ESTE TEST EXISTE POR UN DEFECTO CONCRETO. La primera versión pintaba las zonas con
+  // una paleta fija y clara —celeste, ámbar, naranja— y escribía el número de zona en
+  // `#ffffff` cuando el tema era oscuro: BLANCO SOBRE CELESTE. En tema oscuro las zonas
+  // quedaban sin rotular, y ningún test lo veía porque el SVG se generaba igual.
+  //
+  // Los tokens son variables CSS, así que un color que salga de ellos se invierte solo.
+  // Un literal, no.
+  const ARCHIVOS = ["src/components/svg/ZonasCyR.jsx", "src/components/svg/CurvasCyR.jsx"];
+
+  const sinComentarios = (t) => t
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n").map(l => l.replace(/\/\/.*$/, "")).join("\n");
+
+  for (const archivo of ARCHIVOS) {
+    it(`${archivo} no tiene un solo color literal`, () => {
+      const ruta = path.join(process.cwd(), archivo);
+      if (!fs.existsSync(ruta)) return;              // todavía no existe: nada que exigir
+      const codigo = sinComentarios(fs.readFileSync(ruta, "utf8"));
+      const hex = codigo.match(/#[0-9a-fA-F]{3,8}\b/g) ?? [];
+      expect(hex, `colores literales en ${archivo}`).toEqual([]);
+      // Y tampoco por el otro camino: nombres CSS y rgb() a mano.
+      expect(codigo).not.toMatch(/\b(?:rgba?|hsla?)\s*\(/);
+      expect(codigo).not.toMatch(/["'](?:white|black|red|blue|green|gray|grey)["']/);
+    });
+  }
+
+  it('los dos tienen los mismos tokens de trama en los dos temas', () => {
+    // Un token que exista en un tema y no en el otro deja la variable CSS sin valor: el
+    // relleno se vuelve transparente en ese tema y no hay error en ninguna parte.
+    for (const k of ["tramaZ1", "tramaZ2", "tramaZ3"]) {
+      expect(TEMAS.claro[k], `${k} en claro`).toBeTruthy();
+      expect(TEMAS.oscuro[k], `${k} en oscuro`).toBeTruthy();
+    }
+  });
+});

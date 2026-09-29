@@ -158,6 +158,22 @@ export const SIM = {
   e: { sim: "e", desc: "excentricidad de la carga respecto del centro de rigidez",
     unidad: "m", ref: "Figura 2.4-8" },
   MT: { sim: "M_T", desc: "momento torsor", unidad: "N·m", ref: "Figura 2.4-8" },
+
+  // ── CAPÍTULO 5 — COMPONENTES Y REVESTIMIENTOS ──────────────────────────────
+  GCp: { sim: "(GC_p)", desc: "coeficiente de presión externa de componentes y "
+    + "revestimientos; YA incluye el factor de ráfaga y no se separa", ref: "Art. 5.2.4" },
+  A: { sim: "A", desc: "área efectiva de viento del elemento; con ella se LEE el (GC_p)",
+    unidad: "m²", ref: "Art. 1.2" },
+  Atrib: { sim: "A_trib", desc: "área tributaria real, sobre la que se APLICA la presión",
+    unidad: "m²", ref: "Art. 1.2 · comentario C 1.2" },
+  Lel: { sim: "L", desc: "luz del elemento entre apoyos", unidad: "m", ref: "Art. 1.2" },
+  sep: { sim: "s", desc: "separación entre elementos", unidad: "m", ref: "Art. 1.2" },
+  aCyR: { sim: "a", desc: "dimensión de borde que define las zonas", unidad: "m",
+    ref: "Figura 5.3-1 y siguientes, Notación" },
+  pCyR: { sim: "p", desc: "presión de diseño sobre el componente", unidad: "N/m²",
+    ref: "Expresión (5.3-1)" },
+  pmin: { sim: "p_mín", desc: "presión neta mínima de diseño, en cualquier dirección "
+    + "normal a la superficie", unidad: "N/m²", ref: "Art. 5.2.2" },
 };
 
 /** Un símbolo del diccionario con su valor de este caso. */

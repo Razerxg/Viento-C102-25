@@ -72,6 +72,23 @@ const OSCURO = {
 
   sombraCard: "0 1px 2px rgba(0,0,0,.35)",
   sombraPop: "0 8px 24px rgba(0,0,0,.5)",
+
+  // ── SOMBREADO DE ZONAS DE COMPONENTES Y REVESTIMIENTOS ────────────────────
+  // Grises, no colores: las figuras del capítulo 5 son dibujos de línea y el croquis de
+  // la app los imita. La progresión va de menos a MÁS CONTRASTE contra el fondo según la
+  // severidad de la zona, y por eso en oscuro son blancos con alfa y en claro negros:
+  // dado vuelta, la zona 3 —la más succionada— sería la que menos se ve.
+  //
+  // La zona 1' no tiene token: va SIN relleno. Es la menos exigida y dejarla en blanco es
+  // lo que hace que el resto se lea como una escala.
+  // El papel de los escaneos del reglamento. Es BLANCO EN LOS DOS TEMAS a propósito: son
+  // dibujos de tinta negra, y sobre fondo oscuro no se leería ni una cota. Está acá para
+  // que no quede un `#fff` suelto en un componente.
+  papel: "#FFFFFF",
+
+  tramaZ1: "#FFFFFF12",
+  tramaZ2: "#FFFFFF24",
+  tramaZ3: "#FFFFFF3D",
 };
 
 // TEMA CLARO. No es el oscuro con los grises dados vuelta:
@@ -110,6 +127,12 @@ const CLARO = {
   // se ve como una mancha sucia alrededor de cada tarjeta.
   sombraCard: "0 1px 2px rgba(16,24,40,.06)",
   sombraPop: "0 8px 24px rgba(16,24,40,.14)",
+
+  papel: "#FFFFFF",
+
+  tramaZ1: "#1A1D2114",
+  tramaZ2: "#1A1D2126",
+  tramaZ3: "#1A1D2140",
 };
 
 export const TEMAS = { oscuro: OSCURO, claro: CLARO };

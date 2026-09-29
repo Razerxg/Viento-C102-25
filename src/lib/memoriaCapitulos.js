@@ -477,9 +477,22 @@ sobreestima justamente la franja de mayor q_z y mayor brazo.`;
 // error de uso más caro del reglamento: dimensionar una correa con la presión del SPRFV.
 // Los (GC_p) del capítulo 5 son mayores —son picos locales sobre áreas chicas— y además
 // ya incluyen el factor de ráfaga.
-export const componentesYRevestimientos = ({ cyr, cerr, kdCyR, nFig }) => {
+export const componentesYRevestimientos = ({ cyr, cerr, kdCyR, nFig, nFigCurvas, bloque }) => {
   if (!cyr) return "";
   const p2 = (x) => num(x, 2);
+
+  // ── LOS PASOS GENERALES SALEN DE LA TRAZA, NO SE REESCRIBEN ────────────────
+  // El bloque `cyr` del árbol consolidado ya tiene figura, altura, q_h, `a`, (GC_pi),
+  // la expresión (5.3-1) y el mínimo, cada uno con su fórmula, su «donde:» y su artículo.
+  // Escribirlos otra vez acá sería la tercera versión de los mismos números —panel,
+  // memoria y este capítulo— y la primera en quedar atrás.
+  //
+  // Los pasos POR ELEMENTO no entran: son uno por elemento y por zona, y en la memoria
+  // los reemplaza la tabla de abajo, que dice lo mismo en una fila. En el panel sí están,
+  // porque ahí no hay tabla.
+  const generales = (bloque?.pasos ?? [])
+    .filter(x => !/^cyr_(el|A|z)_/.test(x.id))
+    .map(x => itemDePaso(x, "###")).join("\n");
 
   const cab = [
     "Las presiones de este capítulo **no son las del Capítulo 2** y no se intercambian con",
@@ -558,14 +571,20 @@ export const componentesYRevestimientos = ({ cyr, cerr, kdCyR, nFig }) => {
 
   return [
     cab, "",
-    "### Parámetros del cálculo", "",
-    "Ninguno es dato nuevo: todos salen de los capítulos anteriores de esta memoria.", "",
-    parametros, "",
+    generales || ["### Parámetros del cálculo", "",
+      "Ninguno es dato nuevo: todos salen de los capítulos anteriores de esta memoria.", "",
+      parametros].join("\n"), "",
     "### Zonas y sus anchos", "",
     "Son las medidas que se transcriben al plano de revestimiento y de correas.", "",
     anchos, "",
     figura(nFig, "zonas de componentes y revestimientos, en planta de cubierta y elevación de pared"),
     "",
+    "### Curvas (GC_p) usadas", "",
+    "El coeficiente de cada elemento se lee de estas curvas con su área efectiva de",
+    "viento. Son los mismos puntos de quiebre que usa el cálculo, ya con las notas de la",
+    "figura aplicadas —la reducción del 10 % en paredes y las sustituciones del parapeto—.",
+    "",
+    figura(nFigCurvas, `curvas (GC_p) usadas, Fig. ${cyr.figura} y Fig. 5.3-1`), "",
     "### Elementos verificados", "",
     "El `(GC_p)` se lee con el **área efectiva de viento** y la presión se aplica sobre el",
     "**área tributaria real** (C 1.2): son dos áreas distintas y la tabla informa las dos.",

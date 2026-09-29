@@ -317,3 +317,68 @@ export const FORMA_DE_TIPO = {
   cuatro_aguas: FORMA.CUATRO_AGUAS,
   vertiente_unica: FORMA.VERTIENTE_UNICA,
 };
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LAS CURVAS QUE EL CÁLCULO ESTÁ USANDO
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// ── POR QUÉ ESTO VIVE EN EL MOTOR Y NO EN EL GRÁFICO ───────────────────────────
+// El gráfico de la pantalla tiene que dibujar LA CURVA QUE SE USÓ, no la de la figura: con
+// θ ≤ 10° las de pared van reducidas un 10 % y con parapeto la zona 3 toma la curva de la
+// zona 2. Un gráfico que se arme por su cuenta a partir de `cyrCurvas.js` dibujaría la
+// curva del reglamento y el número de la tabla saldría de otra, que es exactamente el tipo
+// de discrepancia que nadie mira hasta que alguien la cruza a mano.
+//
+// Devuelve las dos: `puntos` es la que se usa y `original` la de la figura, cuando una
+// nota las separó. El gráfico dibuja la usada con trazo lleno y la original en trazos.
+
+const escalar = (curva, k) => curva.map(([A, g]) => [A, g * k]);
+
+/**
+ * Las curvas de una superficie, tal como entran al cálculo.
+ *
+ * @param {Contexto} ctx
+ * @param {"cubierta"|"pared"} superficie
+ * @returns {{zona: string, signo: "pos"|"neg", puntos: [number,number][],
+ *            original?: [number,number][], nota?: string, ref?: string}[]}
+ */
+export function curvasUsadas(ctx, superficie) {
+  const fuente = superficie === "pared" ? figuraPared() : ctx.fuente;
+  if (fuente.tipo === "noImplementada") return [];
+  const figura = fuente.tipo === "interpolacion" ? fuente.desde : fuente.figura;
+  const ubic = superficie === "pared" ? UBICACION.PARED : UBICACION.CUBIERTA;
+  const zonas = FIGURAS[figura].zonas;
+  const crudo = (fig, z, s) => FIGURAS[fig].curvas[
+    fig === "5.3-1" ? UBICACION.PARED : ubic][z][s];
+
+  const salida = [];
+  for (const zona of zonas) {
+    for (const signo of ["pos", "neg"]) {
+      const base = crudo(figura, zona, signo);
+
+      if (superficie === "pared") {
+        const red = reduccionPared(ctx.theta);
+        salida.push(red.aplica
+          ? { zona, signo, puntos: escalar(base, red.factor), original: base,
+              nota: "reducidos un 10 % por θ ≤ 10°", ref: red.ref }
+          : { zona, signo, puntos: base });
+        continue;
+      }
+
+      // Cubierta con parapeto: la nota 5 de la Fig. 5.3-2A sustituye dos curvas.
+      const conNota = ctx.parapeto && FIGURAS_CON_NOTA_PARAPETO.includes(figura);
+      if (conNota && signo === "neg" && zona === "3") {
+        salida.push({ zona, signo, puntos: crudo(figura, "2", "neg"), original: base,
+          nota: "igualada a la zona 2 por el parapeto", ref: "Fig. 5.3-2A, nota 5" });
+      } else if (conNota && signo === "pos" && (zona === "2" || zona === "3")) {
+        salida.push({ zona, signo, puntos: crudo("5.3-1", zona === "2" ? "4" : "5", "pos"),
+          original: base,
+          nota: `igualada a la zona de pared ${zona === "2" ? "4" : "5"} por el parapeto`,
+          ref: "Fig. 5.3-2A, nota 5" });
+      } else {
+        salida.push({ zona, signo, puntos: base });
+      }
+    }
+  }
+  return salida;
+}

@@ -228,6 +228,142 @@ function bloqueCoeficientes({ act }) {
     art: "Figura 2.4-1", desc: `Dirección ${act.dir.label}.`, pasos: p });
 }
 
+// ── 7 · COMPONENTES Y REVESTIMIENTOS ────────────────────────────────────────────
+//
+// ⚠ ACÁ TAMPOCO SE CALCULA NADA. Todos los números salen de `analizarCyR`; este bloque los
+// reordena y les pone el artículo al lado. Hay un test que recorre el bloque y exige que
+// cada valor sea idénticamente el del motor: una cuenta repetida acá sería una segunda
+// definición, y el día que las dos se separen la memoria informaría un número que el
+// cálculo nunca usó.
+function bloqueCyR({ cyr, cerr, kdCyR, U }) {
+  if (!cyr?.figura) return null;
+  const p = [];
+
+  p.push(paso({
+    id: "cyr_figura", titulo: "Figura aplicable", art: "Art. 5.3.2",
+    texto: `Fig. ${cyr.figura} — ${cyr.fuente.porque}`,
+    nota: "Las paredes van siempre por la Fig. 5.3-1. La Parte 1 del capítulo 5 cubre "
+      + "edificios con h ≤ 20 m o de baja altura (art. 1.2).",
+  }));
+
+  p.push(paso({
+    id: "cyr_h", titulo: "Altura de referencia de la figura", art: `Fig. ${cyr.figura}`,
+    valor: U.val.longitud(cyr.altura.valor), unidad: U.u.longitud, dec: 2,
+    donde: [con("h", U.val.longitud(cyr.altura.valor), { unidad: U.u.longitud })],
+    nota: `${cyr.altura.porque}. Esa altura fija las zonas, entra en la dimensión a y es a `
+      + "la que se evalúa q_h.",
+  }));
+
+  p.push(paso({
+    id: "cyr_qh", titulo: "Presión dinámica", art: "Art. 1.13 · expresión (1.13-1)",
+    formula: "q_h = 0,613 · K_z(h) · K_zt · K_d · K_e · V²",
+    donde: [SIM.qh, SIM.Kz, con("Kzt", fc(cyr.Kzt, 3)), con("Kd", fc(kdCyR ?? 0.85, 2)),
+      SIM.Ke, SIM.V],
+    valor: U.val.presion(cyr.qh ?? 0), unidad: U.u.presion, dec: 3,
+    nota: "⚠ En la Parte 1 del capítulo 5, q_h rige TAMBIÉN en las paredes, a diferencia "
+      + "del capítulo 2. K_zt entra como el MÁXIMO sobre las cuatro direcciones y la "
+      + "exposición es la que dé las mayores cargas (art. 1.7.4.4): los (GC_p) del "
+      + "capítulo ya son la envolvente de todas las direcciones.",
+  }));
+
+  p.push(cyr.geoZonas.layout === "planaH"
+    ? paso({
+      id: "cyr_zonas", titulo: "Dimensiones de las zonas", art: "Fig. 5.3-2A",
+      texto: `franja de 0,6h = ${fc(U.val.longitud(0.6 * cyr.geoZonas.h), 2)} ${U.u.longitud}`
+        + ` · L de esquina de 0,2h × 0,6h · zona 1 hasta 1,2h`,
+      nota: "Es la única figura del capítulo que zonifica por h y no por la dimensión a.",
+    })
+    : paso({
+      id: "cyr_a", titulo: "Dimensión de borde", art: "Notación de la Fig. " + cyr.figura,
+      formula: "a = mín(0,10·b_mín ; 0,4h), pero a ≥ máx(0,04·b_mín ; 1 m)",
+      donde: [con("aCyR", U.val.longitud(cyr.a.a), { unidad: U.u.longitud }),
+        { sim: "b_mín", desc: "menor dimensión horizontal en planta", unidad: U.u.longitud },
+        SIM.h],
+      valor: U.val.longitud(cyr.a.a), unidad: U.u.longitud, dec: 2,
+      nota: `Gobierna ${cyr.a.gobierna}.`
+        + (cyr.a.limitada ? " Se aplicó la excepción de θ ≤ 7° con menor dimensión > 90 m." : ""),
+    }));
+
+  p.push(paso({
+    id: "cyr_gcpi", titulo: "Coeficiente de presión interna", art: "Tabla 1.11-1, nota 3",
+    valor: Math.abs(cerr?.gcpi ?? 0), unidad: "", dec: 3,
+    texto: `±${fc(Math.abs(cerr?.gcpi ?? 0), 3)}`,
+    donde: [SIM.GCpi, con("Ri", fc(cerr?.RiAplicado ?? 1, 4))],
+    nota: "Se usan SIEMPRE los dos signos: no es un ± del que se elige el peor, son dos "
+      + (cerr?.modoRi === "expresion"
+        ? "casos. R_i de la expresión (1.11-1) ya aplicado."
+        : "casos. R_i = 1,00 (art. 1.11.1)."),
+  }));
+
+  p.push(paso({
+    id: "cyr_p", titulo: "Presión de diseño", art: "Art. 5.3.2 · expresión (5.3-1)",
+    formula: "p = q_h · [ (GC_p) − (GC_pi) ]",
+    donde: [SIM.pCyR, SIM.qh, SIM.GCp, SIM.GCpi],
+    texto: "por elemento y zona, ver abajo",
+  }));
+
+  p.push(paso({
+    id: "cyr_min", titulo: "Presión neta mínima", art: "Art. 5.2.2",
+    valor: U.val.presion(800), unidad: U.u.presion, dec: 2,
+    donde: [SIM.pmin],
+    nota: "Actúa en cualquier dirección normal a la superficie, y los dos sentidos tienen "
+      + "su piso por separado. No es el 0,75 kN/m² del art. 2.1.5, que es del SPRFV y se "
+      + "aplica sobre el área proyectada del edificio entero.",
+    tono: cyr.elementos.some(e => e.minimoGobiernaAlgo) ? "aviso" : "info",
+  }));
+
+  // ── Un tramo por elemento ────────────────────────────────────────────────
+  for (const el of cyr.elementos) {
+    const n = el.elemento.nombre || "elemento";
+    if (el.sinFigura) {
+      p.push(paso({ id: `cyr_el_${n}`, titulo: `${n} — sin figura aplicable`,
+        art: "Art. 5.3.2", texto: "no se verifica", tono: "error" }));
+      continue;
+    }
+    p.push(paso({
+      id: `cyr_A_${n}`, titulo: `${n} — área efectiva de viento`, art: "Art. 1.2",
+      formula: el.area.cuenta,
+      donde: [con("A", U.val.area(el.area.A), { unidad: U.u.area }),
+        con("Atrib", U.val.area(el.area.tributaria), { unidad: U.u.area }),
+        SIM.Lel, SIM.sep],
+      valor: U.val.area(el.area.A), unidad: U.u.area, dec: 2,
+      nota: `El (GC_p) se lee con A = ${fc(U.val.area(el.area.A), 2)} ${U.u.area} y la `
+        + `presión se aplica sobre el área tributaria real de `
+        + `${fc(U.val.area(el.area.tributaria), 2)} ${U.u.area} (C 1.2).`,
+    }));
+    for (const z of el.zonas) {
+      const notas = z.notas?.map(x => `${x.ref}: ${x.texto}`).join(" ") ?? "";
+      p.push(paso({
+        id: `cyr_z_${n}_${z.zona}`, titulo: `${n} — zona ${z.zona}`,
+        art: `Fig. ${el.superficie === "pared" ? "5.3-1" : cyr.figura}`,
+        formula: `p = ${fc(U.val.presion(cyr.qh ?? 0), 3)} · [ (${fc(z.gcpPos, 2)} ; `
+          + `${fc(z.gcpNeg, 2)}) − (∓${fc(Math.abs(cerr?.gcpi ?? 0), 3)}) ]`,
+        texto: `p+ = ${fc(U.val.presion(z.pPos), 3)} · p− = ${fc(U.val.presion(z.pNeg), 3)} `
+          + `${U.u.presion}`,
+        donde: [con("GCp", `+${fc(z.gcpPos, 2)} / ${fc(z.gcpNeg, 2)}`)],
+        nota: [notas,
+          z.gobiernaMinimo.pos || z.gobiernaMinimo.neg
+            ? `Gobierna el mínimo del art. 5.2.2 en `
+              + `${z.gobiernaMinimo.pos && z.gobiernaMinimo.neg ? "los dos sentidos"
+                : z.gobiernaMinimo.pos ? "el sentido positivo" : "el sentido negativo"}: `
+              + `sin él, p+ = ${fc(U.val.presion(z.pPosCalculada), 3)} y `
+              + `p− = ${fc(U.val.presion(z.pNegCalculada), 3)} ${U.u.presion}.`
+            : "",
+          z.zona === el.gobierna.pos || z.zona === el.gobierna.neg
+            ? "Es la zona gobernante." : "",
+        ].filter(Boolean).join(" ") || null,
+        tono: z.gobiernaMinimo.pos || z.gobiernaMinimo.neg ? "aviso" : "info",
+      }));
+    }
+  }
+
+  return bloque({ id: "cyr", titulo: "Componentes y revestimientos",
+    art: "Capítulo 5, Parte 1 — art. 5.3",
+    desc: "Sin dirección de viento: los (GC_p) del capítulo 5 ya son la envolvente de las "
+      + "cuatro, y por eso cada elemento se verifica con un valor positivo y uno negativo.",
+    pasos: p });
+}
+
 // ── 6 · RESULTANTES Y ENVOLVENTE ────────────────────────────────────────────────
 function bloqueResultantes({ res, envCasos, U }) {
   const rot = (g) => g?.estado == null ? "—"
@@ -284,11 +420,11 @@ function bloqueResultantes({ res, envCasos, U }) {
  * @param {any} e.vel @param {any} e.sitio @param {any} e.topo @param {any} e.geoN
  * @param {any} e.cerr @param {any} e.rafaga @param {number} e.G @param {string} e.modoG
  * @param {any} e.act @param {any} e.res @param {any} e.envCasos @param {any} e.U
- * @param {any} e.d
+ * @param {any} e.d @param {any} [e.cyr] @param {number} [e.kdCyR]
  * @returns {ReturnType<typeof bloque>[]}
  */
 export function consolidar({ vel, sitio, topo, geoN, cerr, rafaga, G, modoG, act, res,
-  envCasos, U, d }) {
+  envCasos, U, d, cyr, kdCyR }) {
   return [
     bloqueVelocidad({ vel, d }),
     bloqueSitio({ sitio, topo, geoN }),
@@ -297,7 +433,11 @@ export function consolidar({ vel, sitio, topo, geoN, cerr, rafaga, G, modoG, act
     bloquePresionDinamica({ act, U }),
     bloqueCoeficientes({ act }),
     bloqueResultantes({ res, envCasos, U }),
-  ];
+    // C&R va ÚLTIMO, después de cerrar el SPRFV: es otro camino de cálculo sobre el mismo
+    // edificio, y mezclado entre los bloques del capítulo 2 las dos presiones se
+    // confunden. `bloque()` filtra los nulos, así que sin figura aplicable no aparece.
+    bloqueCyR({ cyr, cerr, kdCyR, U }),
+  ].filter(Boolean);
 }
 
 /**
