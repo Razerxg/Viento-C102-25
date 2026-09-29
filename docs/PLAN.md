@@ -145,10 +145,176 @@ Decisiones tomadas para (2), ya implementadas:
 | ✅ | Guardar y abrir proyectos como JSON, con el **esquema versionado** | `lib/proyecto.js` |
 | ✅ | Versión de la app, «CIRSOC 102-2025» y aviso de responsabilidad profesional en cada salida | `constants/version.js` |
 
-## Fase 4 — Capítulo 5, componentes y revestimientos ⏳
+## Fase 4 — Capítulo 5, componentes y revestimientos 🔄
 
-Zonas y `GC_p`, con la exposición más desfavorable según el art. 1.7.4.4. Uso previsto:
-LSF, correas y chapas. El capítulo **no está leído todavía**.
+Capítulo leído entero (74 págs., Reglamento + Comentario). Uso previsto: LSF, correas y
+chapas.
+
+**Un solo método: la Parte 1 (art. 5.3)**, para `h ≤ 20 m` o edificio de baja altura
+(art. 1.2). La **Parte 6** —procedimiento simplificado, Tabla 5.13-2— **no se implementa
+como método**: esa tabla se obtiene de la Parte 1 con `h = 10 m`, exposición B,
+`K_z = 0,71`, `K_d = 0,85`, `K_zt = 1`, `K_e = 1` (C 5.13), así que entra como
+**verificación cruzada** y no como una segunda vía de cálculo que haya que mantener.
+
+### Lo que no cambia respecto del SPRFV
+
+| | |
+|---|---|
+| `p = q_h·[(GC_p) − (GC_pi)]`, expr. (5.3-1) | En la Parte 1 `q_h` rige **también en las paredes**, a diferencia del capítulo 2 |
+| `(GC_p)` incluye `G` | Art. 5.2.4: no se separan. `G` no interviene en C&R |
+| Los dos signos de `GC_pi`, siempre | Tabla 1.11-1, nota 3. El `R_i` elegido en Cerramiento ya viene aplicado |
+| `K_d` de la fila **edificio_cyr** | No la del SPRFV |
+| `K_zt` = máximo de `K_zt(h)` entre direcciones | C&R es envolvente de todas las direcciones |
+| Exposición | La que dé las mayores cargas en cualquier dirección (art. 1.7.4.4). Hoy hay una sola |
+| Mínimo **0,80 kN/m² neto** (art. 5.2.2) | No es el 0,75 del art. 2.1.5. Se marca en la salida cuándo gobierna |
+| Área tributaria > 65 m² | Aviso **info**: el art. 5.2.3 permite diseñarlo como SPRFV |
+
+Pantalla nueva **«Componentes y revestimientos»**, en el grupo de cálculo, después de
+Resultantes. Toma `V`, exposición, `K_zt`, geometría y `GC_pi` de Sitio, Edificio y
+Cerramiento: **no se repite ningún dato**. Los resultados se dan **por elemento y para
+todas las zonas** de la figura aplicable; la zona elegida sólo filtra la vista. El dibujo
+informa, no interviene en la cuenta. Sin campos de fundamento, como el resto de la app.
+
+### Las figuras y de dónde sale cada curva
+
+La página del PDF del capítulo y la del Reglamento se corresponden con `Cap. 5-(N+134)`.
+
+| Figura | Qué cubre | PDF | Cap. 5 | Fuente de la curva | Etapa |
+|---|---|---|---|---|---|
+| 5.3-1 | Paredes, `h ≤ 20 m`, zonas 4 y 5 | 32 | 166 | Ecuaciones de la **Tabla C 5.3-1** | 5.1 |
+| 5.3-2A | Dos aguas y planas, `θ ≤ 7°` | 34 | 168 | **Tabla C 5.3-2** | 5.1 |
+| 5.3-2B | Dos aguas, 7°–20° | 35 | 169 | **Tabla C 5.3-3** | 5.1 |
+| 5.3-2C | Dos aguas, 20°–27° | 36 | 170 | **Tabla C 5.3-4** | 5.1 |
+| 5.3-2D | Dos aguas, 27°–45° | 37 | 171 | **Tabla C 5.3-5** | 5.1 |
+| 5.3-2E | Cuatro aguas, 7°–20° | 38 | 172 | **Tabla C 5.3-6** | 5.1 |
+| 5.3-2F | Cuatro aguas, 20°–27° | 39 | 173 | **Tabla C 5.3-7** — zonas 2 y 3 comparten curva | 5.1 |
+| 5.3-2G | Cuatro aguas, `θ = 45°` | 40 | 174 | **Tabla C 5.3-8** | 5.1 |
+| 5.3-5A | Vertiente única, 3°–10° | 43 | 177 | **No tiene ecuación** — transcripción del gráfico, 📥 a verificar | 5.1 |
+| 5.3-5B | Vertiente única, 10°–30° | 44 | 178 | **No tiene ecuación** — transcripción del gráfico, 📥 a verificar | 5.1 |
+| C 5-1 | Los cuatro escenarios de zonas de cubierta | 70 | 204 | Leída de la figura | 5.1 |
+| C 5.3-2 | Plantas irregulares: `X ≤ a` y esquinas ≥ 135° | 72 | 206 | Leída de la figura | 5.1 |
+| Tabla 5.13-2 | Presiones del procedimiento simplificado | 65–69 | 199–203 | Transcripción — **test cruzado**, no método | 5.1 |
+| 5.3-1A | Superficie inferior de edificios elevados, zona 4⁺ | 33 | 167 | Remite a la curva positiva de zona 4 de la 5.3-1 | 5.4 |
+| 5.3-3 · 5.3-4 · 5.3-6 · 5.3-7 · 5.3-8 | Escalonadas · dos aguas múltiples · diente de sierra · cúpula · abovedada | 41–47 | 175–181 | — | 5.4 |
+| 5.4-1 · 5.4-1A | Paredes y cubiertas con `h > 20 m` | 48–49 | 182–183 | — | 5.3 |
+| 5.5-1 a 5.5-3 | Edificios abiertos, `C_N` | 50–52 | 184–186 | Tablas de la propia figura | 5.3 |
+| 5.6-1 · 5.7-1 | Parapetos · voladizos de cubierta | 53–54 | 187–188 | — | 5.2 |
+| 5.9-1A/B · 5.9-2A/B | Aleros adosados a paredes | 55–58 | 189–192 | Ecuaciones de las **Tablas C 5.9-1 a C 5.9-4** | 5.2 |
+| 5.10-1 a 5.10-4 | Silos, tanques y recipientes cilíndricos | 59–64 | 193–198 | — | 5.4 |
+
+### 5.1 — Paredes y cubiertas por la Parte 1 🔄
+
+Módulos nuevos:
+
+| Archivo | Qué contiene |
+|---|---|
+| `constants/cyrCurvas.js` | Las curvas `(GC_p)` como **puntos de quiebre** `[[A, GC_p], …]`, una entrada por figura · zona · signo, con su artículo y su tabla de origen |
+| `engine/cyrFiguras.js` | Selección automática de figura a partir de forma de cubierta y `θ`, con el motivo a la vista; la interpolación 27°–45° en cuatro aguas; el aviso **error** cuando la figura no está implementada |
+| `engine/cyrZonas.js` | La dimensión `a`, la geometría de las zonas de pared y de cubierta y el escenario de la Fig. C 5-1 que corresponde |
+| `engine/cyr.js` | El evaluador genérico de curvas, la nota 5 de parapeto, la reducción del 10 % en paredes, `p = q_h[(GC_p) − (GC_pi)]`, el mínimo de 800 N/m² y la envolvente por elemento |
+| `engine/cyrElementos.js` | Área efectiva `A` por tipo de elemento, con la cuenta a la vista |
+| `components/tabs/CyRTab.jsx` | La pantalla |
+| `components/svg/ZonasCyR.jsx` | Planta de cubierta y elevaciones con las zonas acotadas en mm |
+| `docs/verificar-cyr.md` | Tabla `zona · tramo · A · GC_p` de las Figs. 5.3-5A y 5B, 📥 para que el proyectista la controle contra el PDF |
+
+Tocan además `lib/exportar.js` (CSV y JSON de C&R), `lib/consolidar.js` (bloque de traza),
+`lib/memoriaCapitulos.js` (capítulo «Componentes y revestimientos (Cap. 5)», después de los
+del SPRFV, y el Alcance, que pasa a listar qué figuras están y cuáles no) y
+`constants/inicial.js` (la lista de elementos, con su migración de esquema).
+
+**Estructura de las curvas.** Cada curva es una lista de puntos de quiebre `[A, GC_p]` con
+**interpolación lineal en `log A`** y valor constante fuera de los extremos. Un solo
+evaluador para todas las figuras; la continuidad queda por construcción y no por un `if`.
+Las ecuaciones de las Tablas C 5.3-1 a C 5.3-8 son rectas en `log A` entre dos cotas, así
+que la conversión es exacta: el punto de quiebre es el extremo del tramo.
+
+**Dos erratas del comentario, registradas en el código:**
+
+- **Tabla C 5.3-2**, zona 2 con voladizo: dice `(GC_p) = −1,1 para A > 5,0 m²` y es **50,0**
+  —la recta `−2,3 + 0,7063·log A` llega a `−1,100` justo en `A = 50`—.
+- **Tabla C 5.3-4**, zona 3: `−1.4` con punto es `−1,4`, y coincide con
+  `−3,0 + 1,600·log 10`.
+
+**Zonas.** La Fig. 5.3-2A zonifica por `h` y no por `a`: franja de zona 2 de `0,6h` desde
+el borde, zona 3 en **L de `0,6h` de largo por `0,2h` de ancho** en cada esquina, zona 1
+entre `0,6h` y `1,2h`, zona 1′ en el interior. La Fig. C 5-1 da los cuatro escenarios, y se
+leyeron de la figura:
+
+| Escenario | Condición | Zonas presentes |
+|---|---|---|
+| a | Menor dimensión en planta **> 2,4h** | 3 · 2 · 1 · 1′ |
+| b | Menor dimensión **entre 1,2h y 2,4h** | 3 · 2 · 1 (sin 1′) |
+| c | Menor **< 1,2h** y mayor **> 1,2h** | 3 · 2 |
+| d | Mayor dimensión en planta **< 1,2h** | 3 · 2 |
+
+Las Figs. 5.3-2B a 2G zonifican por `a` = 10 % de la menor dimensión horizontal o `0,4h`,
+la menor, pero no menos del 4 % de la menor dimensión ni de 1 m; con `θ` de 0° a 7° y menor
+dimensión mayor que 90 m, `a ≤ 0,8h`. Con voladizo, la menor dimensión no lo incluye y la
+distancia al borde se mide desde su borde exterior (nota 7 de la Fig. 5.3-2A).
+
+**`h` es la altura media de cubierta, salvo `θ ≤ 10°`, donde es la altura del alero** —lo
+dicen las notaciones de las Figs. 5.3-2A, 2B, 2E y 2F—.
+
+**Nota 5 de la Fig. 5.3-2A** (parapeto de 1 m o más en todo el perímetro): los `(GC_p)`
+negativos de la zona 3 se igualan a los de la zona 2, y los positivos de las zonas 2 y 3 a
+los de las zonas de pared 4 y 5 de la Fig. 5.3-1. Es una casilla en la pantalla.
+
+**Nota 5 de la Fig. 5.3-1:** con `θ ≤ 10°` los `(GC_p)` de pared se reducen un 10 %.
+
+**Área efectiva** (art. 1.2 y su comentario): el `(GC_p)` se lee con `A`, pero la carga se
+aplica sobre el **área tributaria real** (C 1.2). Se dice en la pantalla.
+
+| Tipo | `A` |
+|---|---|
+| Chapa de cubierta o de pared, correa, larguero, montante LSF | `L · máx(s; L/3)` |
+| Fijación de revestimiento | Área tributaria de **una** fijación, sin la regla de `L/3` |
+| Puerta o ventana apoyada en tres o más lados | Área del elemento |
+| Otro | A mano |
+
+**Validación**, en este orden:
+
+1. Las ecuaciones de las Tablas C 5.3-1 a 8 contra los puntos de quiebre, en
+   `A = 0,5 · 1 · 1,5 · 2 · 5 · 10 · 20 · 30 · 50 · 100 m²`, tolerancia 0,005.
+2. **Cruzada contra la Tabla 5.13-2** (960 valores transcriptos del PDF), regenerada con el
+   motor de la Parte 1 y los parámetros de C 5.13, zona 1 de cubierta como interior, mínimo
+   de 800 N/m², tolerancia **0,5 %**. Las excepciones se reconocen **por nombre**, nunca
+   ampliando la tolerancia: la tabla no aplica la reducción del 10 % en paredes; cubierta
+   zona 1 con `A = 2 m²` da entre +1,2 % y +1,5 %; paredes con `A = 5 m²` dan hasta +0,5 %
+   en zona 4, entre +1,7 % y +2,3 % en zona 5 positiva y −0,3 % en zona 5 negativa; y la
+   errata de `V = 42,9 m/s`, cubierta zona 2, `A = 1 m²`, donde la tabla repite el −1.468
+   N/m² de la columna de 40 m/s y corresponde −1.689.
+3. Los cuatro escenarios de la Fig. C 5-1 dibujados, 📥 para control contra la figura.
+4. `tests/casos/cyr/`, con `esperado: null` — 📥 los carga el proyectista.
+
+### 5.2 — Accesorios ⏳
+
+- **Parapetos** (art. 5.6): `q_p` en el borde superior, casos A y B de la Fig. 5.6-1, los
+  dos signos de `GC_pi`.
+- **Voladizos** (art. 5.7): `(GC_p)` de la cubierta en la zona del voladizo más el de la
+  pared adyacente para la cara inferior, ajustado al área; `GC_pi = 0` si no configuran
+  volumen interno.
+- **Equipos sobre cubierta** (art. 5.8): a partir del 4.5.1, que ya está implementado.
+
+### 5.3 — Alcance mayor ⏳
+
+- **`h > 20 m`** (Fig. 5.4-1, expr. 5.4-1): `q_z` para el `(GC_p)` positivo en paredes y
+  `q_h` para el resto; excepción de `20 m < h < 30 m` con `h ≤` menor dimensión horizontal.
+- **Edificios abiertos** (Figs. 5.5-1 a 5.5-3): `C_N` por rangos de área
+  (`≤ a²`, `≤ 4a²`, `> 4a²`), sin y con bloqueo, `p = q_h·G·C_N`, exposición más
+  desfavorable.
+- **Aleros adosados** (art. 5.9): ecuaciones de las Tablas C 5.9-1 a C 5.9-4. Las C 5.9-3 y
+  C 5.9-4 terminan en `A ≤ 100 m²` sin tramo final: constante más allá, como en la figura.
+
+### 5.4 — A demanda ⏳
+
+Cubiertas escalonadas (5.3-3) · a dos aguas múltiples (5.3-4) · diente de sierra (5.3-6) ·
+cúpulas (5.3-7) · abovedadas (5.3-8) · superficie inferior de edificios elevados (5.3.2.1 y
+5.4.2.1) · silos y tanques (5.10) · solados (5.12).
+
+### Paneles solares (art. 5.11) ⛔
+
+Siguen bloqueados: remiten al art. 4.5.3, que son once gráficos de curvas. Ver el bloque
+⛔ más abajo.
 
 ## Memorias de otras estructuras ⏳ — siguiente
 
@@ -190,8 +356,9 @@ devuelve resultantes marcadas como no válidas.
 
 ## Sin leer del reglamento
 
-Capítulo 5 entero · Figs. 2.4-2 (cúpula) y 2.4-3 (abovedada) · Figs. 2.4-4 a 2.4-7
-(edificios abiertos, tratamiento por `C_N`) · mansarda.
+Figs. 2.4-2 (cúpula) y 2.4-3 (abovedada) · Figs. 2.4-4 a 2.4-7 (edificios abiertos,
+tratamiento por `C_N`) · mansarda. El **capítulo 5 ya está leído**: qué se implementa y en
+qué etapa está en la Fase 4.
 
 ## ⛔ Bloqueado
 
