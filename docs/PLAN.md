@@ -210,6 +210,8 @@ La página del PDF del capítulo y la del Reglamento se corresponden con `Cap. 5
 | ✅ | Clasificador de zonas por punto, `a`, y las cinco zonificaciones | `engine/cyrZonas.js`, con `tests/cyrZonas.test.js` (34 tests, 12 mutantes sin sobrevivientes) |
 | ✅ | Selección de figura, interpolación 27°–45°, altura y reducción de pared | `engine/cyrFiguras.js`, con `tests/cyrFiguras.test.js` (37 tests, 15 mutantes sin sobrevivientes) |
 | ✅ | Área efectiva por tipo de elemento | `engine/cyrElementos.js` |
+| ✅ | Presiones, mínimo del art. 5.2.2, nota de parapeto y verificación por elemento | `engine/cyrPresiones.js`, con `tests/cyrPresiones.test.js` |
+| ✅ | **Verificación cruzada contra la Tabla 5.13-2 — 960 valores** | `tests/casos/tabla5132.js` + `tests/cyrTabla5132.test.js` |
 | ⏳ | Pantalla, croquis de zonas, exportación y capítulo de memoria | |
 | 📥 | Transcripción de las Figs. 5.3-5A y 5B | `docs/verificar-cyr.md`, a controlar contra el PDF |
 
@@ -224,6 +226,39 @@ Fig. C 5-1** y sí en el comentario C 5.1 —mayor dimensión < 0,4·h, toda la 
 **Plantas irregulares: fuera del alcance.** La Fig. C 5.3-2 (plantas en L, en T, esquinas
 ≥ 135°, la regla de `X ≤ a`) no se implementa, porque la geometría de la app es
 rectangular. Va declarado en el Alcance de la memoria, no como un ⏳.
+
+#### La verificación cruzada contra la Tabla 5.13-2 ✅ — cerrada
+
+Las cuatro páginas de la tabla (Cap. 5-200 a 5-203) **tienen capa de texto**, así que los
+960 valores se extrajeron con `pdftotext -layout` y no a ojo. El motor los regenera con los
+parámetros que declara C 5.13, y el resultado es: **63 celdas fuera del 0,5 %, en
+exactamente las tres familias que el proyectista había anticipado, y ninguna más.**
+
+| Excepción | Celdas | Desvío | Qué es |
+|---|---|---|---|
+| Cubierta zona 1, `A = 2 m²` | 32 | tabla +1,1 % a +1,4 % | Sólo esa área y esa zona. No es la curva: es ese punto |
+| Paredes zona 5, `A = 5 m²`, positivo | 30 | tabla +1,6 % a +2,2 % | La tabla distingue el positivo de la zona 5 del de la 4; la Tabla C 5.3-1 les da la **misma** ecuación |
+| **Errata** cubierta zona 2, `A = 1 m²`, `V = 42,9 m/s`, cerrado | 1 | +15,0 % | La tabla repite el −1.468 N/m² de la columna de 40 m/s; corresponde **−1.689**. Con `GC_pi = ±0,55` la misma celda cierra bien |
+
+Cada excepción se reconoce **por nombre y con su banda de desvío**, nunca ampliando la
+tolerancia: si el desvío cambia, el test falla. Y hay un test que exige que cada excepción
+**siga siendo necesaria**, para que no quede como una exención permanente que nadie
+revisa. La zona 4 de pared en `A = 5 m²` queda por debajo del 0,5 % y no necesita excepción.
+
+Dos cosas más que el control dejó fijadas:
+
+- **La tabla no aplica la reducción del 10 % de la nota 5 de la Fig. 5.3-1.** No es una
+  suposición del test: aplicándola, las 192 celdas de pared se separan un 10 % y casi
+  ninguna entra en tolerancia. Hay test que lo mide.
+- **`K_z` se fija en 0,71, que es lo que declara C 5.13.** La expresión continua del motor
+  da 0,7058 —que redondea a 0,71, o sea que son consistentes—, pero esa diferencia del
+  0,59 % se comería la tolerancia y convertiría el control del capítulo 5 en uno de `K_z`.
+
+Es la única verificación **verdaderamente independiente** del capítulo: los tests contra las
+Tablas C 5.3-1 a 8 comparan dos transcripciones propias de la misma fuente, y éste compara
+contra números que calcularon los autores de la norma. Verifica de una sola vez la lectura
+del PDF, la interpolación en log A, la combinación de los dos signos de `GC_pi` y el mínimo
+del art. 5.2.2 —que gobierna más de la mitad de las celdas positivas—.
 
 #### Selección de figura — lo que quedó decidido
 
