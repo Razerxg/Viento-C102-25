@@ -338,11 +338,64 @@ export const FIGURAS_LISTA = ["5.3-1", "5.3-2A", "5.3-2B", "5.3-2C", "5.3-2D", "
 // sólo gráfico. Hay que transcribir los quiebres de la figura y que el proyectista los
 // controle contra el PDF antes de que la app las use. Mientras tanto, la selección de
 // figura para vertiente única con θ > 3° devuelve un aviso de nivel error y ningún número.
+//
+// ⚠ ESTÁN TRANSCRIPTAS PERO **NO SE USAN**. Las curvas de abajo salieron de medir el
+// gráfico píxel por píxel, no de una ecuación, así que hasta que el proyectista las
+// controle contra el PDF quedan fuera de `FIGURAS` y de `FIGURAS_LISTA`: la selección de
+// figura sigue devolviendo «no implementada» para vertiente única con θ > 3°.
+//
+// Sacarlas de acá y meterlas en `FIGURAS` es UN SOLO PASO, y es el que no se da sin el
+// visto bueno. Dejarlas transcriptas y accesibles mientras tanto es lo que permite
+// controlarlas: `docs/verificar-cyr.md` se genera de estos mismos datos.
+//
+// ── CÓMO SE LEYERON ────────────────────────────────────────────────────────────
+// Rasterizando la página a 300 y a 600 dpi y midiendo: se calibran los ejes con las
+// líneas de grilla —19 renglones de −3,0 a 0,6 y ocho columnas en 0,1 · 1 · 2 · 5 · 10 ·
+// 20 · 50 · 100 m²— y se sigue cada trazo columna por columna. Las dos lecturas coinciden
+// dentro de 0,003, y el residuo de la calibración del eje vertical es de 0,005.
+//
+// Los quiebres caen en A = 1 y A = 10 m², sobre líneas de grilla rotuladas, y los valores
+// son múltiplos de 0,1: la poligonal reproduce el trazo medido con un desvío máximo de
+// 0,02, que es el ancho de la propia línea del gráfico.
 export const FIGURAS_PENDIENTES = {
-  "5.3-5A": { titulo: "Cubiertas de vertiente única, 3° < θ ≤ 10°", pagina: "Cap. 5-177",
-              motivo: "sin ecuación en el comentario: hay que transcribir el gráfico" },
-  "5.3-5B": { titulo: "Cubiertas de vertiente única, 10° < θ ≤ 30°", pagina: "Cap. 5-178",
-              motivo: "sin ecuación en el comentario: hay que transcribir el gráfico" },
+  "5.3-5A": {
+    titulo: "Cubiertas de vertiente única, 3° < θ ≤ 10°", pagina: "Cap. 5-177",
+    motivo: "sin ecuación en el comentario: hay que transcribir el gráfico",
+    estado: "transcripta — pendiente de verificación del proyectista",
+    // La notación de la figura dice «La altura del alero se utilizará para θ ≤ 10°», y la
+    // figura entera es θ ≤ 10°: siempre altura de alero.
+    alturaH: ALTURA_H.ALERO, zonificaPor: "a",
+    zonas: ["1", "2", "2'", "3", "3'"],
+    // Zonificación leída del diagrama: franja de 2a en el alero ALTO con zona 3' en los
+    // 4a de cada punta y 2' en el medio; franja de 2a en el alero BAJO con zona 3 en los
+    // 2a de cada punta y 2 en el medio; franjas de 2a arriba y abajo en zona 2'; el resto,
+    // zona 1. No está implementada: se describe en `docs/verificar-cyr.md`.
+    curvas: {
+      cubierta: {
+        "1":  { pos: [[1, 0.3], [10, 0.2]], neg: [[1, -1.1], [10, -1.1]] },
+        "2":  { pos: [[1, 0.3], [10, 0.2]], neg: [[1, -1.3], [10, -1.2]] },
+        "2'": { pos: [[1, 0.3], [10, 0.2]], neg: [[1, -1.6], [10, -1.5]] },
+        "3":  { pos: [[1, 0.3], [10, 0.2]], neg: [[1, -1.8], [10, -1.2]] },
+        "3'": { pos: [[1, 0.3], [10, 0.2]], neg: [[1, -2.6], [10, -1.6]] },
+      },
+    },
+  },
+  "5.3-5B": {
+    titulo: "Cubiertas de vertiente única, 10° < θ ≤ 30°", pagina: "Cap. 5-178",
+    motivo: "sin ecuación en el comentario: hay que transcribir el gráfico",
+    estado: "transcripta — pendiente de verificación del proyectista",
+    alturaH: ALTURA_H.MEDIA, zonificaPor: "a",
+    zonas: ["1", "2", "3"],
+    // Franja de 2a en el alero alto con zona 3 en los 4a de cada punta; franja de a en el
+    // alero bajo y franjas de a arriba y abajo, todas en zona 2; el resto, zona 1.
+    curvas: {
+      cubierta: {
+        "1": { pos: [[1, 0.4], [10, 0.3]], neg: [[1, -1.3], [10, -1.1]] },
+        "2": { pos: [[1, 0.4], [10, 0.3]], neg: [[1, -1.6], [10, -1.2]] },
+        "3": { pos: [[1, 0.4], [10, 0.3]], neg: [[1, -2.9], [10, -2.0]] },
+      },
+    },
+  },
 };
 
 // ── LAS DOS ERRATAS DEL COMENTARIO ─────────────────────────────────────────────

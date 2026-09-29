@@ -215,8 +215,8 @@ La página del PDF del capítulo y la del Reglamento se corresponden con `Cap. 5
 | ✅ | `analizarCyR` — del proyecto a los elementos verificados | `engine/cyrPresiones.js` |
 | ✅ | Pantalla «Componentes y revestimientos» y croquis de zonas | `components/tabs/CyRTab.jsx` + `components/svg/ZonasCyR.jsx` |
 | ✅ | Los SVG de las configuraciones de zonas, **verificados por el proyectista** contra el PDF | `docs/zonas/` — los cinco escenarios, la 2B/2C, la 2D y las de cuatro aguas |
-| ⏳ | Exportación CSV/JSON y capítulo de memoria | |
-| 📥 | Transcripción de las Figs. 5.3-5A y 5B | `docs/verificar-cyr.md`, a controlar contra el PDF |
+| ✅ | Exportación CSV/JSON y capítulo de memoria | `lib/exportar.js` + `lib/memoriaCapitulos.js` |
+| 📥 | **Figs. 5.3-5A y 5B — transcriptas y DESACTIVADAS** | `docs/verificar-cyr.md`. Viven en `FIGURAS_PENDIENTES`, fuera de `FIGURAS_LISTA`: activarlas es mover el bloque, y es el paso que no se da sin el visto bueno |
 
 **Las zonas salen de un clasificador por punto, no de una tabla de escenarios.** Los cuatro
 dibujos de la Fig. C 5-1 son *consecuencia* de la geometría, no casos a codificar:
@@ -443,6 +443,29 @@ aplica sobre el **área tributaria real** (C 1.2). Se dice en la pantalla.
 3. ✅ Los escenarios de la Fig. C 5-1 dibujados y controlados contra la figura por el
    proyectista, incluido el quinto del comentario C 5.1 que la figura no dibuja.
 4. `tests/casos/cyr/`, con `esperado: null` — 📥 los carga el proyectista.
+
+#### Las Figs. 5.3-5A y 5B, leídas midiendo la imagen
+
+No tienen ecuación en el comentario: la única fuente es el gráfico. Se rasterizó la página
+a **300 y a 600 dpi** y se midió, calibrando los ejes con las líneas de grilla. Las dos
+lecturas coinciden dentro de **0,003**, el residuo de la calibración vertical es **0,005**,
+y la poligonal de dos puntos reproduce el trazo en 29 áreas con un desvío máximo de
+**0,02** —el ancho de la propia línea del gráfico—.
+
+La herramienta quedó en `docs/lectura-figuras/leer-grafico.py`: una transcripción que no se
+puede repetir no se puede auditar. Dos trampas que costaron una versión del script:
+
+- **La grilla se distingue del trazo por COLOR, no por cuánta fila ocupa.** Una curva plana
+  es un renglón largo de píxeles oscuros: entraba como línea de grilla y corría toda la
+  calibración del eje.
+- **Los renglones tapados por una curva se identifican por su ÍNDICE**, no por su posición
+  en la lista. Con la lista sola, un renglón faltante corre todos los de abajo 0,2 y el
+  error es invisible.
+
+Hallazgo de la lectura: **en la 5.3-5A las curvas 3 y 2′ se cruzan** en A ≈ 3 m² —la 3
+arranca más succionada, −1,8 contra −1,6, y termina menos, −1,2 contra −1,5—. Es lo que
+dibuja la figura, y es justo donde un trazado a ojo se equivoca de curva. Queda fijado con
+test.
 
 ### 5.2 — Accesorios ⏳
 

@@ -438,6 +438,65 @@ describe('Qué declara cada figura', () => {
       expect(d.motivo, fig).toMatch(/transcribir el gráfico/);
     }
   });
+
+  it('están TRANSCRIPTAS y DESACTIVADAS al mismo tiempo', () => {
+    // ⚠ ES EL TEST QUE IMPIDE QUE SE ACTIVEN SOLAS. Las curvas salieron de medir el
+    // gráfico píxel por píxel, no de una ecuación: hasta que el proyectista las controle
+    // contra el PDF, tienen que estar completas —para poder controlarlas— y fuera del
+    // cálculo. Las dos cosas a la vez.
+    for (const [fig, d] of Object.entries(FIGURAS_PENDIENTES)) {
+      expect(d.estado, fig).toMatch(/pendiente de verificación del proyectista/);
+      expect(d.curvas?.cubierta, fig).toBeTruthy();
+      expect(new Set(Object.keys(d.curvas.cubierta)), fig).toEqual(new Set(d.zonas));
+      expect(FIGURAS[fig], fig).toBeUndefined();
+    }
+  });
+
+  it('sus curvas cumplen las mismas propiedades que las transcriptas de ecuación', () => {
+    for (const [fig, d] of Object.entries(FIGURAS_PENDIENTES)) {
+      for (const z of d.zonas) {
+        const { pos, neg } = d.curvas.cubierta[z];
+        const donde = `${fig} zona ${z}`;
+        for (const [c, signo] of [[pos, 1], [neg, -1]]) {
+          expect(c.length, donde).toBeGreaterThanOrEqual(2);
+          for (let i = 1; i < c.length; i++) {
+            expect(c[i][0], `${donde}: áreas crecientes`).toBeGreaterThan(c[i - 1][0]);
+            expect(Math.abs(c[i][1]), `${donde}: pierde magnitud con A`)
+              .toBeLessThanOrEqual(Math.abs(c[i - 1][1]));
+          }
+          for (const [, g] of c) expect(Math.sign(g) === signo || g === 0, donde).toBe(true);
+        }
+        // Los quiebres están en 1 y 10 m², sobre líneas de grilla rotuladas.
+        expect(neg.map(x => x[0]), donde).toEqual([1, 10]);
+        // Y los valores son múltiplos de 0,1, que es como los imprime el gráfico.
+        for (const [, g] of neg) expect(Math.round(g * 10) / 10, donde).toBeCloseTo(g, 10);
+      }
+      // El positivo es el mismo en todas las zonas, como en las figuras con ecuación.
+      const positivos = new Set(d.zonas.map(z => JSON.stringify(d.curvas.cubierta[z].pos)));
+      expect(positivos.size, fig).toBe(1);
+    }
+  });
+
+  it('la 5.3-5A tiene las zonas primadas y la 5.3-5B no', () => {
+    // Es la diferencia visible entre las dos figuras, y la que decide cuántas zonas hay
+    // que dibujar el día que se activen.
+    expect(FIGURAS_PENDIENTES["5.3-5A"].zonas).toEqual(["1", "2", "2'", "3", "3'"]);
+    expect(FIGURAS_PENDIENTES["5.3-5B"].zonas).toEqual(["1", "2", "3"]);
+  });
+
+  it('en la 5.3-5A las curvas 3 y 2′ SE CRUZAN, y no es un error de lectura', () => {
+    // La 3 arranca más succionada (−1,8 contra −1,6) y termina menos (−1,2 contra −1,5).
+    // Es lo que dibuja la figura, y es donde un trazado a ojo se equivoca de curva. Queda
+    // fijado para que el día que alguien «corrija» el cruce, el test lo frene.
+    const c = FIGURAS_PENDIENTES["5.3-5A"].curvas.cubierta;
+    expect(gcp(c["3"].neg, 1)).toBeLessThan(gcp(c["2'"].neg, 1));
+    expect(gcp(c["3"].neg, 100)).toBeGreaterThan(gcp(c["2'"].neg, 100));
+  });
+
+  it('la zona 1 de la 5.3-5A no cambia con el área', () => {
+    const c = FIGURAS_PENDIENTES["5.3-5A"].curvas.cubierta["1"].neg;
+    for (const A of AREAS) expect(gcp(c, A), `A = ${A}`).toBeCloseTo(-1.1, 10);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
