@@ -10,6 +10,7 @@
 // emplazamiento y no sobre el nivel del valle. Un párrafo lo explica; el dibujo con el
 // punto marcado lo muestra.
 import { Lienzo, Dim, Rotulo } from './kit.jsx';
+import { c as tok } from '../tokens.js';
 
 /**
  * @param {object} p
@@ -19,10 +20,10 @@ import { Lienzo, Dim, Rotulo } from './kit.jsx';
  */
 export function CroquisTopografia({ forma, H_m, Lh_m, x_m, z_m, lado, fmt, etiquetaZ = "z",
   tema = "claro", ancho = 620, altoMax = 300 }) {
-  const ink = tema === "oscuro" ? "#c3c2b7" : "#52514e";
-  const txt = tema === "oscuro" ? "#ffffff" : "#0b0b0b";
-  const suelo = tema === "oscuro" ? "#232322" : "#ece9e2";
-  const ROJO = "#b03a2e";
+  const ink = tok.txt2;
+  const txt = tok.txt;
+  const suelo = tok.hover;
+  const ROJO = tok.rojo;
 
   const H = Number(H_m) || 0, Lh = Number(Lh_m) || 0;
   const x = Math.abs(Number(x_m) || 0), z = Math.max(0, Number(z_m) || 0);

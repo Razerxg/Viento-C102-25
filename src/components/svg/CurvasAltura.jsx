@@ -14,12 +14,10 @@
 // porque q_z también crece; el vuelco se dispara todavía más rápido porque además crece
 // el brazo; y el levantamiento casi no se mueve, porque la cubierta no cambia de tamaño.
 // Esa diferencia de pendientes es la que permite elegir una altura.
-import { Lienzo, Rotulo } from './kit.jsx';
-
-const SLOT = {                      // orden categórico fijo de la paleta validada
-  claro:  ["#2a78d6", "#eb6834", "#1baf7a"],
-  oscuro: ["#3987e5", "#d95926", "#199e70"],
-};
+import { Lienzo, Rotulo, Texto, TXT } from './kit.jsx';
+import { c as tok } from '../tokens.js';
+import { corto } from '../../lib/formato.js';
+import { CATEGORICA } from '../../lib/paletaDatos.js';
 
 const nice = (v) => {               // tope de eje redondo, para que la grilla se lea
   if (!(v > 0)) return 1;
@@ -50,8 +48,8 @@ function Panel({ datos, campo, titulo, unidad, color, ink, txt, fmt, hActual,
         <g key={f}>
           <line x1={x} y1={y + alto * (1 - f)} x2={x + ancho} y2={y + alto * (1 - f)}
             stroke={ink} strokeWidth="0.5" opacity={f === 0 ? 0.55 : 0.18} />
-          <text x={x - 6} y={y + alto * (1 - f)} fontSize="9" fill={ink} textAnchor="end"
-            dominantBaseline="central">{f === 0 ? "0" : fmt(yMax * f)}</text>
+          <Texto x={x - 7} y={y + alto * (1 - f)} texto={f === 0 ? "0" : fmt(yMax * f)}
+            color={ink} tam={TXT.min} ancla="end" />
         </g>
       ))}
       <path d={d} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
@@ -68,9 +66,9 @@ function Panel({ datos, campo, titulo, unidad, color, ink, txt, fmt, hActual,
 }
 
 export function CurvasAltura({ datos, hActual, fmt, tema = "claro", ancho = 620, alto = 560 }) {
-  const ink = tema === "oscuro" ? "#c3c2b7" : "#898781";
-  const txt = tema === "oscuro" ? "#ffffff" : "#0b0b0b";
-  const col = SLOT[tema] ?? SLOT.claro;
+  const ink = tok.txt2;
+  const txt = tok.txt;
+  const col = CATEGORICA[tema] ?? CATEGORICA.claro;
   const mIzq = 56, mDer = 22, mSup = 34, sep = 52;
   const hPanel = (alto - mSup - sep * 2 - 40) / 3;
   const anchoP = ancho - mIzq - mDer;
@@ -92,12 +90,11 @@ export function CurvasAltura({ datos, hActual, fmt, tema = "claro", ancho = 620,
       {/* un solo eje horizontal, compartido: es lo que hace comparables los tres paneles */}
       {[0, 0.25, 0.5, 0.75, 1].map(f => {
         const h = xMin + (xMax - xMin) * f;
-        return <text key={f} x={mIzq + anchoP * f} y={alto - 24} fontSize="10" fill={ink}
-          textAnchor="middle">{h.toFixed(0)}</text>;
+        return <Texto key={f} x={mIzq + anchoP * f} y={alto - 24} texto={corto(h, 0)}
+          color={ink} tam={TXT.min} />;
       })}
-      <text x={mIzq + anchoP / 2} y={alto - 8} fontSize="10" fill={txt} textAnchor="middle">
-        altura de alero (m) — envolvente de las cuatro direcciones
-      </text>
+      <Texto x={mIzq + anchoP / 2} y={alto - 8} color={txt} tam={TXT.min}
+        texto="altura de alero (m) — envolvente de las cuatro direcciones" />
     </Lienzo>
   );
 }

@@ -73,6 +73,17 @@ export const PERFILES = {
     area: "m²", velocidad: "m/s" },
   datos:    { fuerza: "kN", presion: "kN/m²", momento: "kN·m", longitud: "m",
     area: "m²", velocidad: "m/s" },
+  // ── EL CROQUIS TIENE SU PROPIO PERFIL ─────────────────────────────────────
+  // Y NO es el de la memoria. Los croquis acotaban en milímetros, con punto de miles,
+  // heredado de que un plano se acota así: daba «11.000» y «a = 1.000», que en una
+  // pantalla donde todo lo demás lleva coma decimal se leen como once y como uno.
+  // Un croquis de pantalla se mira, no se escala con escalímetro; la memoria y las
+  // tablas siguen en mm, que es donde el número se transcribe a un plano.
+  //
+  // La presión va en kN/m² y no en N/m²: «1.793 N/m²» ocupa el doble de ancho que
+  // «1,79 kN/m²» y es el rótulo que más se repite en un croquis de presiones.
+  croquis:  { fuerza: "kN", presion: "kN/m²", momento: "kN·m", longitud: "m",
+    area: "m²", velocidad: "m/s" },
 };
 
 /** El nombre del perfil, tal como va en el campo `unidades` de un CSV o un JSON. */

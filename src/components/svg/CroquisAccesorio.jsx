@@ -5,14 +5,17 @@
 // del caso B 0,2·B hacia el borde de barlovento, y la sube 0,05·h cuando el cartel apoya
 // en el suelo. Un croquis que dibujara la flecha en el centro estaría ocultando justo eso.
 import { mkView, Dim, Rotulo, Lienzo, Flecha } from './kit.jsx';
+import { coef } from './formatoCroquis.js';
+import { c as tok } from '../tokens.js';
+import { rampaRegion } from '../../lib/paletaDatos.js';
 import { U } from '../../lib/unidades.js';
 import { num } from '../../lib/parseo.js';
 
 export function CroquisAccesorio({ analisis, datos, familia, fmt, tema = "claro",
   ancho = 620, alto = 340 }) {
-  const ink = tema === "oscuro" ? "#c3c2b7" : "#52514e";
-  const txt = tema === "oscuro" ? "#ffffff" : "#0b0b0b";
-  const cuerpo = tema === "oscuro" ? "#232322" : "#f0efec";
+  const ink = tok.txt2;
+  const txt = tok.txt;
+  const cuerpo = tok.hover;
   if (!analisis) return null;
 
   const n = num;
@@ -89,7 +92,7 @@ export function CroquisAccesorio({ analisis, datos, familia, fmt, tema = "claro"
 
       {/* LA FUERZA, a la altura a la que se evaluó q. */}
       <Flecha x1={X(0) - largoFlecha - v.l(B) * 0.12} y1={Y(alturaFlecha)}
-        x2={X(0) - v.l(B) * 0.12} y2={Y(alturaFlecha)} color="#b03a2e" grosor={2.4} cabeza={8} />
+        x2={X(0) - v.l(B) * 0.12} y2={Y(alturaFlecha)} color={tok.rojo} grosor={2.4} cabeza={8} />
       <Rotulo x={X(0) - largoFlecha - v.l(B) * 0.12 - 4} y={Y(alturaFlecha) - 13}
         texto={`F = ${U.fuerza(Math.abs(analisis.F))}`} color={txt} tam={11} peso={600}
         ancla="start" />
@@ -119,8 +122,8 @@ export function CroquisAccesorio({ analisis, datos, familia, fmt, tema = "claro"
 // REPARTO: el borde toma más del doble que el resto del cartel, y la resultante deja de
 // estar en el centro.
 export function PlantaCasoC({ casoC, B, fmt, tema = "claro", ancho = 620, alto = 230 }) {
-  const ink = tema === "oscuro" ? "#c3c2b7" : "#52514e";
-  const txt = tema === "oscuro" ? "#ffffff" : "#0b0b0b";
+  const ink = tok.txt2;
+  const txt = tok.txt;
   if (!casoC?.aplica) return null;
 
   const v = mkView({ ancho, alto: alto - 96, xMin: 0, xMax: B, yMin: 0, yMax: Math.max(B / 6, 1), margen: 46 });
@@ -136,7 +139,7 @@ export function PlantaCasoC({ casoC, B, fmt, tema = "claro", ancho = 620, alto =
         // La intensidad del relleno es proporcional al C_f: el gradiente de borde a centro
         // es el mensaje del caso C, y con todas las cajas iguales no se ve.
         const t = r.cf / maxCf;
-        const cf = r.cf.toFixed(2).replace(".", ",");
+        const cf = coef(r.cf);
         // ⚠ LAS REGIONES DE BORDE SON ESTRECHAS Y SUS RÓTULOS NO ENTRAN. Con B/s = 10 las
         // tres primeras miden un décimo del ancho cada una, y escribir el nombre adentro
         // produce tres textos encimados que no se leen ni dicen a qué caja pertenecen.
@@ -150,7 +153,7 @@ export function PlantaCasoC({ casoC, B, fmt, tema = "claro", ancho = 620, alto =
         return (
           <g key={r.id}>
             <rect x={x} y={Y(yCaja)} width={w} height={v.l(yCaja)}
-              fill={`rgba(176,58,46,${0.12 + 0.55 * t})`} stroke={ink} strokeWidth="1" />
+              fill={rampaRegion(t)} stroke={ink} strokeWidth="1" />
             {entraNombre && (
               <Rotulo x={x + w / 2} y={Y(yCaja * 0.66)} texto={r.label} color={txt} tam={10} />
             )}

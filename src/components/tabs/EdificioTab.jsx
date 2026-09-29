@@ -29,11 +29,14 @@ export function EdificioTab() {
       <div style={{ display: "grid", gap: SP.md, alignItems: "start",
         gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))" }}>
         <Card titulo="Geometría">
-          <Campo label="Dimensión según X" unit="m"
-            ayuda="Lado de la planta medido sobre el eje X. Cuál de los dos lados es «a» no cambia el resultado: las cuatro direcciones de viento se calculan igual.">
+          <Campo label="Dimensión en planta según X — B_X" unit="m"
+            ayuda="Lado de la planta medido sobre el eje X. Cuál de los dos lados es el
+              mayor no cambia el resultado: las cuatro direcciones de viento se calculan
+              igual. Se llama B_X y no «a» porque en el capítulo 5 `a` es el ancho de zona,
+              que es otra cosa y se acota en el mismo croquis.">
             <Num v={d.geo.a} set={setGeo("a")} />
           </Campo>
-          <Campo label="Dimensión según Y" unit="m">
+          <Campo label="Dimensión en planta según Y — B_Y" unit="m">
             <Num v={d.geo.b} set={setGeo("b")} />
           </Campo>
           <Campo label="Altura de alero" unit="m"

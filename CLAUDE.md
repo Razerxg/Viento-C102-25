@@ -233,6 +233,60 @@ El costado gráfico es prioridad declarada del autor, no un adorno. Los cuatro:
 4. **3D del edificio coloreado por presión** — el mejor para detectar un signo invertido
    de un golpe de vista.
 
+## Croquis — las reglas comunes de dibujo, y el control que las prueba
+
+Viven en `src/components/svg/kit.jsx` y las usan los nueve croquis. No son gusto: cada una
+corrige un defecto que estaba medido.
+
+1. **EL TEXTO NO ESCALA CON EL DIBUJO.** Un `<text font-size="11">` en un `viewBox` de 620
+   unidades renderizado en una tarjeta de 470 px se lee a 8,2 px; en la vista 3D, a 5,9.
+   `Lienzo` mide el SVG **con `getScreenCTM`** y publica `k = viewBox/px`; cada texto pide
+   su tamaño en PÍXELES y el kit lo multiplica. ⚠ No sirve medir por el ancho de la caja:
+   con `max-height` puesto el SVG queda limitado por la ALTURA y el dibujo va centrado con
+   franjas vacías a los costados. Mínimo 11 px, aplicado en el kit y no en cada llamador.
+2. **HALO, NO RECTÁNGULO OPACO DETRÁS.** El rectángulo tapaba el dibujo, y lo que está
+   detrás de un número suele ser la línea que ese número acota.
+3. **LA COTA MIDE SU TEXTO** con el motor de texto —no contando letras— y decide si entra
+   entre las marcas. Si no entra sale afuera con guía; la línea se **interrumpe** detrás
+   del texto. `CadenaDeCotas` apila las cadenas en filas: alternar el desplazamiento de a
+   una alcanza para dos etiquetas y no para tres.
+4. **UN RÓTULO POR REGIÓN CONEXA**, como las figuras del reglamento, y celdas adyacentes
+   de la misma zona son UNA región. Sale de `rotulosDeRegion`, que trabaja sobre la
+   clasificación punto por punto y **no** sobre las piezas de dibujo: en cuatro aguas las
+   piezas se pintan superpuestas y una pieza no es una región. La ubicación se decide con
+   `ubicar`, que es una **función pura** llamada al armar el dibujo —un registro mutable
+   llenado durante el render daría dos ubicaciones distintas en modo estricto—.
+5. **UNIDADES DEL CROQUIS: metros sin ceros sobrantes y kN/m².** Perfil `croquis` en
+   `lib/unidades.js` y `corto()` en `lib/formato.js`. La memoria y las tablas siguen en
+   **mm**, que es donde el número se transcribe a un plano. Los croquis iban en mm con
+   punto de miles —«11.000», «a = 1.000»— y en una pantalla con coma decimal eso se lee
+   como once y como uno.
+6. **LAS DIMENSIONES DE PLANTA SON `B_X` Y `B_Y`, NUNCA `a` NI `b`** —en croquis, tablas y
+   memoria—. En el capítulo 5 `a` es el ANCHO DE ZONA y se acota en el mismo dibujo.
+7. **LAS VISTAS DEL MISMO EDIFICIO COMPARTEN ESCALA** (`escalaComun` + `escalaFija`), y el
+   `Lienzo` la declara en `data-escala`. La pared de C&R se dibujaba a 10:1 contra una
+   planta a 1:100.
+8. **NI UN COLOR LITERAL EN UN CROQUIS.** La tinta sale de los tokens del tema, que son
+   variables CSS y se invierten solas. Las escalas de DATOS —presión, paleta categórica,
+   rampa de regiones, velo de sombreado— viven en `lib/escalaPresion.js` y
+   `lib/paletaDatos.js`, porque tienen que seguir significando lo mismo aunque cambie el
+   gris de las tarjetas. Hay test que recorre `components/svg/` entero.
+
+**El control automático es `scripts/qa-croquis.mjs`** (`npm run qa:croquis`). Abre el build
+en Chromium, carga las geometrías de `scripts/qa-matriz.js` por `localStorage`, recorre las
+pantallas con croquis en los dos temas y en las cuatro direcciones, y mide sobre el
+resultado RENDERIZADO: solapes, texto tachado por una línea que no es su guía, dibujo fuera
+del `viewBox`, escalas distintas, letra chica, contraste bajo y regiones sin rótulo. Deja
+una hoja de contacto por geometría en `docs/croquis-qa/`.
+
+⚠ **Se mide en el navegador y no sobre el SVG como texto.** Un `<text>` no tiene ancho hasta
+que un motor de texto lo mide con una fuente concreta, y todos estos defectos son del
+resultado renderizado. `tests/croquisKit.test.js` cubre la parte que SÍ es cálculo puro
+—medir, decidir si entra, elegir posición, agrupar regiones— y corre en cada commit; el
+control de croquis corre antes de una entrega. Ninguno reemplaza al otro.
+
+No entra en `npm run build`: necesita un Chromium instalado, que en CI no está.
+
 ## Estructura
 
 | Ruta | Contenido |

@@ -10,16 +10,23 @@
 // y contra «−853 N/m²». Con cuatro posiciones fijas —arriba, abajo, izquierda, derecha— y
 // el título fuera del dibujo, cada texto tiene su franja y no hay nada que resolver en
 // tiempo de render.
-import { mkView, Dim, Rotulo, Lienzo, Flecha, LeyendaPresion } from './kit.jsx';
+import { mkView, Dim, Rotulo, Lienzo, Flecha, LeyendaPresion, TXT } from './kit.jsx';
 import { colorPresion, tramosLeyenda } from '../../lib/escalaPresion.js';
+import { q as fq, m as fm, coef, cotaEje } from './formatoCroquis.js';
+import { c as tok } from '../tokens.js';
 
 const ESP = 10;          // espesor de la banda coloreada, en px
 const SEP = 30;          // separación del rótulo respecto de la banda
 
-export function PlantaZonas({ analisis, maxAbs, fmt, tema = "claro", ancho = 620, alto = 470 }) {
+export function PlantaZonas({ analisis, maxAbs, tema = "claro", ancho = 620, alto = 470,
+  escala }) {
   const { geo, dir } = analisis;
-  const ink = tema === "oscuro" ? "#c3c2b7" : "#52514e";
-  const txt = tema === "oscuro" ? "#ffffff" : "#0b0b0b";
+  // ⚠ LA TINTA SALE DE LOS TOKENS DEL TEMA, NO DE DOS LITERALES ELEGIDOS POR `tema`. Los
+  // literales obligaban a pasar el tema a cada croquis y a re-renderizar al cambiarlo; los
+  // tokens son variables CSS y se invierten solos. Lo único que sigue dependiendo de
+  // `tema` es la ESCALA DE PRESIÓN, que es una escala de datos y vive aparte.
+  const ink = tok.txt2;
+  const txt = tok.txt;
   const { a, b } = geo;
 
   const de = (id) => analisis.superficies.find(s => s.id === id);
@@ -38,7 +45,8 @@ export function PlantaZonas({ analisis, maxAbs, fmt, tema = "claro", ancho = 620
 
   // El dibujo ocupa la franja central; arriba queda el título y abajo la leyenda.
   const yTop = 28, yBot = alto - 46;
-  const v = mkView({ ancho, alto: yBot - yTop, xMin: 0, xMax: a, yMin: 0, yMax: b, margen: 118 });
+  const v = mkView({ ancho, alto: yBot - yTop, xMin: 0, xMax: a, yMin: 0, yMax: b,
+    margen: 118, escalaFija: escala });
   const desp = (f) => ({ x: v.x(f), y: v.y(f) });
   const Y = (my) => v.y(my) + yTop;
 
@@ -77,18 +85,20 @@ export function PlantaZonas({ analisis, maxAbs, fmt, tema = "claro", ancho = 620
       derecha:   { x: v.x(a) + SEP + 6, y: Y(b / 2), ancla: "start" },
     }[lado];
     return (<>
-      <Rotulo {...pos2} texto={c.rot} color={txt} tam={10} />
-      <Rotulo {...pos2} y={pos2.y + 14} texto={fmt.q(c.p)} color={txt} tam={10} peso={600} />
+      <Rotulo {...pos2} texto={c.rot} color={txt} tam={TXT.min} />
+      <Rotulo {...pos2} y={pos2.y + 15} texto={fq(c.p)} color={txt} tam={TXT.min}
+        peso={600} />
     </>);
   };
 
   return (
-    <Lienzo ancho={ancho} alto={alto} titulo={`Planta — ${dir.label}`}>
-      <Rotulo x={ancho / 2} y={14} color={txt} tam={11} peso={600}
-        texto={`${dir.label} · L/B = ${(analisis.L / analisis.B).toFixed(2)}`} />
+    <Lienzo ancho={ancho} alto={alto} titulo={`Planta — ${dir.label}`} escala={v.esc}
+      edificio="cap2" unidades="Cotas en m · presiones en kN/m²">
+      <Rotulo x={ancho / 2} y={14} color={txt} tam={TXT.titulo} peso={600}
+        texto={`${dir.label} · L/B = ${coef(analisis.L / analisis.B)}`} />
 
       <rect x={v.x(0)} y={Y(b)} width={v.l(a)} height={v.l(b)}
-        fill={tema === "oscuro" ? "#232322" : "#fafaf8"} stroke={ink} strokeWidth="1.2" />
+        fill={tok.hover} stroke={ink} strokeWidth="1.2" />
 
       {Object.entries(cara).map(([lado, c]) => (
         <g key={lado}>{banda(lado, c.p)}{flecha(lado, c.p)}{rotulo(lado, c)}</g>
@@ -99,17 +109,20 @@ export function PlantaZonas({ analisis, maxAbs, fmt, tema = "claro", ancho = 620
           vertical —que va hacia arriba en pantalla— el positivo cae HACIA ADENTRO del
           rectángulo. Una primera versión usaba el mismo signo en las dos y la cota de `b`
           terminaba dibujada sobre la planta. */}
-      <Dim x1={v.x(0)} y1={Y(0)} x2={v.x(a)} y2={Y(0)} texto={`a = ${fmt.m(a)}`}
+      {/* ⚠ «B_X» Y «B_Y», NO «a» Y «b». En el capítulo 5 `a` es el ANCHO DE ZONA, que se
+          acota en el croquis de al lado: dos magnitudes distintas bajo la misma letra en
+          la misma pantalla. La Fig. 2.4-8 del reglamento las llama B_X y B_Y. */}
+      <Dim x1={v.x(0)} y1={Y(0)} x2={v.x(a)} y2={Y(0)} texto={cotaEje("X", a)}
         desplaz={SEP + 74} color={ink} />
       {/* ⚠ LA COTA DE `b` VA MÁS AFUERA QUE EL RÓTULO DE LA CARA IZQUIERDA. Su etiqueta
           lleva fondo opaco y se dibuja DESPUÉS de los rótulos, así que con la separación
           anterior tapaba la primera letra de «Barlovento» —se leía «arlovento»—. El número
           tiene que salir del ancho que ocupa el rótulo más largo, no de un valor a ojo. */}
-      <Dim x1={v.x(0)} y1={Y(0)} x2={v.x(0)} y2={Y(b)} texto={`b = ${fmt.m(b)}`}
+      <Dim x1={v.x(0)} y1={Y(0)} x2={v.x(0)} y2={Y(b)} texto={cotaEje("Y", b)}
         desplaz={-(SEP + 150)} color={ink} />
 
-      <LeyendaPresion x={ancho / 2 - 110} y={alto - 32} ancho={220}
-        tramos={tramosLeyenda(maxAbs, tema)} fmt={fmt.q} color={ink} />
+      <LeyendaPresion x={ancho / 2 - 90} y={alto - 34} ancho={180}
+        tramos={tramosLeyenda(maxAbs, tema)} fmt={fq} color={ink} lienzo={ancho} lienzoAlto={alto} />
     </Lienzo>
   );
 }

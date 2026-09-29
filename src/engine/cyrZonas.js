@@ -716,3 +716,124 @@ export function puntosDeRotulo(geo, n = 25) {
   }
   return out;
 }
+
+/**
+ * Un punto de rótulo POR REGIÓN CONEXA, que es como rotulan las figuras del reglamento.
+ *
+ * ── POR QUÉ NO ALCANZA CON UNO POR ZONA ─────────────────────────────────────────
+ * `puntosDeRotulo` devuelve uno por ZONA, y con eso la cubierta plana salía con un solo
+ * ③ para cuatro esquinas idénticas y la de dos aguas con un ② para cinco franjas. Las
+ * figuras del reglamento numeran cada región: es lo que permite leer del croquis cuántas
+ * esquinas hay y dónde están.
+ *
+ * Y al revés, celdas ADYACENTES de la misma zona son UNA sola región y llevan un rótulo
+ * solo. La grilla de corte parte celdas del mismo color a propósito —para no perderse
+ * ninguna frontera—, y sin agruparlas el dibujo mostraría esos cortes que no existen.
+ *
+ * ── CÓMO ───────────────────────────────────────────────────────────────────────
+ * Sobre la clasificación punto por punto, no sobre las piezas de dibujo. En cuatro aguas
+ * las piezas se pintan SUPERPUESTAS —un rectángulo de fondo, una banda encima, un
+ * perímetro encima— y ahí una «pieza» no es una región: el perímetro son cuatro
+ * rectángulos que forman UN anillo. `zonaEn` no tiene ese problema porque no sabe nada de
+ * cómo se pinta.
+ *
+ * 1 · se clasifica una grilla con `zonaEn`;
+ * 2 · se agrupan las celdas por conexión de a cuatro vecinos;
+ * 3 · un recorrido en anchura desde todas las fronteras —incluido el contorno de la
+ *     planta— da la distancia de cada celda al borde de su región;
+ * 4 · gana la más lejana, desempatando por cercanía al centro de gravedad de la región,
+ *     que es lo que evita que en una franja larga el número se vaya a una punta.
+ *
+ * @param {GeoZonas} geo
+ * @param {number} [n]  celdas por lado
+ * @returns {{region: string, zona: string, x: number, y: number}[]}
+ */
+export function rotulosDeRegion(geo, n = 64) {
+  const { bx, by } = geo;
+  const X = (i) => bx * (i + 0.5) / n;
+  const Y = (j) => by * (j + 0.5) / n;
+  const idx = (i, j) => j * n + i;
+
+  /** @type {(string|null)[]} */
+  const zona = new Array(n * n);
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) zona[idx(i, j)] = zonaEn(X(i), Y(j), geo);
+
+  // 2 · componentes conexas, de a cuatro vecinos
+  const comp = new Int32Array(n * n).fill(-1);
+  let nComp = 0;
+  const pila = [];
+  for (let s0 = 0; s0 < n * n; s0++) {
+    if (comp[s0] !== -1) continue;
+    const z = zona[s0];
+    const id = nComp++;
+    comp[s0] = id; pila.push(s0);
+    while (pila.length) {
+      const p = pila.pop();
+      const i = p % n, j = (p - i) / n;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const [u, v] = [i + di, j + dj];
+        if (u < 0 || v < 0 || u >= n || v >= n) continue;
+        const q = idx(u, v);
+        if (comp[q] !== -1 || zona[q] !== z) continue;
+        comp[q] = id; pila.push(q);
+      }
+    }
+  }
+
+  // 3 · distancia al borde de la región, en celdas
+  const dist = new Int32Array(n * n).fill(-1);
+  const cola = [];
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+    const p = idx(i, j);
+    let frontera = i === 0 || j === 0 || i === n - 1 || j === n - 1;
+    if (!frontera) {
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        if (comp[idx(i + di, j + dj)] !== comp[p]) { frontera = true; break; }
+      }
+    }
+    if (frontera) { dist[p] = 0; cola.push(p); }
+  }
+  for (let cab = 0; cab < cola.length; cab++) {
+    const p = cola[cab];
+    const i = p % n, j = (p - i) / n;
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const [u, v] = [i + di, j + dj];
+      if (u < 0 || v < 0 || u >= n || v >= n) continue;
+      const q = idx(u, v);
+      if (dist[q] !== -1) continue;
+      dist[q] = dist[p] + 1; cola.push(q);
+    }
+  }
+
+  // 4 · el mejor punto de cada componente
+  const celdas = new Map();
+  for (let p = 0; p < n * n; p++) {
+    const lista = celdas.get(comp[p]);
+    if (lista) lista.push(p); else celdas.set(comp[p], [p]);
+  }
+  /** Numeración por zona, en orden de aparición, para que la clave sea estable. */
+  const porZona = {};
+  const salida = [];
+  for (const [id, lista] of [...celdas.entries()].sort((a, b) => a[0] - b[0])) {
+    const z = zona[lista[0]];
+    if (z == null) continue;
+    const cgx = lista.reduce((t, p) => t + X(p % n), 0) / lista.length;
+    const cgy = lista.reduce((t, p) => t + Y((p - p % n) / n), 0) / lista.length;
+    let mejor = null, mejorD = -1, mejorCG = Infinity;
+    for (const p of lista) {
+      const i = p % n, j = (p - i) / n;
+      const d = dist[p];
+      const dCG = (X(i) - cgx) ** 2 + (Y(j) - cgy) ** 2;
+      if (d > mejorD || (d === mejorD && dCG < mejorCG)) {
+        mejorD = d; mejorCG = dCG; mejor = { x: X(i), y: Y(j) };
+      }
+    }
+    const num = (porZona[z] = (porZona[z] ?? 0) + 1);
+    salida.push({ region: `${z}#${num}`, zona: z, ...mejor, celdas: lista.length, id });
+  }
+  // Las regiones de una celda suelta son ruido de la grilla —una esquina donde dos zonas
+  // se tocan—, no una región del dibujo: rotularlas pondría un número sobre una línea.
+  const minimo = Math.max(2, Math.round(n * n * 0.0006));
+  return salida.filter(r => r.celdas >= minimo)
+    .map(({ celdas: _c, id: _i, ...r }) => r);
+}

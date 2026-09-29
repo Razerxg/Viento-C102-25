@@ -15,7 +15,8 @@
 // arriba.
 //
 // ⚠ NI UN COLOR LITERAL. Todo sale de los tokens del tema. Hay test.
-import { Lienzo, Rotulo, Zona } from './kit.jsx';
+import { Lienzo, Rotulo, Zona, Texto, TXT, useEscalaTexto,
+  anchoEnLienzo } from './kit.jsx';
 import { c } from '../tokens.js';
 import { miles } from '../../lib/formato.js';
 
@@ -44,6 +45,37 @@ function enA(puntos, A) {
  *          nota?:string,ref?:string}[]} p.series
  * @param {{nombre:string, A:number}[]} [p.elementos]  verticales con su lectura
  */
+/**
+ * Las lecturas de cada curva en el área de un elemento, apiladas en columnas.
+ *
+ * Componente aparte porque mide el texto, y medirlo necesita `k`, que sólo existe dentro
+ * de `Lienzo`.
+ */
+function LecturasDeCurvas({ valores, x, Y }) {
+  const k = useEscalaTexto();
+  const alto = TXT.min * 1.5 * k;
+  const puestas = [];
+  for (const [texto, g] of [...valores].sort((a, b) => a[1] - b[1])) {
+    const y = Y(g);
+    let col = 0;
+    while (puestas.some(p => p.col === col && Math.abs(p.y - y) < alto)) col++;
+    puestas.push({ texto, g, y, col,
+      w: anchoEnLienzo(texto, TXT.min, k) });
+  }
+  const paso = Math.max(...puestas.map(p => p.w), 0) + 8 * k;
+  return (
+    <g>
+      {puestas.map(p => (
+        <g key={p.texto}>
+          <circle cx={x} cy={p.y} r="2.6" fill={c.azul} />
+          <Rotulo x={x + 32 + p.col * paso} y={p.y} texto={p.texto} color={c.azul}
+            tam={TXT.min} />
+        </g>
+      ))}
+    </g>
+  );
+}
+
 export function CurvasCyR({ series, elementos = [], titulo, ancho = 620, alto = 420 }) {
   if (!series?.length) return null;
 
@@ -79,30 +111,31 @@ export function CurvasCyR({ series, elementos = [], titulo, ancho = 620, alto = 
     ...(posCompartida ? [posUnicas[0]] : pos)];
 
   return (
-    <Lienzo ancho={ancho} alto={alto} titulo={titulo ?? "Curvas (GC_p) usadas"}>
+    <Lienzo ancho={ancho} alto={alto} titulo={titulo ?? "Curvas (GC_p) usadas"}
+      unidades="Áreas en m² · (GC_p) adimensional">
       {/* grilla */}
       {renglones.map(g => (
         <g key={`h${g}`}>
           <line x1={m.izq} y1={Y(g)} x2={m.izq + W} y2={Y(g)} stroke={c.border}
             strokeWidth={Math.abs(g) < 1e-9 ? 1.1 : 0.6} />
-          <text x={m.izq - 6} y={Y(g)} fill={c.txt3} fontSize="9.5" textAnchor="end"
-            dominantBaseline="central">{miles(g, 1)}</text>
+          <Texto x={m.izq - 7} y={Y(g)} texto={miles(g, 1)} color={c.txt3}
+            tam={TXT.min} ancla="end" />
         </g>
       ))}
       {AREAS_GRILLA.map(A => (
         <g key={`v${A}`}>
           <line x1={X(A)} y1={m.arr} x2={X(A)} y2={m.arr + H} stroke={c.border}
             strokeWidth="0.6" />
-          <text x={X(A)} y={m.arr + H + 13} fill={c.txt3} fontSize="9.5"
-            textAnchor="middle">{miles(A, A < 1 ? 1 : 0)}</text>
+          <Texto x={X(A)} y={m.arr + H + 14} texto={miles(A, A < 1 ? 1 : 0)}
+            color={c.txt3} tam={TXT.min} />
         </g>
       ))}
       <rect x={m.izq} y={m.arr} width={W} height={H} fill="none" stroke={c.txt2}
         strokeWidth="1" />
-      <text x={m.izq + W / 2} y={alto - 8} fill={c.txt2} fontSize="10.5"
-        textAnchor="middle">Área efectiva de viento, m²</text>
-      <text x={13} y={m.arr + H / 2} fill={c.txt2} fontSize="10.5" textAnchor="middle"
-        transform={`rotate(-90 13 ${m.arr + H / 2})`}>Coeficiente (GC_p)</text>
+      <Texto x={m.izq + W / 2} y={alto - 8} texto="Área efectiva de viento, m²"
+        color={c.txt2} tam={TXT.min} />
+      <Texto x={13} y={m.arr + H / 2} texto="Coeficiente (GC_p)" color={c.txt2}
+        tam={TXT.min} rot={-90} />
 
       {/* la curva de la figura, cuando una nota la apartó de la usada */}
       {dibujar.filter(s => s.original).map((s, i) => (
@@ -120,30 +153,30 @@ export function CurvasCyR({ series, elementos = [], titulo, ancho = 620, alto = 
         <g key={`e${i}`}>
           <line x1={X(el.A)} y1={m.arr} x2={X(el.A)} y2={m.arr + H} stroke={c.azul}
             strokeWidth="1.1" strokeDasharray="3 3" />
-          <Rotulo x={X(el.A)} y={m.arr + 9} texto={`A = ${miles(el.A, 2)} m²`}
-            color={c.azul} tam={9.5} />
-          {dibujar.map((s, j) => {
+          <Rotulo x={X(el.A)} y={m.arr + 10} texto={`A = ${miles(el.A, 2)} m²`}
+            color={c.azul} tam={TXT.min} />
+          {/* ⚠ UNA LECTURA POR VALOR, Y EN COLUMNAS SI QUEDAN CERCA. Dos curvas que en
+              esa área valen lo mismo —la 2 y la 3 de la Fig. 5.3-5A terminan las dos en
+              −1,20— dejaban dos etiquetas exactamente superpuestas, que se leen como una
+              en negrita; y dos que difieren en una centésima quedan a menos de un renglón
+              una de otra. Se agrupan por valor y lo que sigue chocando se corre a la
+              columna siguiente. */}
+          <LecturasDeCurvas valores={[...new Map(dibujar.map(s => {
             const g = enA(s.puntos, el.A);
-            return (
-              <g key={j}>
-                <circle cx={X(el.A)} cy={Y(g)} r="2.6" fill={c.azul} />
-                <Rotulo x={X(el.A) + 30} y={Y(g)} texto={miles(g, 2)} color={c.azul}
-                  tam={9.5} />
-              </g>
-            );
-          })}
+            return [miles(g, 2), g];
+          })).entries()]} x={X(el.A)} Y={Y} />
         </g>
       ))}
 
       {/* el número de cada zona, sobre su curva, en el extremo izquierdo */}
       {dibujar.map((s, i) => (
-        <Zona key={`z${i}`} x={m.izq + 16} y={Y(s.puntos[0][1])}
+        <Zona key={`z${i}`} x={m.izq + 26} y={Y(s.puntos[0][1])}
           texto={s.signo === "pos" && posCompartida ? "+" : etiqueta(s.zona)}
-          color={c.txt} r={9} tam={10} />
+          color={c.txt} r={10} tam={TXT.min} />
       ))}
       {posCompartida && (
-        <Rotulo x={m.izq + 78} y={Y(posUnicas[0].puntos[0][1])} texto="todas las zonas"
-          color={c.txt3} tam={9.5} />
+        <Rotulo x={m.izq + 96} y={Y(posUnicas[0].puntos[0][1])} texto="todas las zonas"
+          color={c.txt3} tam={TXT.min} />
       )}
     </Lienzo>
   );

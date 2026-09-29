@@ -16,7 +16,11 @@
 //  · CAPTURA DE PUNTERO con `touchAction: none` y `userSelect: none`: sin eso el dedo hace
 //    scroll de la página en vez de girar, y arrastrar con el mouse selecciona los rótulos.
 import { useMemo } from 'react';
-import { Lienzo, Rotulo, LeyendaPresion } from './kit.jsx';
+import { Lienzo, Rotulo, LeyendaPresion, TXT, useEscalaTexto,
+  anchoEnLienzo } from './kit.jsx';
+import { q as fq, coef } from './formatoCroquis.js';
+import { c as tok } from '../tokens.js';
+import { SOMBRA } from '../../lib/paletaDatos.js';
 import { colorPresion, tramosLeyenda } from '../../lib/escalaPresion.js';
 import { mallaEdificio, carasVisibles } from '../../lib/volumen3d.js';
 import { camara, encuadre } from '../../lib/camara3d.js';
@@ -27,11 +31,62 @@ import { useOrbita, VISTAS } from '../../lib/orbita.js';
 const sombra = (n, luz = [0.35, -0.45, 0.82]) =>
   Math.max(0, 1 - (n[0] * luz[0] + n[1] * luz[1] + n[2] * luz[2])) * 0.15;
 
+/**
+ * Los rótulos de las caras.
+ *
+ * ⚠ COMPONENTE APARTE PORQUE MIDE EL TEXTO, Y MEDIRLO EXIGE `k`, QUE SÓLO EXISTE DENTRO
+ * DE `Lienzo`. Es la misma razón por la que el perfil de q(z) elige sus rótulos en un
+ * hijo: quien renderiza el `Lienzo` está fuera de su contexto y leería el factor por
+ * defecto, que es el caso en el que la cuenta de qué entra da de más.
+ */
+function RotulosDeCara({ caras, info, px, color }) {
+  const k = useEscalaTexto();
+  return (
+    <g>
+      {caras.map((cara, i) => {
+        const inf = info(cara);
+        const pts = cara.proy.map(px);
+        const u = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+        const v = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+        const w = Math.max(...pts.map(p => p[0])) - Math.min(...pts.map(p => p[0]));
+        const h = Math.max(...pts.map(p => p[1])) - Math.min(...pts.map(p => p[1]));
+        // no se rotula una cara casi de canto: el texto flotaría sobre otra y diría algo falso
+        if (Math.min(w, h) < 24) return null;
+
+        const nombre = inf.rot;
+        const valor = inf.sinValor ? null : fq(inf.p);
+        // ⚠ EL RÓTULO NO PUEDE SER MÁS ANCHO QUE SU CARA. En una torre —tres metros de
+        // frente y diez de alto— «Sotavento» sobresale de la cara y se monta sobre
+        // «Lateral», que está pegada. Si no entra el nombre se muestra sólo el valor, que
+        // es el dato; dónde está la cara ya lo dice el dibujo.
+        const entraNombre = anchoEnLienzo(nombre, TXT.min, k) <= w;
+        const entraValor = valor != null && anchoEnLienzo(valor, TXT.min, k) <= w;
+        // Los dos renglones necesitan alto. En una cara escorzada caían casi en el mismo
+        // punto y se montaban —«Cubierta · franjas» sobre «−1,69»—.
+        const dos = entraNombre && entraValor && h >= 44;
+        return (
+          <g key={`t${cara.id}-${i}`}>
+            {(entraNombre && (dos || !entraValor)) && (
+              <Rotulo x={u} y={dos ? v - 10 : v} texto={nombre} color={color} tam={TXT.min} />
+            )}
+            {entraValor && (
+              <Rotulo x={u} y={dos ? v + 11 : v} texto={valor} color={color} tam={TXT.min}
+                peso={600} />
+            )}
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
 export function Vista3D({ analisis, maxAbs, fmt, tema = "claro", ancho = 620, alto = 440 }) {
   const { geo, dir, superficies, modo, caraUnica } = analisis;
   const orb = useOrbita("iso");
-  const ink = tema === "oscuro" ? "#c3c2b7" : "#52514e";
-  const txt = tema === "oscuro" ? "#ffffff" : "#0b0b0b";
+  // Tinta por tokens del tema: son variables CSS y se invierten solas. Lo único que
+  // sigue dependiendo de `tema` es la escala de presión, que es una escala de datos.
+  const ink = tok.txt2;
+  const txt = tok.txt;
 
   const de = (id) => superficies.find(s => s.id === id);
   const pBar = de("pared_barlovento")?.tramos?.at(-1)?.gobernante ?? 0;
@@ -107,7 +162,7 @@ export function Vista3D({ analisis, maxAbs, fmt, tema = "claro", ancho = 620, al
     cursor: "pointer",
     border: `1px solid ${activo ? "var(--acento)" : "var(--borde)"}`,
     background: activo ? "var(--acento)" : "var(--fondo)",
-    color: activo ? "#fff" : "var(--txt)",
+    color: activo ? tok.canvas : tok.txt,
   });
   const esVista = (k) => Math.abs(orb.vista.yaw - VISTAS[k].yaw) < 1e-6
     && Math.abs(orb.vista.pitch - VISTAS[k].pitch) < 1e-6;
@@ -117,35 +172,18 @@ export function Vista3D({ analisis, maxAbs, fmt, tema = "claro", ancho = 620, al
       <div {...orb.props} style={orb.estilo}>
         <Lienzo ancho={ancho} alto={alto} titulo={`Vista 3D — ${dir.label}`}>
           <Rotulo x={ancho / 2} y={14} texto={`${dir.label} — presión gobernante por cara`}
-            color={txt} tam={11} peso={600} />
+            color={txt} tam={TXT.titulo} peso={600} />
           {caras.map((c, i) => (
             <g key={`${c.id}-${i}`}>
               <polygon points={poly(c.proy)}
                 fill={colorPresion(info(c).p, maxAbs, tema)}
                 stroke={ink} strokeWidth="1.2" strokeLinejoin="round" />
-              <polygon points={poly(c.proy)} fill="#000" opacity={sombra(c.n)} />
+              <polygon points={poly(c.proy)} fill={SOMBRA} opacity={sombra(c.n)} />
             </g>
           ))}
-          {caras.map((c, i) => {
-            const inf = info(c);
-            const pts = c.proy.map(px);
-            const u = pts.reduce((s, p) => s + p[0], 0) / pts.length;
-            const v = pts.reduce((s, p) => s + p[1], 0) / pts.length;
-            const w = Math.max(...pts.map(p => p[0])) - Math.min(...pts.map(p => p[0]));
-            const h = Math.max(...pts.map(p => p[1])) - Math.min(...pts.map(p => p[1]));
-            // no se rotula una cara casi de canto: el texto flotaría sobre otra y diría algo falso
-            if (Math.min(w, h) < 24) return null;
-            return (
-              <g key={`t${c.id}-${i}`}>
-                <Rotulo x={u} y={inf.sinValor ? v : v - 8} texto={inf.rot} color={txt} tam={10} />
-                {!inf.sinValor && (
-                  <Rotulo x={u} y={v + 8} texto={fmt.q(inf.p)} color={txt} tam={10} peso={600} />
-                )}
-              </g>
-            );
-          })}
-          <LeyendaPresion x={ancho / 2 - 110} y={alto - 32} ancho={220}
-            tramos={tramosLeyenda(maxAbs, tema)} fmt={fmt.q} color={ink} />
+          <RotulosDeCara caras={caras} info={info} px={px} color={txt} />
+          <LeyendaPresion x={ancho / 2 - 90} y={alto - 34} ancho={180}
+            tramos={tramosLeyenda(maxAbs, tema)} fmt={fq} color={ink} lienzo={ancho} lienzoAlto={alto} />
         </Lienzo>
       </div>
       <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center", marginTop: 6 }}>
@@ -157,7 +195,7 @@ export function Vista3D({ analisis, maxAbs, fmt, tema = "claro", ancho = 620, al
         ))}
         <span style={{ fontSize: 13, color: "var(--txt2)", marginLeft: 4 }}>
           arrastrá para girar · rueda para acercar
-          {orb.zoom !== 1 && ` · ${orb.zoom.toFixed(2)}×`}
+          {orb.zoom !== 1 && ` · ${coef(orb.zoom)}×`}
         </span>
       </div>
     </div>

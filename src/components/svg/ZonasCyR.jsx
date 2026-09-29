@@ -14,19 +14,28 @@
 // CSS: cambiar de tema no re-renderiza nada y el dibujo se invierte solo. Hay un test que
 // recorre este archivo y falla si aparece un `#`.
 //
-// ── LAS COTAS VAN EN MILÍMETROS ─────────────────────────────────────────────────
-// A propósito, y no en las unidades de la pantalla. Este croquis es lo que se transcribe
-// al plano de revestimiento y de correas, y un plano va en mm. Se usa el perfil `memoria`,
-// que es el que ya tiene esa decisión tomada; no hay ninguna conversión a mano.
-import { mkView, Cota, Zona, Rotulo, Lienzo, Flecha } from './kit.jsx';
-import { regionesDe, franjasDePared, puntosDeRotulo, LAYOUT } from '../../engine/cyrZonas.js';
-import { unidades, PERFILES } from '../../lib/unidades.js';
-import { miles } from '../../lib/formato.js';
+// ── LO QUE CAMBIÓ CON LAS REGLAS COMUNES DE DIBUJO ──────────────────────────────
+// Cinco defectos, medidos por el proyectista sobre el proyecto de referencia y por el
+// control automático sobre la matriz entera:
+//
+//   · LAS COTAS VAN EN METROS. Iban en milímetros con punto de miles —«11.000»,
+//     «a = 1.000»—, heredado de que un plano se acota así. En una pantalla donde todo lo
+//     demás lleva coma decimal eso se lee como once y como uno. La memoria y las tablas
+//     siguen en mm, que es donde el número se transcribe a un plano de verdad.
+//   · UN RÓTULO POR REGIÓN CONEXA, no uno por zona. Había un solo ② y un solo ③ para
+//     varias regiones idénticas, y el ③ montado sobre la cumbrera y el borde.
+//   · LOS RÓTULOS SE UBICAN PROBANDO POSICIONES contra lo ya ocupado.
+//   · LAS DOS PAREDES, CON SU FORMA REAL Y A ESCALA. Había una sola, rectangular, sin
+//     decir cuál era y dibujada a una escala distinta de la planta —11 × 3 m en una
+//     proporción de 10:1—, así que el hastial de un dos aguas no aparecía en ningún lado.
+//   · PLANTA, ELEVACIÓN Y PAREDES COMPARTEN ESCALA, y el croquis la declara en
+//     `data-escala` para que el control automático pueda exigirlo.
+import { mkView, escalaComun, Cota, CadenaDeCotas, Zona, Rotulo, Texto, Lienzo, Flecha,
+  ubicar, candidatosAlrededor, anchoEnLienzo, useEscalaTexto, TXT } from './kit.jsx';
+import { regionesDe, franjasDePared, rotulosDeRegion, LAYOUT } from '../../engine/cyrZonas.js';
+import { fachada } from '../../engine/fachadas.js';
+import { m, coef, pared as nombrePared } from './formatoCroquis.js';
 import { c } from '../tokens.js';
-
-const Umm = unidades(PERFILES.memoria);
-/** Una longitud en mm, con separador de miles: «3.600». */
-const mm = (m) => miles(Umm.val.longitud(m), 0);
 
 /** El gris de relleno de cada zona, cuando el sombreado está activo. */
 export const TRAMA_ZONA = {
@@ -39,24 +48,56 @@ export const TRAMA_ZONA = {
 const etiqueta = (z) => z.replace("'", "′");
 
 const TRAZOS = "7 5";
-
-/** Radio del círculo del número de zona. Se usa también para recortarlo al contorno. */
 const RZ = 11;
 
-export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 660, alto = 560 }) {
+export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 980, alto = 660 }) {
   if (!cyr?.geoZonas?.layout) return null;
   const { bx, by, a, h, layout, ejeCumbrera } = cyr.geoZonas;
   const piezas = regionesDe(cyr.geoZonas);
 
-  // ── PLANTA, a la izquierda; ELEVACIÓN, a la derecha y más chica ─────────────
-  const anchoP = Math.round(ancho * 0.60);
-  // La franja de arriba lleva planta y elevación; la de abajo, la pared. El hueco
-  // entre las dos es el de los rótulos «PLANTA» / «ELEVACIÓN» y el título de la pared.
-  const yTop = 22, hFila = alto - 200;
-  const v = mkView({ ancho: anchoP, alto: hFila, xMin: 0, xMax: bx, yMin: 0, yMax: by,
-    margen: 50 });
-  const X = (m) => v.x(m);
-  const Y = (m) => v.y(m) + yTop;
+  const cumbreraX = ejeCumbrera === "X";
+  const unaAguaLayout = layout === LAYOUT.UNA_AGUA_PRIMADA || layout === LAYOUT.UNA_AGUA;
+  const unaAgua = cyr.figura === "5.3-5A" || cyr.figura === "5.3-5B";
+  const bajaHacia = cyr.geoZonas.pendienteHacia ?? "+Y";
+  const ejePendY = bajaHacia.endsWith("Y");
+  const alFinal = bajaHacia.startsWith("+");
+
+  // ── LAS CUATRO VISTAS, A LA MISMA ESCALA ────────────────────────────────────
+  // ⚠ LA ESCALA ES COMÚN Y SE CALCULA ANTES DE DIBUJAR NADA. Con cada vista eligiendo la
+  // suya, la pared de 11 × 3 m salía a diez veces la escala de la planta de 11 × 7,5: dos
+  // dibujos del mismo edificio, uno al lado del otro, que no se pueden comparar mirando.
+  const luz = layout === LAYOUT.PLANA_H || cumbreraX ? by : bx;
+  const hTot = Math.max(geo.hCumbre ?? geo.hAlero, geo.hAlero);
+  // Las dos paredes DISTINTAS que tiene un edificio rectangular: una por eje.
+  const paredes = [
+    { ...fachada(geo, "X", 1), eje: "X", signo: 1 },
+    { ...fachada(geo, "Y", 1), eje: "Y", signo: 1 },
+  ];
+  const hPared = Math.max(...paredes.map(p => p.zTope));
+  const wPared = Math.max(...paredes.map(p => p.W));
+
+  const yTop = 24;
+  const hFila = Math.round(alto * 0.55);
+  const yFila2 = yTop + hFila + 58;
+  const hFila2 = alto - yFila2 - 20;
+  const cajaPlanta = { ancho: Math.round(ancho * 0.56), alto: hFila, margen: 56 };
+  const cajaElev = { ancho: ancho - cajaPlanta.ancho - 26, alto: hFila, margen: 44 };
+  const cajaPared = { ancho: Math.round(ancho / 2) - 36, alto: hFila2, margen: 40 };
+  const esc = escalaComun([
+    { ...cajaPlanta, w: bx, h: by },
+    { ...cajaElev, w: luz, h: hTot * 1.1 },
+    { ...cajaPared, w: wPared, h: hPared * 1.2 },
+  ]);
+
+  const v = mkView({ ...cajaPlanta, xMin: 0, xMax: bx, yMin: 0, yMax: by, escalaFija: esc });
+  const X = (u) => v.x(u);
+  const Y = (u) => v.y(u) + yTop;
+
+  const xE = cajaPlanta.ancho + 26;
+  const ve = mkView({ ...cajaElev, xMin: 0, xMax: luz, yMin: 0, yMax: hTot * 1.1,
+    escalaFija: esc });
+  const XE = (u) => ve.x(u) + xE;
+  const YE = (u) => ve.y(u) + yTop;
 
   // ── Los límites de zona: sólo las aristas que separan zonas DISTINTAS ───────
   // Se derivan de las mismas piezas que usa el motor. Dibujar todas las aristas de la
@@ -89,7 +130,6 @@ export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 660, alto = 560 }
 
   // ── Cumbrera, limatesas y franja de cumbrera ────────────────────────────────
   const banda = piezas.find(p => p.tipo === "banda");
-  const cumbreraX = ejeCumbrera === "X";
   const Lu = cumbreraX ? bx : by, Lv = cumbreraX ? by : bx;
   const aXY = (u, w) => (cumbreraX ? [u, w] : [w, u]);
   const lineasTecho = layout === LAYOUT.CUATRO_AGUAS
@@ -98,8 +138,6 @@ export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 660, alto = 560 }
       ? [[...aXY(0, Lv / 2), ...aXY(Lu, Lv / 2)]]
       : [];
 
-  // En cuatro aguas la franja de zona 2 sigue la cumbrera y las limatesas: su límite son
-  // dos paralelas a distancia `a` de cada tramo. Es lo que dibuja la Fig. 5.3-2E.
   const paralelas = [];
   if (layout === LAYOUT.CUATRO_AGUAS) {
     for (const [x1, y1, x2, y2] of banda.segmentos) {
@@ -110,78 +148,33 @@ export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 660, alto = 560 }
     }
   }
 
-  const unaAguaLayout = layout === LAYOUT.UNA_AGUA_PRIMADA || layout === LAYOUT.UNA_AGUA;
-  const bajaHacia = cyr.geoZonas.pendienteHacia ?? "+Y";
-  const ejePendY = bajaHacia.endsWith("Y");   // la pendiente corre sobre Y
-  const alFinal = bajaHacia.startsWith("+");  // el alero BAJO está en el extremo del eje
-
-  // ── Un rótulo por zona, en el punto más «adentro» que tiene esa zona ───────
-  // No en el centro de su rectángulo más grande: en cuatro aguas la zona 1 se dibuja como
-  // un rectángulo que cubre toda la planta, y su centro es justo donde pasa la cumbrera.
-  // El ② quedaba encima del ① y el croquis mostraba una zona menos.
-  const centros = puntosDeRotulo(cyr.geoZonas);
-  const rotulos = cyr.zonasCubierta
-    .filter(z => centros[z]).map(z => ({ z, ...centros[z] }));
-
-  // ── Cotas de zona, encadenadas desde el borde ───────────────────────────────
-  // En vertiente única el ancho de la franja NO es el mismo en los dos ejes ni en las dos
-  // figuras —lateral 2a en la 5.3-5A y `a` en la 5.3-5B, alero bajo `a` en las dos—, y es
-  // justo lo que se transcribe al plano de correas: se acota cada una con su valor.
-  const anchoLat = layout === LAYOUT.UNA_AGUA_PRIMADA ? 2 * a : a;
-  // La franja que toca el borde x = 0 (para la cota sobre X) y la que toca y = 0 (sobre Y).
-  // Con la pendiente sobre Y, x = 0 es un borde LATERAL; con la pendiente sobre X, es un
-  // alero, y cuál de los dos lo dice `alFinal`. Cada caso tiene su ancho y su símbolo.
-  const franjaEnCero = (ejeEsPendiente) => {
-    if (!ejeEsPendiente) return { ancho: anchoLat, s: anchoLat === a ? "a" : "2a" };
-    // El alero BAJO está en el extremo del eje si `alFinal`; entonces en 0 está el ALTO.
-    return alFinal ? { ancho: 2 * a, s: "2a" } : { ancho: a, s: "a" };
-  };
-  const enX = franjaEnCero(!ejePendY), enY = franjaEnCero(ejePendY);
-  const cotasX = layout === LAYOUT.PLANA_H
-    ? [{ s: "0,2h", d: 0, ha: 0.2 * h }, { s: "0,6h", d: 0, ha: 0.6 * h },
-       { s: "0,6h", d: 0.6 * h, ha: 1.2 * h }]
-    : unaAguaLayout ? [{ s: enX.s, d: 0, ha: enX.ancho }]
-      : [{ s: "a", d: 0, ha: a }];
-  const cotaY = layout === LAYOUT.PLANA_H ? { s: "0,2h", d: 0, ha: 0.2 * h }
-    : unaAguaLayout ? { s: enY.s, d: 0, ha: enY.ancho }
-      : null;
-  const conBanda = layout === LAYOUT.DOS_AGUAS_CUMBRERA || layout === LAYOUT.CUATRO_AGUAS;
-
-  // ── ELEVACIÓN ───────────────────────────────────────────────────────────────
-  const xE = anchoP + 18, anchoE = ancho - xE - 14;
-  const luz = layout === LAYOUT.PLANA_H || cumbreraX ? by : bx;   // la luz que se ve de frente
-  const hTot = Math.max(geo.hCumbre ?? geo.hAlero, geo.hAlero);
-  const ve = mkView({ ancho: anchoE, alto: hFila, xMin: 0, xMax: luz, yMin: 0,
-    yMax: hTot * 1.12, margen: 34 });
-  const XE = (m) => ve.x(m) + xE;
-  const YE = (m) => ve.y(m) + yTop;
-  const unaAgua = cyr.figura === "5.3-5A" || cyr.figura === "5.3-5B";
+  const linea = (p, i, extra = {}) => (
+    <line key={i} x1={X(p[0][0])} y1={Y(p[0][1])} x2={X(p[1][0])} y2={Y(p[1][1])}
+      stroke={c.txt3} strokeWidth="1" strokeDasharray={TRAZOS} {...extra} />
+  );
 
   // ── DE QUÉ LADO BAJA LA PENDIENTE ───────────────────────────────────────────
   // ⚠ EL DIBUJO SIGUE A `pendienteHacia`, NO A UNA CONVENCIÓN FIJA. Rotular «alero alto»
   // siempre arriba parece inofensivo y no lo es: con la pendiente hacia +Y el croquis
   // contradecía al clasificador —la zona 3′, que va contra el alero ALTO, aparecía del
   // lado rotulado «alero bajo»— y el croquis existe justamente para poder controlar eso.
-  // El borde al que LLEGA la pendiente es el bajo; el opuesto, el alto.
-  // Cada borde, en coordenadas de pantalla, con hacia dónde se rota su rótulo para que
-  // corra paralelo al borde —como las notas de las figuras del reglamento—.
   const borde = (esBajo) => {
     const enElFinal = alFinal === esBajo;
     if (ejePendY) {
       return enElFinal
-        ? { x: X(bx / 2), y: Y(by) - 44, rot: 0, hx: X(bx / 2), hy: Y(by) }
-        : { x: X(bx / 2), y: Y(0) + 20, rot: 0, hx: X(bx / 2), hy: Y(0) };
+        // ⚠ POR FUERA DE LA FILA DE COTAS. La cota del ancho de zona va pegada al borde
+        // inferior, y con 24 px el rótulo del alero le caía encima.
+        ? { x: X(bx / 2), y: Y(by) - 42, rot: 0, hx: X(bx / 2), hy: Y(by) }
+        : { x: X(bx / 2), y: Y(0) + 42, rot: 0, hx: X(bx / 2), hy: Y(0) };
     }
     return enElFinal
       ? { x: X(bx) + 42, y: Y(by / 2), rot: 90, hx: X(bx), hy: Y(by / 2) }
-      : { x: X(0) - 26, y: Y(by / 2), rot: -90, hx: X(0), hy: Y(by / 2) };
+      : { x: X(0) - 30, y: Y(by / 2), rot: -90, hx: X(0), hy: Y(by / 2) };
   };
   const aleroBajo = borde(true), aleroAlto = borde(false);
-  const rotuloAlero = (b, texto) => (
-    <g transform={`rotate(${b.rot} ${b.x} ${b.y})`}>
-      <Rotulo x={b.x} y={b.y} texto={texto} color={c.txt2} tam={10.5} />
-    </g>
-  );
+
+  const conBanda = layout === LAYOUT.DOS_AGUAS_CUMBRERA || layout === LAYOUT.CUATRO_AGUAS;
+
   const cumbre = geo.hCumbre ?? geo.hAlero;
   const techo = unaAgua
     ? [[0, cumbre], [luz, geo.hAlero]]
@@ -189,20 +182,9 @@ export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 660, alto = 560 }
       ? [[0, geo.hAlero], [luz / 2, cumbre], [luz, geo.hAlero]]
       : [[0, geo.hAlero], [luz, geo.hAlero]];
 
-  // ── ELEVACIÓN DE PARED, abajo ───────────────────────────────────────────────
-  const largoPared = Math.max(bx, by);
-  const franjas = franjasDePared(largoPared, a);
-  const yP = alto - 100, hP = 54, mP = 58;
-  const xP = (m) => mP + m * (ancho - 2 * mP) / largoPared;
-  const lP = (m) => m * (ancho - 2 * mP) / largoPared;
-
-  const linea = (p, i, extra = {}) => (
-    <line key={i} x1={X(p[0][0])} y1={Y(p[0][1])} x2={X(p[1][0])} y2={Y(p[1][1])}
-      stroke={c.txt3} strokeWidth="1" strokeDasharray={TRAZOS} {...extra} />
-  );
-
   return (
-    <Lienzo ancho={ancho} alto={alto} titulo="Zonas de componentes y revestimientos">
+    <Lienzo ancho={ancho} alto={alto} titulo="Zonas de componentes y revestimientos"
+      escala={esc} edificio="cyr" zonificado>
       <clipPath id="cyr-planta">
         <rect x={X(0)} y={Y(by)} width={v.l(bx)} height={v.l(by)} />
       </clipPath>
@@ -231,101 +213,248 @@ export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 660, alto = 560 }
       <rect x={X(0)} y={Y(by)} width={v.l(bx)} height={v.l(by)} fill="none"
         stroke={c.txt} strokeWidth="1.6" />
 
-      {/* Vertiente única: de qué lado baja la pendiente, que es lo que decide las zonas */}
       {unaAgua && (() => {
-        // La flecha sale del centro y apunta al alero BAJO: es la dirección en que
-        // desciende el agua, y de un vistazo dice cuál de los dos bordes es cuál.
         const cx = X(bx / 2), cy = Y(by / 2);
         const d = Math.hypot(aleroBajo.hx - cx, aleroBajo.hy - cy) || 1;
         return <>
           <Flecha x1={cx} y1={cy} x2={cx + 34 * (aleroBajo.hx - cx) / d}
             y2={cy + 34 * (aleroBajo.hy - cy) / d} color={c.txt2} grosor={1.4} />
-          {rotuloAlero(aleroAlto, "alero alto")}
-          {rotuloAlero(aleroBajo, "alero bajo")}
+          <Rotulo x={aleroAlto.x} y={aleroAlto.y} rot={aleroAlto.rot} texto="alero alto"
+            color={c.txt2} tam={TXT.min} />
+          <Rotulo x={aleroBajo.x} y={aleroBajo.y} rot={aleroBajo.rot} texto="alero bajo"
+            color={c.txt2} tam={TXT.min} />
         </>;
       })()}
 
-      {/* El círculo se recorta al contorno: en una franja de ancho `a` el número es más
-          ancho que la franja, y sin esto quedaba mordido por la línea de la planta. */}
-      {rotulos.map(r => (
-        <Zona key={r.z} texto={etiqueta(r.z)} color={c.txt}
-          x={Math.min(Math.max(X(r.x), X(0) + RZ), X(bx) - RZ)}
-          y={Math.min(Math.max(Y(by) + RZ, Y(r.y)), Y(0) - RZ)} r={RZ} />
-      ))}
+      {/* ⚠ UNA SOLA CAPA DECIDE TODO LO QUE COMPITE POR LUGAR ADENTRO DE LA PLANTA. Los
+          números de zona y la cota de la franja de cumbrera se ubicaban por separado, con
+          dos ideas distintas de dónde había lugar: la cota buscaba el hueco entre los
+          puntos IDEALES de los rótulos, y los rótulos ya se habían corrido de ahí para no
+          pisarse entre sí. El resultado era una cota encima de un círculo en el único caso
+          donde el hueco era justo. */}
+      <RotulosDePlanta geo={cyr.geoZonas} X={X} Y={Y} bx={bx} by={by} a={a}
+        cumbreraX={cumbreraX} conBanda={conBanda} esc={esc} yNota={yTop + hFila + 31}
+        xNota={X(bx / 2)} />
 
-      <Cota x1={X(0)} y1={Y(by)} x2={X(bx)} y2={Y(by)} desplaz={-20} texto={mm(bx)}
-        color={c.txt2} />
-      <Cota x1={X(bx)} y1={Y(by)} x2={X(bx)} y2={Y(0)} desplaz={-22} texto={mm(by)}
-        color={c.txt2} />
-      {/* Las de cubierta plana van ADENTRO porque son tres encadenadas y abajo no entran:
-          el rótulo «PLANTA» está a 60 px del borde. Las demás son una sola y van afuera,
-          donde no se montan sobre el número de zona de la esquina. */}
-      {cotasX.map((k, i) => (k.ha <= bx / 2 + 1e-9 ? (
-        <Cota key={`cx${i}`} x1={X(k.d)} y1={Y(0)} x2={X(k.ha)} y2={Y(0)}
-          desplaz={layout === LAYOUT.PLANA_H ? -(18 + i * 17) : 18}
-          texto={`${k.s} = ${mm(k.ha - k.d)}`} color={c.txt2} />
-      ) : null))}
-      {/* En vertiente única esta cota se va al borde DERECHO: la de X ya ocupa la esquina
-          inferior izquierda y las dos etiquetas se tapaban entre sí y con el número de
-          zona de la esquina. */}
-      {cotaY && cotaY.ha <= by / 2 + 1e-9 && (
-        <Cota x1={unaAguaLayout ? X(bx) : X(0)} y1={Y(cotaY.d)}
-          x2={unaAguaLayout ? X(bx) : X(0)} y2={Y(cotaY.ha)}
-          desplaz={unaAguaLayout ? -18 : 18}
-          texto={`${cotaY.s} = ${mm(cotaY.ha - cotaY.d)}`} color={c.txt2} />
-      )}
-      {/* La cota de la franja de cumbrera no va ni en el medio ni contra una punta: en el
-          medio se monta sobre el rótulo de la zona 2, y contra la punta, sobre el de la
-          zona 3 —que en dos aguas vive justo ahí, en el extremo de la cumbrera—. */}
-      {conBanda && (cumbreraX
-        ? <Cota x1={X(bx * 0.30)} y1={Y(by / 2 - a)} x2={X(bx * 0.30)} y2={Y(by / 2 + a)}
-            texto={`2a = ${mm(2 * a)}`} color={c.txt2} />
-        : <Cota x1={X(bx / 2 - a)} y1={Y(by * 0.30)} x2={X(bx / 2 + a)} y2={Y(by * 0.30)}
-            texto={`2a = ${mm(2 * a)}`} color={c.txt2} />)}
-      <Rotulo x={X(bx / 2)} y={yTop + hFila + 10} texto="PLANTA" color={c.txt2} tam={11}
-        peso={600} />
+      <CotasDePlanta X={X} Y={Y} bx={bx} by={by} a={a} h={h} layout={layout}
+        unaAguaLayout={unaAguaLayout} ejePendY={ejePendY} alFinal={alFinal} />
+
+      <Rotulo x={X(bx / 2)} y={yTop + hFila + 14} texto="PLANTA" color={c.txt2}
+        tam={TXT.titulo} peso={600} />
 
       {/* ── ELEVACIÓN ── */}
       <polyline points={[[0, 0], [0, techo[0][1]], ...techo.map(p => [p[0], p[1]]),
         [luz, 0], [0, 0]].map(([x, y]) => `${XE(x)},${YE(y)}`).join(" ")}
         fill="none" stroke={c.txt} strokeWidth="1.6" />
-      {/* θ: una marca sobre la línea de alero y el ángulo rotulado */}
       {geo.theta > 0 && <>
         <line x1={XE(0)} y1={YE(techo[0][1])} x2={XE(luz * 0.34)} y2={YE(techo[0][1])}
           stroke={c.txt3} strokeWidth="0.8" strokeDasharray="4 3" />
-        <Rotulo x={XE(luz * 0.21)} y={YE(techo[0][1]) - 13}
-          texto={`θ = ${miles(geo.theta, geo.theta % 1 === 0 ? 0 : 1)}°`}
-          color={c.txt2} tam={10.5} />
+        <Rotulo x={XE(luz * 0.20)} y={YE(techo[0][1]) - 16}
+          texto={`θ = ${coef(geo.theta, 1)}°`} color={c.txt2} tam={TXT.min} />
       </>}
-      {/* La cota de h va POR FUERA del edificio: con desplazamiento hacia adentro, el
-          texto caía encima de la pared y del faldón. */}
-      <Cota x1={XE(luz)} y1={YE(0)} x2={XE(luz)} y2={YE(cyr.altura.valor)} desplaz={22}
-        texto={`h = ${mm(cyr.altura.valor)}`} color={c.txt2} />
-      <Rotulo x={XE(luz / 2)} y={yTop + hFila + 10} texto="ELEVACIÓN" color={c.txt2}
-        tam={11} peso={600} />
-      <Rotulo x={XE(luz / 2)} y={yTop + hFila + 26}
+      <Cota x1={XE(luz)} y1={YE(0)} x2={XE(luz)} y2={YE(cyr.altura.valor)} desplaz={26}
+        texto={`h = ${m(cyr.altura.valor)}`} color={c.txt2} />
+      <Rotulo x={XE(luz / 2)} y={yTop + hFila + 14} texto="ELEVACIÓN" color={c.txt2}
+        tam={TXT.titulo} peso={600} />
+      <Rotulo x={XE(luz / 2)} y={yTop + hFila + 32}
         texto={cyr.altura.cual === "alero" ? "h = altura del alero"
-          : "h = altura media de cubierta"} color={c.txt3} tam={10} />
+          : "h = altura media de cubierta"} color={c.txt3} tam={TXT.min} />
 
-      {/* ── PARED EN ELEVACIÓN ── */}
-      <Rotulo x={ancho / 2} y={yP - 14} texto="ELEVACIÓN DE PARED — Fig. 5.3-1"
-        color={c.txt2} tam={11} peso={600} />
-      {sombrear && franjas.map((f, i) => (
-        <rect key={`s${i}`} x={xP(f.desde)} y={yP} width={lP(f.hasta - f.desde)} height={hP}
-          fill={TRAMA_ZONA[f.zona]} stroke="none" />
+      {/* ── LAS DOS PAREDES, CON SU FORMA REAL Y A LA MISMA ESCALA ── */}
+      <Rotulo x={ancho / 2} y={yFila2 - 16} texto="ELEVACIÓN DE PAREDES — Fig. 5.3-1"
+        color={c.txt2} tam={TXT.titulo} peso={600} />
+      {paredes.map((p, i) => (
+        <ParedEnElevacion key={p.eje} f={p} a={a} esc={esc} sombrear={sombrear}
+          x0={i * Math.round(ancho / 2) + 20} y0={yFila2} caja={cajaPared} />
       ))}
-      {franjas.slice(1).map((f, i) => (
-        <line key={`d${i}`} x1={xP(f.desde)} y1={yP} x2={xP(f.desde)} y2={yP + hP}
-          stroke={c.txt3} strokeWidth="1" strokeDasharray={TRAZOS} />
-      ))}
-      <rect x={xP(0)} y={yP} width={lP(largoPared)} height={hP} fill="none" stroke={c.txt}
-        strokeWidth="1.6" />
-      {franjas.map((f, i) => (lP(f.hasta - f.desde) > 26
-        ? <Zona key={`z${i}`} x={xP((f.desde + f.hasta) / 2)} y={yP + hP / 2}
-            texto={f.zona} color={c.txt} r={10} />
-        : null))}
-      <Cota x1={xP(0)} y1={yP + hP} x2={xP(Math.min(a, largoPared))} y2={yP + hP}
-        desplaz={-16} texto={`a = ${mm(a)}`} color={c.txt2} />
     </Lienzo>
+  );
+}
+
+// ── UN RÓTULO POR REGIÓN CONEXA, UBICADO PROBANDO POSICIONES ───────────────────
+//
+// Las figuras del reglamento numeran CADA región: la 5.3-2A lleva un ③ en cada una de las
+// cuatro esquinas, no uno solo. Y dos celdas adyacentes de la misma zona son una región
+// sola, con un número solo. Las dos cosas las resuelve `rotulosDeRegion`, sobre la
+// clasificación punto por punto y no sobre las piezas de dibujo —que en cuatro aguas se
+// pintan superpuestas y donde una «pieza» no es una región—.
+//
+// Acá sólo queda ubicar los círculos sin que se pisen, probando posiciones alrededor del
+// punto ideal. El marcador `data-zona` existe para que el control automático pueda exigir
+// que toda región tenga su número.
+function RotulosDePlanta({ geo, X, Y, bx, by, a, cumbreraX, conBanda, esc, xNota, yNota }) {
+  const k = useEscalaTexto();
+
+  // 1 · los números, uno por región, corridos hasta encontrar lugar
+  const ocupados = [];
+  const puestos = [];
+  for (const r of rotulosDeRegion(geo)) {
+    const texto = etiqueta(r.zona);
+    const d = Math.max(RZ, anchoEnLienzo(texto, TXT.zona, k) * 0.62 + 3);
+    const px = Math.min(Math.max(X(r.x), X(0) + d), X(bx) - d);
+    const py = Math.min(Math.max(Y(by) + d, Y(r.y)), Y(0) - d);
+    const sitio = ubicar(candidatosAlrededor(px, py, 2.4 * d, 2.4 * d), ocupados,
+      { w: 2 * d, h: 2 * d });
+    ocupados.push(sitio);
+    puestos.push({ ...r, texto, cx: sitio.x, cy: sitio.y, radio: d });
+  }
+
+  // 2 · la cota de la franja de cumbrera, en el hueco que quedó DESPUÉS de correrlos
+  //
+  // ⚠ SE MIDE CONTRA LAS POSICIONES FINALES. Calcularla contra los puntos ideales daba un
+  // hueco que ya no existía: los rótulos se habían corrido justamente para no pisarse.
+  const textoBanda = `2a = ${m(2 * a)}`;
+  const anchoCota = anchoEnLienzo(textoBanda, TXT.cota, k) + 10 * k;
+  let banda = null;
+  if (conBanda) {
+    const [alLargo, medio] = cumbreraX
+      ? [(o) => o.x, Y(by / 2)] : [(o) => o.y, X(bx / 2)];
+    const cerca = puestos.map((p, i) => ({ ...ocupados[i], p }))
+      .filter(o => Math.abs((cumbreraX ? o.y : o.x) - medio) <= 1.6 * a * esc);
+    const extremos = cumbreraX ? [X(0), X(bx)] : [Y(by), Y(0)];
+    const marcas = [...extremos,
+      ...cerca.flatMap(o => [alLargo(o) - o.w / 2, alLargo(o) + o.w / 2])]
+      .sort((u, w) => u - w);
+    let centro = null, ancho = 0;
+    for (let i = 1; i < marcas.length; i++) {
+      const d = marcas[i] - marcas[i - 1];
+      if (d > ancho) { ancho = d; centro = (marcas[i] + marcas[i - 1]) / 2; }
+    }
+    banda = ancho >= anchoCota ? centro : null;
+  }
+
+  return (
+    <g>
+      {puestos.map(p => (
+        <g key={p.region} data-zona={p.region}>
+          <Zona x={p.cx} y={p.cy} texto={p.texto} r={p.radio} rotulo={p.region}
+            color={c.txt} />
+        </g>
+      ))}
+      {/* Y SI EN NINGÚN HUECO ENTRA, NO SE DIBUJA. Una planta de 20 m en 170 px tiene tres
+          números sobre la cumbrera y no queda lugar para nada más; forzar la cota la deja
+          montada sobre un círculo, que es peor que no tenerla. El valor está completo en
+          la tabla de anchos de zona, acá abajo. */}
+      {conBanda && (banda !== null
+        ? (cumbreraX
+          ? <Cota x1={banda} y1={Y(by / 2 - a)} x2={banda} y2={Y(by / 2 + a)}
+              texto={textoBanda} color={c.txt2} />
+          : <Cota x1={X(bx / 2 - a)} y1={banda} x2={X(bx / 2 + a)} y2={banda}
+              texto={textoBanda} color={c.txt2} />)
+        : <Texto x={xNota} y={yNota} color={c.txt3} tam={TXT.min}
+            texto="2a: ver tabla" />)}
+    </g>
+  );
+}
+
+// ── LAS COTAS DE ZONA DE LA PLANTA ─────────────────────────────────────────────
+// Encadenadas desde el borde y apiladas en filas cuando no entran: es la cadena
+// «0,2h / 0,6h / 0,6h» de la cubierta plana, que antes se escalonaba alternando el
+// desplazamiento de a una —que alcanza para dos— y se montaba sobre sí misma en la tercera.
+function CotasDePlanta({ X, Y, bx, by, a, h, layout, unaAguaLayout, ejePendY, alFinal }) {
+  const anchoLat = layout === LAYOUT.UNA_AGUA_PRIMADA ? 2 * a : a;
+  const franjaEnCero = (ejeEsPendiente) => {
+    if (!ejeEsPendiente) return { ancho: anchoLat, s: anchoLat === a ? "a" : "2a" };
+    return alFinal ? { ancho: 2 * a, s: "2a" } : { ancho: a, s: "a" };
+  };
+  const enX = franjaEnCero(!ejePendY), enY = franjaEnCero(ejePendY);
+
+  const generales = <>
+    <Cota x1={X(0)} y1={Y(by)} x2={X(bx)} y2={Y(by)} desplaz={-22} texto={m(bx)}
+      color={c.txt2} />
+    <Cota x1={X(bx)} y1={Y(by)} x2={X(bx)} y2={Y(0)} desplaz={-24} texto={m(by)}
+      color={c.txt2} />
+  </>;
+
+  // La cubierta plana es la única que zonifica con múltiplos de `h` y no de `a`, y la
+  // única con una CADENA de tres tramos: va con `CadenaDeCotas`, que las apila en filas.
+  if (layout === LAYOUT.PLANA_H) {
+    const d = [0, 0.2 * h, 0.6 * h, 1.2 * h].filter(x => x <= bx / 2 + 1e-9);
+    const nombres = ["0,2h", "0,6h", "0,6h"];
+    return (
+      <g>
+        {generales}
+        <CadenaDeCotas cortes={d} eje="x" fijo={Y(0)} al={X} desplaz={20}
+          textos={d.slice(1).map((x, i) => `${nombres[i]} = ${m(x - d[i])}`)} />
+      </g>
+    );
+  }
+
+  return (
+    <g>
+      {generales}
+      {enX.ancho <= bx / 2 + 1e-9 && (
+        <Cota x1={X(0)} y1={Y(0)} x2={X(enX.ancho)} y2={Y(0)} desplaz={20}
+          texto={`${enX.s} = ${m(enX.ancho)}`} color={c.txt2} />
+      )}
+      {unaAguaLayout && enY.ancho <= by / 2 + 1e-9 && (
+        <Cota x1={X(bx)} y1={Y(0)} x2={X(bx)} y2={Y(enY.ancho)} desplaz={-20}
+          texto={`${enY.s} = ${m(enY.ancho)}`} color={c.txt2} />
+      )}
+    </g>
+  );
+}
+
+// ── UNA PARED, CON SU FORMA REAL ───────────────────────────────────────────────
+//
+// ⚠ LA PARED NO ES SIEMPRE UN RECTÁNGULO, Y ANTES SE DIBUJABA COMO SI LO FUERA. El
+// hastial de un dos aguas es un pentágono y la pared paralela a la pendiente de una
+// vertiente única es un trapecio: son las dos paredes donde el revestimiento se corta en
+// diagonal, o sea justo donde el croquis hace falta. La silueta sale de `fachadas.js`,
+// que es el mismo módulo con el que el capítulo 2 integra el área.
+//
+// Y va A LA MISMA ESCALA que la planta. Antes se estiraba al ancho del lienzo: 11 × 3 m
+// dibujados en una proporción de 10:1, que no es un croquis sino un esquema.
+function ParedEnElevacion({ f, a, esc, sombrear, x0, y0, caja }) {
+  const franjas = franjasDePared(f.W, a);
+  const px = (u) => x0 + caja.margen + u * esc;
+  const py = (u) => y0 + caja.alto - caja.margen - u * esc;
+
+  const silueta = f.forma === "hastial"
+    ? [[0, 0], [0, f.z1], [f.W / 2, f.z2], [f.W, f.z1], [f.W, 0]]
+    : f.forma === "trapecio"
+      ? [[0, 0], [0, f.z1], [f.W, f.z2], [f.W, 0]]
+      : [[0, 0], [0, f.z1], [f.W, f.z1], [f.W, 0]];
+  const alturaEn = (u) => {
+    if (f.forma === "rectangulo") return f.z1;
+    if (f.forma === "trapecio") return f.z1 + (f.z2 - f.z1) * (u / f.W);
+    return u <= f.W / 2 ? f.z1 + (f.z2 - f.z1) * (2 * u / f.W)
+      : f.z2 - (f.z2 - f.z1) * (2 * u / f.W - 1);
+  };
+
+  return (
+    <g>
+      {sombrear && franjas.map((fr, i) => (
+        <rect key={`s${i}`} x={px(fr.desde)} y={py(f.zTope)}
+          width={(fr.hasta - fr.desde) * esc} height={f.zTope * esc}
+          fill={TRAMA_ZONA[fr.zona]} stroke="none" />
+      ))}
+      <polygon points={silueta.map(([u, z]) => `${px(u)},${py(z)}`).join(" ")}
+        fill="none" stroke={c.txt} strokeWidth="1.6" />
+      {franjas.slice(1).map((fr, i) => (
+        <line key={`d${i}`} x1={px(fr.desde)} y1={py(0)} x2={px(fr.desde)}
+          y2={py(alturaEn(fr.desde))} stroke={c.txt3} strokeWidth="1"
+          strokeDasharray={TRAZOS} />
+      ))}
+      {franjas.map((fr, i) => ((fr.hasta - fr.desde) * esc > 24
+        ? <g key={`z${i}`} data-zona={`pared-${f.eje}-${fr.zona}#${i + 1}`}>
+            <Zona x={px((fr.desde + fr.hasta) / 2)}
+              y={py(alturaEn((fr.desde + fr.hasta) / 2) / 2)} texto={fr.zona}
+              rotulo={`pared-${f.eje}-${fr.zona}#${i + 1}`} color={c.txt} r={10} />
+          </g>
+        : null))}
+      {/* ⚠ LAS DOS COTAS VAN DEBAJO DE LA PARED, NO ADENTRO. Con el desplazamiento hacia
+          arriba el texto caía dentro del paño, encima del número de zona: «11» montado
+          sobre el ④. El signo del desplazamiento es relativo a la dirección de la línea,
+          y en una cota de izquierda a derecha el positivo es hacia abajo. */}
+      <Cota x1={px(0)} y1={py(0)} x2={px(Math.min(a, f.W))} y2={py(0)} desplaz={18}
+        texto={`a = ${m(a)}`} color={c.txt2} />
+      <Cota x1={px(0)} y1={py(0)} x2={px(f.W)} y2={py(0)} desplaz={38} texto={m(f.W)}
+        color={c.txt2} />
+      {/* El nombre va ARRIBA de la pared: abajo están las dos cotas encadenadas —el
+          ancho de la zona 5 y el ancho total— y el rótulo se montaba sobre la segunda. */}
+      <Texto x={px(f.W / 2)} y={py(f.zTope) - 16} texto={nombrePared(f.eje, f.signo)}
+        color={c.txt2} tam={TXT.min} peso={600} />
+    </g>
   );
 }

@@ -401,7 +401,15 @@ describe('Croquis de componentes y revestimientos — todo sale de los tokens', 
   //
   // Los tokens son variables CSS, así que un color que salga de ellos se invierte solo.
   // Un literal, no.
-  const ARCHIVOS = ["src/components/svg/ZonasCyR.jsx", "src/components/svg/CurvasCyR.jsx"];
+  // ⚠ LA LISTA SON TODOS LOS CROQUIS, no sólo los del capítulo 5. Los del capítulo 2
+  // elegían la tinta con `tema === "oscuro" ? "#c3c2b7" : "#52514e"`: dos literales y un
+  // parámetro `tema` que había que pasarle a mano a cada dibujo. Con tokens el croquis no
+  // necesita saber en qué tema está. La única excepción es `lib/escalaPresion.js`, que es
+  // una escala de DATOS validada para daltonismo y tiene que seguir significando lo mismo
+  // aunque mañana cambie el gris de las tarjetas.
+  const ARCHIVOS = fs.readdirSync(path.join(process.cwd(), "src/components/svg"))
+    .filter(f => f.endsWith(".jsx"))
+    .map(f => `src/components/svg/${f}`);
 
   const sinComentarios = (t) => t
     .replace(/\/\*[\s\S]*?\*\//g, "")

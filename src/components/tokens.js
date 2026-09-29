@@ -52,7 +52,12 @@ const OSCURO = {
   // que necesita en realidad es no estar ahí.
   txt: "#EAECEF",
   txt2: "#9BA3AE",
-  txt3: "#6B7280",
+  // ⚠ 4,5:1 CONTRA EL FONDO DE TARJETA, NO MENOS. El valor anterior —#6B7280 en oscuro,
+  // #767E8A en claro— daba 3,68:1 y 4,10:1: por debajo del mínimo de la WCAG para texto
+  // normal, y es el color de las notas al pie, de los rótulos de eje de los gráficos y de
+  // las cotas de los croquis, o sea de todo lo que ya se lee con esfuerzo. Lo destapó el
+  // control automático de croquis, que mide el contraste renderizado en los dos temas.
+  txt3: "#7B838F",
 
   // SEMÁNTICA — DESATURADA a propósito. Los saturados de una paleta de producto web
   // (#3B82F6, #22C55E) vibran sobre fondo oscuro y tiran de la vista antes que el número
@@ -109,7 +114,7 @@ const CLARO = {
 
   txt: "#1A1D21",
   txt2: "#4E5560",
-  txt3: "#767E8A",
+  txt3: "#666D77",   // 5,23:1 sobre blanco y 4,71:1 sobre el fondo de la app; ver el comentario del tema oscuro
 
   azul: "#2F5F8C",
   azulL: "#3C7AB0",

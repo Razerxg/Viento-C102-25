@@ -116,8 +116,13 @@ materiales intervienen en el dimensionamiento, que es objeto de otra memoria.`;
 // ── 6 · CARACTERÍSTICAS GEOMÉTRICAS ────────────────────────────────────────────
 export const geometria = ({ geoN, act, nFig }) => {
   const f = [
-    ["Dimensión en planta según X", "a", num(U.val.longitud(geoN.a), 0), U.u.longitud],
-    ["Dimensión en planta según Y", "b", num(U.val.longitud(geoN.b), 0), U.u.longitud],
+    // ⚠ «B_X» Y «B_Y», NO «a» Y «b». En el capítulo 5 `a` es el ANCHO DE ZONA, y la
+    // memoria lo informa en el capítulo de componentes con esa misma letra: dos magnitudes
+    // distintas con el mismo símbolo en el mismo documento. La Fig. 2.4-8 del reglamento
+    // llama B_X y B_Y a las dimensiones de planta, y es lo que se usa acá, en las tablas
+    // y en los croquis.
+    ["Dimensión en planta según X", "B_X", num(U.val.longitud(geoN.a), 0), U.u.longitud],
+    ["Dimensión en planta según Y", "B_Y", num(U.val.longitud(geoN.b), 0), U.u.longitud],
     ["Altura de alero", "h_e", num(U.val.longitud(geoN.hAlero), 0), U.u.longitud],
     ["Altura de cumbrera", "h_c", num(U.val.longitud(geoN.hCumbre), 0), U.u.longitud],
     ["**Altura media de cubierta**", "**h**",

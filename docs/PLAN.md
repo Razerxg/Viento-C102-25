@@ -145,6 +145,37 @@ Decisiones tomadas para (2), ya implementadas:
 | ✅ | Guardar y abrir proyectos como JSON, con el **esquema versionado** | `lib/proyecto.js` |
 | ✅ | Versión de la app, «CIRSOC 102-2025» y aviso de responsabilidad profesional en cada salida | `constants/version.js` |
 
+## Croquis — reglas comunes y control automático 🔄
+
+Pedido del proyectista en tres partes. Las dos primeras van juntas: el script es lo que
+prueba las reglas.
+
+| Estado | Ítem | Dónde |
+|---|---|---|
+| ✅ | **Control automático de croquis** sobre el build, con Playwright y Chromium | `scripts/qa-croquis.mjs` + `qa-matriz.js` + `qa-chequeos.js` · `npm run qa:croquis` |
+| ✅ | **Matriz de 10 geometrías**, cada una con su razón escrita | `scripts/qa-matriz.js` |
+| ✅ | **Reglas comunes de dibujo**: texto que no escala, halo, cota que se mide, cadenas apiladas, un rótulo por región conexa, unidades del croquis, escala compartida, `B_X`/`B_Y` | `components/svg/kit.jsx` + `formatoCroquis.js`, con `tests/croquisKit.test.js` |
+| ✅ | **Tinta por tokens del tema en los nueve croquis**; las escalas de datos, aparte | `lib/paletaDatos.js` + `lib/escalaPresion.js`, con test que recorre `components/svg/` |
+| ✅ | **Contraste**: `txt3` subido a 4,65:1 en oscuro y 5,23:1 en claro | `components/tokens.js` |
+| ✅ | **Ampliar y Descargar SVG** en cada croquis | `kit.jsx → BarraCroquis` |
+| ⏳ | **Voladizo de cubierta** (art. 2.4.4 y art. 5.7) — parte 3A | |
+| ⏳ | **Alero adosado a pared** (art. 5.9) — parte 3B | |
+| 📥 | La geometría **«shelter con voladizo»** de la matriz se agrega con la parte 3A | `scripts/qa-matriz.js` |
+
+**Antes: 7.536 fallas sobre 400 croquis.** 6.298 de letra por debajo de 11 px —el texto
+escalaba con el dibujo— y 1.022 de contraste, que era el token `txt3` dando 3,68:1 en
+oscuro y 4,10:1 en claro contra el fondo de tarjeta.
+
+Dos hallazgos que costaron una vuelta cada uno:
+
+- **El factor de escala del texto NO se mide por el ancho de la caja.** Con `max-height`
+  puesto, un SVG ancho queda limitado por la ALTURA: su caja mide 794 px pero el dibujo va
+  a escala 1:1, centrado, con franjas vacías a los costados. Medido por el ancho salía
+  0,78 y el texto se dibujaba un 22 % más chico. `getScreenCTM` da la matriz real.
+- **`useEscalaTexto` sólo vale DENTRO de `Lienzo`.** Quien renderiza el `Lienzo` está fuera
+  de su contexto y lee el valor por defecto, 1. Por eso los rótulos del perfil de q(z) se
+  eligen en un componente hijo y no en el que arma el dibujo.
+
 ## Fase 4 — Capítulo 5, componentes y revestimientos 🔄
 
 Capítulo leído entero (74 págs., Reglamento + Comentario). Uso previsto: LSF, correas y
