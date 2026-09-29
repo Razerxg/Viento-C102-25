@@ -16,7 +16,7 @@ import { c, SP, t, MONO } from '../tokens.js';
 import { PERFILES, UNIDADES } from '../../lib/unidades.js';
 import { APP, ESQUEMA, RESPONSABILIDAD, procedenciaTexto } from '../../constants/version.js';
 import { DIALECTOS, COLUMNAS, tituloColumna, csvPresiones,
-  jsonPresiones } from '../../lib/exportar.js';
+  jsonPresiones, csvCyR, jsonCyR } from '../../lib/exportar.js';
 import { PanelTraza } from '../PanelTraza.jsx';
 import { memoriaMarkdown, indiceDe } from '../../lib/memoria.js';
 
@@ -32,7 +32,7 @@ const limpio = (s) => String(s || "viento").replace(/[^\w\- ]+/g, "").trim() || 
 
 export function SalidasTab() {
   const { todas, resDe, envCasos, sitio, geoN, cerr, gDe, d, aplic,
-    traza, trazaMotor, act, topo, vel, rafaga, avisos, accesorio } = useProyecto();
+    traza, trazaMotor, act, topo, vel, rafaga, avisos, accesorio, cyr, kdCyR } = useProyecto();
   const toast = useToast();
   const [dial, setDial] = useState("programa");
   const [perfilId, setPerfilId] = useState("datos");
@@ -46,6 +46,13 @@ export function SalidasTab() {
   const comun = { todas, perfil, proyecto: d.proyecto, cerramiento: cerr };
   const csv = () => csvPresiones({ ...comun, dialecto });
   const json = () => jsonPresiones({ ...comun, resDe, envCasos, sitio, geoN, gDe });
+  // ⚠ C&R VA EN SU PROPIO ARCHIVO, NO COMO COLUMNAS MÁS DEL DE PRESIONES. Las presiones
+  // del capítulo 2 son por CARA Y DIRECCIÓN; éstas son por ELEMENTO Y ZONA y no tienen
+  // dirección. En la misma tabla, la columna `direccion` quedaría vacía en la mitad de
+  // los renglones y `area` significaría dos cosas según la fila.
+  const csvCR = () => csvCyR({ cyr, dialecto, perfil, proyecto: d.proyecto, cerramiento: cerr });
+  const jsonCR = () => jsonCyR({ cyr, geoN, sitio, cerramiento: cerr, perfil,
+    proyecto: d.proyecto });
 
   // Las primeras filas del CSV, para mirar antes de bajarlo. Se genera el archivo REAL y
   // se cortan sus renglones: una vista previa armada aparte terminaría mostrando algo que
@@ -54,7 +61,8 @@ export function SalidasTab() {
   // La memoria se genera para mostrar el índice y para descargarla: el MISMO documento,
   // así que el índice no puede prometer un capítulo que el archivo no traiga.
   const memoria = () => memoriaMarkdown({ envCasos, todas, resDe, gDe, geoN, act, d, cerr,
-    sitio, topo, aplic, vel, rafaga, avisos, accesorio, env: envCasos, res: resDe(act) });
+    sitio, topo, aplic, vel, rafaga, avisos, accesorio, cyr, kdCyR,
+    env: envCasos, res: resDe(act) });
   const errores = avisos.filter(a => a.tono === "error");
   const cabeceraCerr = csv().split("\n").filter(x => x.startsWith("# GC_pi"));
 
@@ -131,7 +139,27 @@ export function SalidasTab() {
               JSON.stringify(json(), null, 2), "application/json");
             toast("JSON de presiones y resultantes descargado.", "ok");
           }}>Presiones y resultantes en JSON</Boton>
+          <Boton disabled={!cyr?.figura} onClick={() => {
+            bajar(`${limpio(d.proyecto)}.cyr.csv`, csvCR(), "text/csv");
+            toast("CSV de componentes y revestimientos descargado.", "ok");
+          }} title={cyr?.figura ? undefined
+            : "No hay figura del capítulo 5 aplicable a esta geometría"}>
+            Comp. y revestimientos en CSV</Boton>
+          <Boton disabled={!cyr?.figura} onClick={() => {
+            bajar(`${limpio(d.proyecto)}.cyr.json`,
+              JSON.stringify(jsonCR(), null, 2), "application/json");
+            toast("JSON de componentes y revestimientos descargado.", "ok");
+          }} title={cyr?.figura ? undefined
+            : "No hay figura del capítulo 5 aplicable a esta geometría"}>
+            Comp. y revestimientos en JSON</Boton>
         </div>
+        <Nota>
+          Los archivos de <b style={{ color: c.txt }}>componentes y revestimientos</b> son
+          aparte: van por elemento y por zona, sin dirección de viento —los (GC_p) del
+          capítulo 5 ya son la envolvente de las cuatro—. Llevan las dos áreas, la efectiva
+          con la que se lee el coeficiente y la tributaria sobre la que se aplica la
+          presión, y una columna que marca cuándo gobierna el mínimo del art. 5.2.2.
+        </Nota>
         <Nota>
           El JSON agrega las <b style={{ color: c.txt }}>resultantes por dirección</b> y la{" "}
           <b style={{ color: c.txt }}>envolvente de la Figura 2.4-8</b> con la combinación

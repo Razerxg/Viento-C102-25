@@ -31,7 +31,7 @@ resultantes en la base, listas para transcribir al modelo estructural.`;
 // invita a suponer que lo demás está adentro, y el modo de falla real de un cálculo de
 // viento no es que se rompa: es que alguien use un número correcto para algo que ese
 // número no cubre.
-export const alcance = ({ rafaga, d }) => `## 2. Alcance
+export const alcance = ({ rafaga, d, cyr }) => `## 2. Alcance
 
 ### 2.1. Qué determina esta memoria
 
@@ -41,14 +41,28 @@ export const alcance = ({ rafaga, d }) => `## 2. Alcance
   las cuatro direcciones y con los dos signos de la presión interna.
 - Las **resultantes en la base** —corte, levantamiento, vuelco y momento torsor— y la
   envolvente de los casos de carga de la Figura 2.4-8, con el caso de carga mínima del
-  art. 2.1.5 incorporado.
+  art. 2.1.5 incorporado.${cyr?.figura ? `
+- Las **presiones sobre componentes y revestimientos** (Capítulo 5, Parte 1, art. 5.3),
+  por elemento y por zona, para los elementos listados en el capítulo correspondiente.` : ""}
 
 ### 2.2. Qué NO determina — exclusiones explícitas
 
-- **Componentes y revestimientos (Capítulo 5): NO están determinados.** Las correas, las
+${cyr?.figura ? `- **Las presiones de componentes y revestimientos NO se intercambian con las del SPRFV.**
+  Una correa o una chapa **no se dimensionan** con las presiones del Capítulo 2 de esta
+  memoria, ni una columna con las del Capítulo 5: son dos conjuntos de coeficientes
+  distintos, para dos problemas distintos.
+- **Del Capítulo 5 se cubren las figuras implementadas**: 5.3-1 (paredes) y 5.3-2A a
+  5.3-2G (cubiertas planas, a dos aguas y a cuatro aguas). **Quedan fuera**: cubiertas de
+  vertiente única (5.3-5A y 5B), escalonadas (5.3-3), a dos aguas múltiples (5.3-4), en
+  diente de sierra (5.3-6), en cúpula (5.3-7), abovedadas (5.3-8), la superficie inferior
+  de edificios elevados (art. 5.3.2.1), los edificios con \`h > 20 m\` (Fig. 5.4-1), los
+  edificios abiertos (5.5-1 a 5.5-3), los parapetos (art. 5.6), los voladizos de cubierta
+  (art. 5.7) y los aleros adosados (art. 5.9). Tampoco se cubren las **plantas
+  irregulares** en L, en T o con esquinas de 135° o más (Fig. C 5.3-2): la geometría de
+  este cálculo es rectangular.` : `- **Componentes y revestimientos (Capítulo 5): NO están determinados.** Las correas, las
   chapas, las fijaciones y las aberturas **no se dimensionan** con las presiones del
   SPRFV de esta memoria. El Capítulo 5 da coeficientes propios, por área tributaria y por
-  zona de borde, que son mayores que los del sistema principal.
+  zona de borde, que son mayores que los del sistema principal.`}
 - **Frecuencia natural n₁: no se determinó.** Se adopta la hipótesis
   de **estructura rígida** del art. 1.9.1${rafaga?.flexible
     ? " —⚠ CONTRADICHA por el n₁ declarado, ver el capítulo del factor de ráfaga—"
@@ -451,4 +465,122 @@ export const tablaPerfilQz = ({ act }) => {
 El área de cada tramo sale de la **forma real de la pared**, no de \`B·dz\`: en el frontón
 de un hastial el ancho se va cerrando hacia la cumbrera, y multiplicar por B de más
 sobreestima justamente la franja de mayor q_z y mayor brazo.`;
+};
+
+// ── COMPONENTES Y REVESTIMIENTOS — CAPÍTULO 5 ──────────────────────────────────
+//
+// Va DESPUÉS de todos los capítulos del SPRFV y no mezclado entre ellos: es otro camino de
+// cálculo sobre el mismo edificio, y quien lee la memoria tiene que poder cerrar el
+// sistema principal antes de empezar con las correas.
+//
+// ⚠ LAS PRESIONES DE ESTE CAPÍTULO NO SON LAS DEL CAPÍTULO 2, Y HAY QUE DECIRLO. Es el
+// error de uso más caro del reglamento: dimensionar una correa con la presión del SPRFV.
+// Los (GC_p) del capítulo 5 son mayores —son picos locales sobre áreas chicas— y además
+// ya incluyen el factor de ráfaga.
+export const componentesYRevestimientos = ({ cyr, cerr, kdCyR, nFig }) => {
+  if (!cyr) return "";
+  const p2 = (x) => num(x, 2);
+
+  const cab = [
+    "Las presiones de este capítulo **no son las del Capítulo 2** y no se intercambian con",
+    "ellas. Los coeficientes del Capítulo 5 son picos locales sobre áreas chicas, resultan",
+    "mayores que los del sistema principal, y **ya incluyen el factor de efecto de ráfaga**,",
+    "que no se debe separar (art. 5.2.4).", "",
+    "Se aplica la **Parte 1** del capítulo (art. 5.3), para edificios con `h ≤ 20 m`:", "",
+    "```",
+    "p = q_h · [ (GC_p) − (GC_pi) ]                     (5.3-1)",
+    "```", "",
+    "donde:", "",
+    "- `q_h` — presión dinámica evaluada a la altura que define la figura. **En la Parte 1",
+    "  rige también en las paredes**, a diferencia del procedimiento direccional del",
+    "  Capítulo 2, donde la pared a barlovento se evalúa con `q_z` variable en altura.",
+    "- `(GC_p)` — coeficiente de presión externa de la figura que corresponda, función del",
+    "  **área efectiva de viento** del elemento y de la **zona** en que está.",
+    "- `(GC_pi)` — coeficiente de presión interna, con **los dos signos siempre**",
+    "  (nota 3 de la Tabla 1.11-1).",
+  ].join("\n");
+
+  const parametros = tablaCSVU([
+    ["Figura de cubierta adoptada", "—", `**${cyr.figura ?? "no aplica"}**`, "—"],
+    ["Motivo de la selección", "—", cyr.fuente?.porque ?? "—", "—"],
+    ["Figura de paredes", "—", "5.3-1", "—"],
+    [`Altura de referencia — ${cyr.altura.porque}`, "h",
+      `**${num(U.val.longitud(cyr.altura.valor), 0)}**`, U.u.longitud],
+    ["Factor topográfico — máximo entre las cuatro direcciones", "K_zt",
+      num(cyr.Kzt, 3), "—"],
+    ["Factor de direccionalidad — fila «Edificios, componentes y revestimientos»", "K_d",
+      num(kdCyR ?? 0.85, 2), "—"],
+    ["Presión dinámica a la altura de la figura", "q_h",
+      `**${num(U.val.presion(cyr.qh ?? 0), 3)}**`, U.u.presion],
+    [`Dimensión de borde — gobierna ${cyr.a.gobierna}`, "a",
+      `**${num(U.val.longitud(cyr.a.a), 0)}**`, U.u.longitud],
+    ["Coeficiente de presión interna, los dos signos", "(GC_pi)",
+      `±${num(Math.abs(cerr?.gcpi ?? 0), 3)}`, "—"],
+    ["Presión neta mínima de diseño — art. 5.2.2", "p_mín",
+      num(U.val.presion(800), 2), U.u.presion],
+  ]);
+
+  const anchos = tabla(["Zona", "Qué mide", "Expresión", `Medida [${U.u.longitud}]`],
+    (cyr.cotas ?? []).map(k => [`**${k.zona}**`, k.que, `\`${k.simbolo}\``,
+      k.valor2 != null ? `${num(U.val.longitud(k.valor), 0)} × ${num(U.val.longitud(k.valor2), 0)}`
+        : k.hasta != null ? `${num(U.val.longitud(k.desde), 0)} a ${num(U.val.longitud(k.hasta), 0)}`
+          : k.desde != null ? `más de ${num(U.val.longitud(k.desde), 0)}`
+            : k.valor != null ? num(U.val.longitud(k.valor), 0) : "—"]));
+
+  const filas = [];
+  for (const el of cyr.elementos ?? []) {
+    if (el.sinFigura) {
+      filas.push([`**${el.elemento.nombre ?? "—"}**`, el.superficie, "—",
+        num(U.val.area(el.area.A), 2), num(U.val.area(el.area.tributaria), 2),
+        "—", "—", "no se verifica", "no se verifica"]);
+      continue;
+    }
+    for (const z of el.zonas) {
+      const gob = z.zona === el.gobierna.pos || z.zona === el.gobierna.neg;
+      const m = (v, activo) => (activo ? `**${v}**` : v);
+      filas.push([gob ? `**${el.elemento.nombre ?? "—"}**` : (el.elemento.nombre ?? "—"),
+        el.superficie, `**${z.zona}**`,
+        num(U.val.area(el.area.A), 2), num(U.val.area(el.area.tributaria), 2),
+        p2(z.gcpPos), p2(z.gcpNeg),
+        m(num(U.val.presion(z.pPos), 3), z.zona === el.gobierna.pos),
+        m(num(U.val.presion(z.pNeg), 3), z.zona === el.gobierna.neg)]);
+    }
+  }
+
+  const tablaElementos = filas.length === 0
+    ? "_No se cargaron elementos para verificar._"
+    : tabla(["Elemento", "Superficie", "Zona", `A efectiva [${U.u.area}]`,
+      `A tributaria [${U.u.area}]`, "(GC_p)+", "(GC_p)−",
+      `p+ [${U.u.presion}]`, `p− [${U.u.presion}]`], filas);
+
+  const conMinimo = (cyr.elementos ?? []).some(e => e.minimoGobiernaAlgo);
+  const avisos = (cyr.avisos ?? []).filter(a => a.nivel === "error" || a.nivel === "aviso");
+
+  return [
+    cab, "",
+    "### Parámetros del cálculo", "",
+    "Ninguno es dato nuevo: todos salen de los capítulos anteriores de esta memoria.", "",
+    parametros, "",
+    "### Zonas y sus anchos", "",
+    "Son las medidas que se transcriben al plano de revestimiento y de correas.", "",
+    anchos, "",
+    figura(nFig, "zonas de componentes y revestimientos, en planta de cubierta y elevación de pared"),
+    "",
+    "### Elementos verificados", "",
+    "El `(GC_p)` se lee con el **área efectiva de viento** y la presión se aplica sobre el",
+    "**área tributaria real** (C 1.2): son dos áreas distintas y la tabla informa las dos.",
+    "Se listan **todas las zonas** de la figura, no sólo la gobernante: el mismo elemento",
+    "tipo se usa en varias zonas de la obra. La zona gobernante de cada sentido va en",
+    "negrita.", "",
+    tablaElementos, "",
+    conMinimo
+      ? "⚠ En los valores marcados con el mínimo, la presión adoptada es la **mínima de "
+        + `${num(U.val.presion(800), 2)} ${U.u.presion}` + " del art. 5.2.2 y no la que "
+        + "resulta de la expresión (5.3-1). No confundir con el mínimo de 0,75 kN/m² del "
+        + "art. 2.1.5, que es del SPRFV y se aplica sobre el área proyectada del edificio."
+      : "",
+    avisos.length
+      ? `\n${avisos.map(a => `⚠ **${a.ref ?? "Aviso"}** — ${a.texto}`).join("\n\n")}`
+      : "",
+  ].filter(Boolean).join("\n");
 };

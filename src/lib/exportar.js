@@ -321,3 +321,181 @@ export function jsonPresiones({ todas, resDe, envCasos, sitio, geoN, cerramiento
     },
   };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMPONENTES Y REVESTIMIENTOS — CAPÍTULO 5
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// ── ES OTRO ARCHIVO Y NO UNAS COLUMNAS MÁS ─────────────────────────────────────
+// Las presiones del capítulo 2 son por CARA Y DIRECCIÓN; éstas son por ELEMENTO Y ZONA, y
+// no tienen dirección: los (GC_p) del capítulo 5 ya son la envolvente de todas. Metidas en
+// la misma tabla, la columna `direccion` quedaría vacía en la mitad de los renglones y el
+// área significaría dos cosas distintas según la fila. Son dos tablas.
+//
+// ── SE EXPORTAN TODAS LAS ZONAS, NO LA GOBERNANTE ──────────────────────────────
+// La gobernante viene marcada en su propia columna, pero las cuatro filas viajan: el mismo
+// elemento tipo se usa en varias zonas de la obra, y quien recibe el archivo tiene que
+// poder tomar la que le toca sin volver a correr el cálculo.
+
+/** @type {{id:string,titulo:string,magnitud?:import('./unidades.js').Magnitud,desc:string}[]} */
+export const COLUMNAS_CYR = [
+  { id: "elemento", titulo: "elemento", desc: "Nombre del elemento verificado" },
+  { id: "tipo", titulo: "tipo", desc: "Tipo de elemento: chapa, correa, larguero, montante, fijación, abertura u otro" },
+  { id: "superficie", titulo: "superficie", desc: "cubierta o pared" },
+  { id: "figura", titulo: "figura", desc: "Figura del capítulo 5 de la que salen los (GC_p)" },
+  { id: "zona", titulo: "zona", desc: "Zona de la figura: 1', 1, 2 y 3 en cubierta; 4 y 5 en pared" },
+  { id: "areaEfectiva", titulo: "A_efectiva", magnitud: "area",
+    desc: "Área efectiva de viento (art. 1.2): con ella se LEE el (GC_p)" },
+  { id: "areaTributaria", titulo: "A_tributaria", magnitud: "area",
+    desc: "Área tributaria real: sobre ella se APLICA la presión (C 1.2). No es la misma que la efectiva" },
+  { id: "gcpPos", titulo: "GCp_pos", desc: "(GC_p) positivo, ya con las notas de la figura aplicadas" },
+  { id: "gcpNeg", titulo: "GCp_neg", desc: "(GC_p) negativo, ídem" },
+  { id: "pPos", titulo: "p_pos", magnitud: "presion",
+    desc: "Presión de diseño hacia la superficie, con el mínimo del art. 5.2.2 ya aplicado" },
+  { id: "pNeg", titulo: "p_neg", magnitud: "presion",
+    desc: "Presión de diseño alejándose de la superficie, ídem" },
+  { id: "pPosCalculada", titulo: "p_pos_calculada", magnitud: "presion",
+    desc: "q_h·[(GC_p)+ − (GC_pi)−] SIN el mínimo: es lo que permite ver cuándo el mínimo gobernó" },
+  { id: "pNegCalculada", titulo: "p_neg_calculada", magnitud: "presion",
+    desc: "Ídem para el sentido negativo" },
+  { id: "minimoPos", titulo: "minimo_pos", desc: "1 si el mínimo del art. 5.2.2 gobierna el sentido positivo" },
+  { id: "minimoNeg", titulo: "minimo_neg", desc: "1 si gobierna el negativo" },
+  { id: "gobiernaPos", titulo: "gobierna_pos", desc: "1 si es la zona gobernante en el sentido positivo" },
+  { id: "gobiernaNeg", titulo: "gobierna_neg", desc: "1 si lo es en el negativo" },
+];
+
+/**
+ * Un renglón por elemento y zona.
+ * @param {any} cyr  la salida de `analizarCyR`
+ */
+export function renglonesCyR(cyr) {
+  const out = [];
+  for (const el of cyr?.elementos ?? []) {
+    // Un elemento sin figura aplicable VIAJA IGUAL, con las presiones en blanco. Que
+    // desaparezca del archivo haría creer que no estaba en la lista.
+    if (el.sinFigura) {
+      out.push({ elemento: el.elemento.nombre ?? "", tipo: el.elemento.tipo,
+        superficie: el.superficie, figura: "", zona: "",
+        areaEfectiva: el.area.A, areaTributaria: el.area.tributaria });
+      continue;
+    }
+    for (const z of el.zonas) {
+      out.push({
+        elemento: el.elemento.nombre ?? "", tipo: el.elemento.tipo,
+        superficie: el.superficie,
+        figura: el.superficie === "pared" ? "5.3-1" : (cyr.figura ?? ""),
+        zona: z.zona,
+        areaEfectiva: el.area.A, areaTributaria: el.area.tributaria,
+        gcpPos: z.gcpPos, gcpNeg: z.gcpNeg,
+        pPos: z.pPos, pNeg: z.pNeg,
+        pPosCalculada: z.pPosCalculada, pNegCalculada: z.pNegCalculada,
+        minimoPos: z.gobiernaMinimo.pos ? 1 : 0, minimoNeg: z.gobiernaMinimo.neg ? 1 : 0,
+        gobiernaPos: z.zona === el.gobierna.pos ? 1 : 0,
+        gobiernaNeg: z.zona === el.gobierna.neg ? 1 : 0,
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * CSV de componentes y revestimientos.
+ * @param {object} o
+ * @param {any} o.cyr @param {{campo:string,decimal:string}} [o.dialecto]
+ * @param {Record<string,string>} [o.perfil] @param {string} [o.proyecto] @param {Date} [o.fecha]
+ * @param {boolean} [o.cabecera] @param {string|any} [o.cerramiento]
+ */
+export function csvCyR({ cyr, dialecto = DIALECTOS.programa, perfil = PERFILES.datos,
+  proyecto, fecha, cabecera = true, cerramiento }) {
+  const lineas = [];
+  if (cabecera) {
+    for (const [k, v] of procedenciaTexto({ proyecto, fecha })) lineas.push(`# ${k}: ${v}`);
+    lineas.push("# Capitulo 5 - Componentes y revestimientos, Parte 1 (art. 5.3)");
+    lineas.push("# p = q_h * [(GC_p) - (GC_pi)], expresion (5.3-1)");
+    // Los parámetros que NO son columna porque son iguales en todo el archivo. Sin ellos
+    // ningún renglón se puede reproducir.
+    lineas.push(`# Figura de cubierta: ${cyr?.figura ?? "-"}`);
+    if (cyr?.altura) {
+      lineas.push(`# Altura de referencia: ${cyr.altura.cual} = `
+        + `${convertir("longitud", cyr.altura.valor, perfil.longitud)} ${perfil.longitud}`);
+    }
+    if (cyr?.qh != null) {
+      lineas.push(`# q_h: ${convertir("presion", cyr.qh, perfil.presion)} ${perfil.presion}`
+        + ` (K_zt = ${cyr.Kzt}, maximo entre direcciones)`);
+    }
+    if (cyr?.a) {
+      lineas.push(`# Dimension a: ${convertir("longitud", cyr.a.a, perfil.longitud)} `
+        + `${perfil.longitud} - gobierna ${cyr.a.gobierna}`);
+    }
+    const cerr = cerramientoDe(cerramiento);
+    if (cerr?.gcpiAplicado != null) {
+      lineas.push(`# GC_pi aplicado: +-${Math.abs(cerr.gcpiAplicado).toFixed(4)}`);
+    }
+    lineas.push(`# Minimo art. 5.2.2: ${convertir("presion", 800, perfil.presion)} `
+      + `${perfil.presion} neto en cualquier direccion normal a la superficie`);
+    for (const c of COLUMNAS_CYR) lineas.push(`# columna ${tituloColumna(c, perfil)}: ${c.desc}`);
+  }
+  lineas.push(COLUMNAS_CYR.map(c => tituloColumna(c, perfil)).join(dialecto.campo));
+  for (const r of renglonesCyR(cyr)) {
+    lineas.push(COLUMNAS_CYR.map(c => {
+      const v = r[c.id];
+      return campo(c.magnitud && v != null ? convertir(c.magnitud, v, perfil[c.magnitud]) : v,
+        dialecto);
+    }).join(dialecto.campo));
+  }
+  return lineas.join("\n") + "\n";
+}
+
+/**
+ * JSON de componentes y revestimientos.
+ * @param {object} o
+ * @param {any} o.cyr @param {any} [o.geoN] @param {any} [o.sitio] @param {string|any} [o.cerramiento]
+ * @param {Record<string,string>} [o.perfil] @param {string} [o.proyecto] @param {Date} [o.fecha]
+ */
+export function jsonCyR({ cyr, geoN, sitio, cerramiento, perfil = PERFILES.datos,
+  proyecto, fecha }) {
+  const v = (m, x) => (x == null || !Number.isFinite(x) ? null : convertir(m, x, perfil[m]));
+  return {
+    ...procedencia({ proyecto, fecha }),
+    capitulo: "5 - Componentes y revestimientos, Parte 1 (art. 5.3)",
+    expresion: "p = q_h · [(GC_p) − (GC_pi)]  (5.3-1)",
+    unidades: { ...perfil },
+    columnas: COLUMNAS_CYR.map(c => ({ campo: c.id,
+      unidad: c.magnitud ? perfil[c.magnitud] : null, descripcion: c.desc })),
+    parametros: {
+      figura: cyr?.figura ?? null,
+      motivoFigura: cyr?.fuente?.porque ?? null,
+      alturaReferencia: { cual: cyr?.altura?.cual ?? null,
+        valor: v("longitud", cyr?.altura?.valor), porque: cyr?.altura?.porque ?? null },
+      qh: v("presion", cyr?.qh), Kzt: cyr?.Kzt ?? null,
+      a: { valor: v("longitud", cyr?.a?.a), gobierna: cyr?.a?.gobierna ?? null,
+        limitada: !!cyr?.a?.limitada },
+      minimo: { valor: v("presion", 800), ref: "art. 5.2.2" },
+      parapeto: !!cyr?.ctx?.parapeto,
+    },
+    zonas: {
+      cubierta: cyr?.zonasCubierta ?? [], pared: cyr?.zonasPared ?? [],
+      // Los anchos salen del motor, no del croquis: es lo que se transcribe al plano.
+      anchos: (cyr?.cotas ?? []).map(k => ({ zona: k.zona, que: k.que, simbolo: k.simbolo,
+        valor: v("longitud", k.valor), valor2: v("longitud", k.valor2),
+        desde: v("longitud", k.desde), hasta: v("longitud", k.hasta) })),
+    },
+    edificio: geoN == null ? null : {
+      a: v("longitud", geoN.a), b: v("longitud", geoN.b),
+      alturaAlero: v("longitud", geoN.hAlero), alturaMedia: v("longitud", geoN.h),
+      theta: geoN.theta, tipoCubierta: geoN.tipo, cumbrera: geoN.cumbrera,
+    },
+    sitio: sitio == null ? null : {
+      velocidadBasica: v("velocidad", sitio.V), exposicion: sitio.exposicion,
+      altitud: v("longitud", sitio.altitud),
+    },
+    cerramiento: cerramientoDe(cerramiento),
+    avisos: (cyr?.avisos ?? []).map(a => ({ nivel: a.nivel, ref: a.ref ?? null, texto: a.texto })),
+    elementos: renglonesCyR(cyr).map(r => ({
+      ...r,
+      areaEfectiva: v("area", r.areaEfectiva), areaTributaria: v("area", r.areaTributaria),
+      pPos: v("presion", r.pPos), pNeg: v("presion", r.pNeg),
+      pPosCalculada: v("presion", r.pPosCalculada), pNegCalculada: v("presion", r.pNegCalculada),
+    })),
+  };
+}

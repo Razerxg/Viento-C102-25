@@ -11,6 +11,7 @@ import { clasificar, regionDetritus } from '../src/engine/cerramiento.js';
 import { riAplicado, gcpiDe } from '../src/constants/presionInterna.js';
 import { memoriaMarkdown, indiceDe, num, tabla, tablaCSVU, figura } from '../src/lib/memoria.js';
 import { INICIAL } from '../src/constants/inicial.js';
+import { analizarCyR } from '../src/engine/cyrPresiones.js';
 import { APP, RESPONSABILIDAD } from '../src/constants/version.js';
 
 /** Arma el estado completo, igual que el contexto. */
@@ -44,13 +45,37 @@ function caso(over = {}) {
     fundamento: d.env.fundamento247, h: geoN.h });
   const envCasos = { ...envolventeCritica(estadosDeCarga({ analizar: analizarDireccion,
     entrada: ENT, opc: { ...ENT, exentoArt247: exen.exento } })), exen };
+  // Componentes y revestimientos: se arma igual que en el contexto, para que la memoria
+  // reciba exactamente la misma forma de objeto que en la app.
+  const cyr = analizarCyR({
+    geo: geoN, V: vel.V, exposicion: d.exposicion, altitud: 0, kd: 0.85,
+    kztDe: () => [1], gcpi: Math.abs(cerr.gcpi), parapeto: !!d.cyr.parapeto,
+    elementos: (d.elementosCyR ?? []).map(el => ({ ...el, L: Number(el.L) || 0,
+      s: Number(el.s) || 0, area: Number(el.area) || 0 })),
+  });
   return { d, geoN, vel, sitio, topo, cerr, todas, act, resDe, envCasos,
     aplic: aplicabilidadDeTodas(todas), gDe, rafaga: rt[act.dir.id],
-    env: envCasos, res: resDe(act) };
+    env: envCasos, res: resDe(act), cyr, kdCyR: 0.85 };
 }
 
 const MD = (over = {}, avisos = []) => memoriaMarkdown({ ...caso(over), avisos });
 const BASE = MD();
+
+/**
+ * El texto de un capítulo, buscado POR TÍTULO y no por número.
+ *
+ * ⚠ Los cortes iban con `indexOf("## 17.")`. Alcanzó con meter un capítulo nuevo —el de
+ * componentes y revestimientos— para que cinco tests se pusieran a mirar el capítulo
+ * equivocado y fallaran con mensajes que no decían nada del cambio real. El número de un
+ * capítulo es una consecuencia del documento; el título es lo que el test quiere decir.
+ */
+const capitulo = (md, titulo) => {
+  const i = md.search(new RegExp(`^## \\d+\\. ${titulo}`, "m"));
+  if (i < 0) return "";
+  const resto = md.slice(i + 3);
+  const j = resto.search(/^## \d+\./m);
+  return j < 0 ? md.slice(i) : md.slice(i, i + 3 + j);
+};
 
 describe('formato de números', () => {
   // ⚠ NO ES `toLocaleString`. El separador de miles del navegador depende del idioma del
@@ -101,6 +126,7 @@ describe('la estructura del documento', () => {
         "Presión dinámica", "Coeficientes de presión externa",
         "Presiones de diseño por superficie", "Resultantes por dirección",
         "Carga mínima", "Casos de carga y envolvente",
+        "Componentes y revestimientos",
         "Condiciones de uso y control operativo", "Conclusión", "Bibliografía"]);
   });
 
@@ -113,7 +139,7 @@ describe('la estructura del documento', () => {
   });
 
   it('la carga mínima va antes que los casos de carga', () => {
-    expect(BASE.indexOf("## 15. Carga mínima"))
+    expect(BASE.indexOf("Carga mínima — art. 2.1.5"))
       .toBeLessThan(BASE.indexOf("## 16. Casos de carga"));
   });
 
@@ -147,9 +173,12 @@ describe('la procedencia y el alcance', () => {
   // Una memoria que sólo dice lo que hizo invita a suponer que lo demás está adentro, y
   // el modo de falla real no es que se rompa: es que alguien use un número correcto para
   // algo que ese número no cubre.
-  it('el alcance declara las cuatro exclusiones', () => {
-    const al = BASE.slice(BASE.indexOf("## 2. Alcance"), BASE.indexOf("## 3."));
-    expect(al).toMatch(/Capítulo 5.*NO están determinados/s);
+  it('el alcance declara las exclusiones', () => {
+    const al = capitulo(BASE, "Alcance");
+    // Con el capítulo 5 implementado, C&R deja de ser una exclusión y pasa a ser alcance
+    // con su propia lista de lo que queda afuera. Lo que NO cambia es la advertencia de
+    // que las presiones de los dos capítulos no se intercambian.
+    expect(al).toMatch(/NO se intercambian con las del SPRFV/);
     expect(al).toContain("no se dimensionan");
     expect(al).toMatch(/n₁.*no se determinó/s);
     expect(al).toContain("**estructura rígida**");
@@ -237,14 +266,14 @@ describe('los capítulos de cálculo', () => {
 
 describe('el caso de carga mínima y la envolvente', () => {
   it('la tabla de casos incluye el 2.1.5 y dice que se agrega', () => {
-    const t = BASE.slice(BASE.indexOf("## 16."), BASE.indexOf("## 17."));
+    const t = capitulo(BASE, "Casos de carga y envolvente");
     expect(t).toContain("Caso 2.1.5");
     expect(t).toMatch(/\*\*se agrega\*\*/);
     expect(t).toContain("C 2.1.5");
   });
 
   it('cada magnitud crítica dice de qué combinación sale', () => {
-    const t = BASE.slice(BASE.indexOf("## 16."), BASE.indexOf("## 17."));
+    const t = capitulo(BASE, "Casos de carga y envolvente");
     expect(t).toContain("Combinación que gobierna");
     expect(t).toMatch(/caso \d · W/);
   });
@@ -260,7 +289,7 @@ describe('el caso de carga mínima y la envolvente', () => {
 describe('condiciones de uso y control operativo', () => {
   // No es un capítulo de cortesía: son las hipótesis de las que depende el resultado.
   it('lista las declaraciones del sistema estructural', () => {
-    const t = BASE.slice(BASE.indexOf("## 17."), BASE.indexOf("## 18."));
+    const t = capitulo(BASE, "Condiciones de uso");
     expect(t).toContain("Piso solidario a la estructura");
     expect(t).toContain("entramados resistentes a momento");
     expect(t).toContain("Exención de los casos torsionales");
@@ -273,7 +302,7 @@ describe('condiciones de uso y control operativo', () => {
   it('las aberturas declaradas cerradas llevan las DOS condiciones', () => {
     const md = MD({ aberturas: [{ superficie: "X-", tipo: "operable", ancho: "4",
       alto: "4", abiertaEnDiseno: false, nombre: "Portón principal" }] });
-    const t = md.slice(md.indexOf("## 17."), md.indexOf("## 18."));
+    const t = capitulo(md, "Condiciones de uso");
     expect(t).toContain("Portón principal");
     expect(t).toMatch(/mantenerse cerradas durante el viento de diseño/);
     expect(t).toMatch(/diseñadas para\s+la presión del Capítulo 5/);
@@ -282,7 +311,7 @@ describe('condiciones de uso y control operativo', () => {
 
   it('avisa cuando una declaración cambia el resultado', () => {
     const t = MD({ pisoSolidario: true, porticosCubierta: true });
-    const s = t.slice(t.indexOf("## 17."), t.indexOf("## 18."));
+    const s = capitulo(t, "Condiciones de uso");
     expect(s).toMatch(/la presión interna se autoequilibra/);
     expect(s).toMatch(/no se aplica el piso de la nota 7/);
   });
@@ -291,7 +320,7 @@ describe('condiciones de uso y control operativo', () => {
 describe('la conclusión', () => {
   it('trae las cargas para el modelo y las observaciones vigentes', () => {
     const md = MD({}, [{ tono: "aviso", titulo: "Un aviso", detalle: "su detalle" }]);
-    const t = md.slice(md.indexOf("## 18."), md.indexOf("## 19."));
+    const t = capitulo(md, "Conclusión");
     expect(t).toContain("Corte total en la base");
     expect(t).toContain("Momento torsor");
     expect(t).toContain("Un aviso");
@@ -299,7 +328,7 @@ describe('la conclusión', () => {
   });
 
   it('sin observaciones lo dice', () => {
-    const t = BASE.slice(BASE.indexOf("## 18."), BASE.indexOf("## 19."));
+    const t = capitulo(BASE, "Conclusión");
     expect(t).toContain("No hay observaciones pendientes");
   });
 });
@@ -338,5 +367,98 @@ describe('la bibliografía cita sólo lo aplicado', () => {
       fundamento247: "verificación de regularidad" } });
     expect(md).toContain("INPRES-CIRSOC 103-2018");
     expect(md).toContain("art. 2.4.7.3");
+  });
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EL CAPÍTULO DE COMPONENTES Y REVESTIMIENTOS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('Capítulo de componentes y revestimientos', () => {
+  it('aparece, con su artículo y su expresión', () => {
+    expect(BASE).toMatch(/## \d+\. Componentes y revestimientos — Capítulo 5, art\. 5\.3/);
+    expect(BASE).toContain("p = q_h · [ (GC_p) − (GC_pi) ]");
+  });
+
+  it('avisa que sus presiones NO se intercambian con las del capítulo 2', () => {
+    // Es el error de uso más caro del reglamento: dimensionar una correa con la presión
+    // del SPRFV. La memoria tiene que decirlo donde se lee, no sólo en el alcance.
+    expect(BASE).toMatch(/no son las del Capítulo 2/);
+    expect(BASE).toMatch(/ya incluyen el factor de efecto de ráfaga/);
+  });
+
+  it('dice que en la Parte 1 q_h rige también en las paredes', () => {
+    // Es la diferencia con el capítulo 2 que más fácil se pasa por alto.
+    expect(BASE).toMatch(/rige también en las paredes/);
+  });
+
+  it('lista los parámetros con su símbolo y su unidad', () => {
+    for (const s of ["Figura de cubierta adoptada", "Altura de referencia",
+      "Presión dinámica a la altura de la figura", "Dimensión de borde",
+      "Presión neta mínima de diseño — art. 5.2.2"]) {
+      expect(BASE, s).toContain(s);
+    }
+  });
+
+  it('lleva la tabla de anchos de zona, que es lo que va al plano', () => {
+    expect(BASE).toContain("Zonas y sus anchos");
+    expect(BASE).toMatch(/\| Zona \| Qué mide \| Expresión \|/);
+  });
+
+  it('lista los elementos con las DOS áreas', () => {
+    expect(BASE).toMatch(/A efectiva \[m²\]/);
+    expect(BASE).toMatch(/A tributaria \[m²\]/);
+    expect(BASE).toMatch(/Correa de cubierta/);
+    // Y explica por qué son dos.
+    expect(BASE).toMatch(/dos áreas distintas/);
+  });
+
+  it('lista TODAS las zonas de cada elemento y no sólo la gobernante', () => {
+    const cap = BASE.slice(BASE.indexOf("Componentes y revestimientos — Capítulo 5"));
+    const filas = cap.split("\n").filter(l => /^\| \*{0,2}Correa de cubierta/.test(l));
+    // La cubierta del caso es a dos aguas de 20°: Fig. 5.3-2C, tres zonas.
+    expect(filas).toHaveLength(3);
+  });
+
+  it('el capítulo va DESPUÉS de las resultantes y la envolvente del SPRFV', () => {
+    // Intercalado entre las dos tablas de presiones, quedan una al lado de la otra y se
+    // confunden, que es justo lo que este capítulo existe para evitar.
+    const iEnv = BASE.indexOf("Casos de carga y envolvente");
+    const iCyR = BASE.indexOf("Componentes y revestimientos — Capítulo 5");
+    expect(iEnv).toBeGreaterThan(0);
+    expect(iCyR).toBeGreaterThan(iEnv);
+  });
+
+  it('el Alcance deja de excluir C&R y pasa a listar qué figuras quedan afuera', () => {
+    expect(BASE).toMatch(/\*\*presiones sobre componentes y revestimientos\*\*/);
+    expect(BASE).toMatch(/Del Capítulo 5 se cubren las figuras implementadas/);
+    for (const fuera of ["5.3-5A", "5.3-3", "5.3-6", "art. 5.6", "art. 5.7",
+      "plantas\n  irregulares"]) {
+      expect(BASE, fuera).toMatch(new RegExp(fuera));
+    }
+    // Y ya no dice que NO están determinados.
+    expect(BASE).not.toMatch(/Capítulo 5\): NO están determinados/);
+  });
+
+  it('sin figura aplicable el capítulo no se escribe, y el Alcance vuelve a excluirlo', () => {
+    // Vertiente única de 18°: la Fig. 5.3-5B no está transcripta todavía.
+    const md = MD({ geo: { ...INICIAL.geo, tipo: "vertiente_unica", theta: "18",
+      a: "20", b: "30", hAlero: "6" } });
+    expect(md).not.toMatch(/## \d+\. Componentes y revestimientos/);
+    expect(md).toMatch(/Capítulo 5\): NO están determinados/);
+  });
+
+  it('la numeración de figuras sigue siendo correlativa con el capítulo nuevo', () => {
+    const nums = [...BASE.matchAll(/\[FIGURA (\d+) —/g)].map(m => Number(m[1]));
+    expect(nums).toEqual(nums.map((_, i) => i + 1));
+    expect(nums.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('el índice incluye el capítulo nuevo y sigue numerado sin saltos', () => {
+    const idx = indiceDe(BASE).split("\n");
+    expect(idx.some(l => /Componentes y revestimientos/.test(l))).toBe(true);
+    const n = idx.map(l => Number(l.match(/^- (\d+)\./)[1]));
+    expect(n).toEqual(n.map((_, i) => i + 1));
   });
 });

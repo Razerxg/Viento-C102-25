@@ -106,7 +106,7 @@ import { consolidar } from './consolidar.js';
  */
 export function memoriaMarkdown(e) {
   const { avisos = [], envCasos, todas, resDe, gDe, geoN, act, d, cerr, sitio,
-    topo, aplic, vel, rafaga, env, accesorio } = e;
+    topo, aplic, vel, rafaga, env, accesorio, cyr, kdCyR } = e;
   // ⚠ SE VUELVE A CONSOLIDAR CON EL PERFIL «MEMORIA». Es el MISMO árbol —la misma
   // función— pero la conversión de unidades ocurre en el borde, y el borde de la memoria
   // no es el de la pantalla: acá las longitudes van en mm y las presiones en kN/m².
@@ -195,6 +195,16 @@ export function memoriaMarkdown(e) {
   push("Casos de carga y envolvente — Figura 2.4-8 y art. 2.4.7",
     C.casosYEnvolvente({ envCasos, nFig: nf() }));
 
+  // ⚠ C&R VA DESPUÉS DE TODO EL SPRFV Y ANTES DEL EQUIPO SOBRE CUBIERTA. Quien lee la
+  // memoria tiene que poder cerrar el sistema principal antes de empezar con las correas;
+  // intercalado entre las presiones y las resultantes, las dos tablas de presiones quedan
+  // una al lado de la otra y se confunden, que es justo el error de uso más caro del
+  // reglamento.
+  if (cyr?.figura) {
+    push("Componentes y revestimientos — Capítulo 5, art. 5.3",
+      C.componentesYRevestimientos({ cyr, cerr, kdCyR, nFig: nf() }));
+  }
+
   if (conEquipo) {
     push("Equipo o estructura sobre cubierta — art. 4.5.1",
       [`El equipo declarado carga **al edificio** y usa su altura media \`h\`, por eso va en`,
@@ -210,7 +220,7 @@ export function memoriaMarkdown(e) {
   const cuerpo = [
     C.encabezado({ d }),
     C.introduccion({ d }),
-    C.alcance({ rafaga, d }),
+    C.alcance({ rafaga, d, cyr }),
     C.documentos(),
     C.normas({ env }),
     C.materiales(),

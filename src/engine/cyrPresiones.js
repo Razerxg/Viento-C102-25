@@ -24,7 +24,9 @@ import {
   FORMA, figuraCubierta, figuraPared, reduccionPared, gcpDeFuente, zonasDe, alturaDe,
 } from "./cyrFiguras.js";
 import { areaEfectiva, avisoSPRFV } from "./cyrElementos.js";
-import { LAYOUT, LAYOUT_DE_FIGURA, dimensionA, zonasPresentes } from "./cyrZonas.js";
+import {
+  LAYOUT, LAYOUT_DE_FIGURA, dimensionA, zonasPresentes, cotasDeZona,
+} from "./cyrZonas.js";
 import { q } from "./presionDinamica.js";
 
 /** Art. 5.2.2 — presión neta mínima de diseño, en N/m². */
@@ -296,6 +298,13 @@ export function analizarCyR({ geo, V, exposicion, altitud = 0, kd, kztDe = () =>
     geoZonas,
     zonasCubierta: geoZonas.layout ? zonasPresentes(geoZonas) : [],
     zonasPared: zonasPresentes({ ...geoZonas, layout: LAYOUT.PARED }),
+    // Los anchos acotables, para el croquis, la memoria y la exportación. Salen de una
+    // sola función para que las tres salidas no puedan discrepar entre sí.
+    cotas: [
+      ...(geoZonas.layout ? cotasDeZona(geoZonas) : []),
+      ...cotasDeZona({ ...geoZonas, layout: LAYOUT.PARED })
+        .map(k => ({ ...k, que: `pared — ${k.que}` })),
+    ],
     elementos: elementos.map(el => verificarElemento(ctx, el)),
     ctx,
   };

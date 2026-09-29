@@ -4,7 +4,8 @@ import { analizarDireccion, DIRECCIONES, normalizarGeo } from '../src/engine/edi
 import { resultantes } from '../src/engine/resultantes.js';
 import { estadosDeCarga, envolventeCritica } from '../src/engine/envolvente.js';
 import { DIALECTOS, COLUMNAS, tituloColumna, unidadEnNombre, renglonesDe,
-  csvPresiones, jsonPresiones } from '../src/lib/exportar.js';
+  csvPresiones, jsonPresiones, renglonesCyR, csvCyR, jsonCyR } from '../src/lib/exportar.js';
+import { analizarCyR } from '../src/engine/cyrPresiones.js';
 import { PERFILES, convertir } from '../src/lib/unidades.js';
 import { APP, RESPONSABILIDAD } from '../src/constants/version.js';
 
@@ -351,5 +352,119 @@ describe('el JSON', () => {
     expect(texto).not.toContain("NaN");
     expect(texto).not.toContain("Infinity");
     expect(JSON.parse(texto).direcciones).toHaveLength(4);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMPONENTES Y REVESTIMIENTOS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('Exportación de componentes y revestimientos', () => {
+  const geo = normalizarGeo({ a: "20", b: "30", hAlero: "6", theta: "0", tipo: "plana",
+    cumbrera: "X" });
+  const cyr = analizarCyR({
+    geo, V: 45, exposicion: "B", altitud: 0, kd: 0.85, kztDe: () => [1], gcpi: 0.18,
+    elementos: [
+      { tipo: "correa", superficie: "cubierta", L: 6, s: 1.5, nombre: "C-1" },
+      { tipo: "larguero", superficie: "pared", L: 4, s: 1.2, nombre: "L-1" },
+    ],
+  });
+
+  it('un renglón por elemento y zona, con todas las zonas', () => {
+    const r = renglonesCyR(cyr);
+    // La cubierta plana tiene cuatro zonas y la pared dos.
+    expect(r).toHaveLength(6);
+    expect(r.filter(x => x.elemento === "C-1").map(x => x.zona)).toEqual(["1'", "1", "2", "3"]);
+    expect(r.filter(x => x.elemento === "L-1").map(x => x.zona)).toEqual(["4", "5"]);
+  });
+
+  it('marca la zona gobernante y el mínimo, en columnas separadas', () => {
+    const r = renglonesCyR(cyr);
+    const gob = r.filter(x => x.elemento === "C-1" && x.gobiernaNeg === 1);
+    expect(gob).toHaveLength(1);
+    expect(gob[0].zona).toBe("3");
+    // El mínimo del art. 5.2.2 es una columna y no un reemplazo silencioso: la presión
+    // calculada viaja al lado de la adoptada.
+    const conMin = r.find(x => x.minimoPos === 1);
+    expect(conMin.pPos).toBe(800);
+    expect(Math.abs(conMin.pPosCalculada)).toBeLessThan(800);
+  });
+
+  it('la figura de pared es la 5.3-1, no la de cubierta', () => {
+    const r = renglonesCyR(cyr);
+    expect(new Set(r.filter(x => x.superficie === "pared").map(x => x.figura))).toEqual(new Set(["5.3-1"]));
+    expect(new Set(r.filter(x => x.superficie === "cubierta").map(x => x.figura))).toEqual(new Set(["5.3-2A"]));
+  });
+
+  it('un elemento sin figura viaja igual, con las presiones en blanco', () => {
+    // Que desaparezca del archivo haría creer que no estaba en la lista.
+    const sinFig = analizarCyR({
+      geo: normalizarGeo({ a: "20", b: "30", hAlero: "6", theta: "18",
+        tipo: "vertiente_unica" }),
+      V: 45, exposicion: "B", kd: 0.85, kztDe: () => [1], gcpi: 0.18,
+      elementos: [{ tipo: "chapa", superficie: "cubierta", L: 3, s: 1, nombre: "CH-1" }],
+    });
+    const r = renglonesCyR(sinFig);
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({ elemento: "CH-1", zona: "", figura: "" });
+    expect(r[0].pPos).toBeUndefined();
+    expect(r[0].areaEfectiva).toBeCloseTo(3 * 1, 9);
+  });
+
+  it('el CSV lleva los parámetros que no son columna, sin los cuales no se reproduce', () => {
+    const csv = csvCyR({ cyr, cerramiento: "cerrado" });
+    for (const s of ["# Figura de cubierta: 5.3-2A", "# q_h:", "# Dimension a:",
+      "# Minimo art. 5.2.2:", "# Altura de referencia: alero"]) {
+      expect(csv, s).toContain(s);
+    }
+    expect(csv).toContain("p = q_h * [(GC_p) - (GC_pi)]");
+  });
+
+  it('el CSV escapa contra el separador del dialecto, no contra los dos', () => {
+    // «gobierna 10 % de la menor dimensión» no trae comas, pero el nombre del elemento sí
+    // puede. Con separador de coma hay que entrecomillar; con punto y coma, no.
+    const conComa = { ...cyr, elementos: [{ ...cyr.elementos[0],
+      elemento: { ...cyr.elementos[0].elemento, nombre: "Correa C-1, tipo" } }] };
+    const prog = csvCyR({ cyr: conComa, dialecto: DIALECTOS.programa, cabecera: false });
+    expect(prog).toContain('"Correa C-1, tipo"');
+    const excel = csvCyR({ cyr: conComa, dialecto: DIALECTOS.excel, cabecera: false });
+    expect(excel).toContain("Correa C-1, tipo;");
+  });
+
+  it('las unidades van pegadas al nombre de la columna', () => {
+    const csv = csvCyR({ cyr, cabecera: false, perfil: PERFILES.memoria });
+    const enc = csv.split("\n")[0];
+    expect(enc).toContain("A_efectiva_m2");
+    expect(enc).toContain("p_pos_kN_m2");
+  });
+
+  it('el CSV termina en salto de línea', () => {
+    expect(csvCyR({ cyr, cabecera: false }).endsWith("\n")).toBe(true);
+  });
+
+  it('el JSON lleva los parámetros, las zonas con sus anchos y los avisos', () => {
+    const j = jsonCyR({ cyr, geoN: geo, cerramiento: "cerrado" });
+    expect(j.capitulo).toMatch(/Componentes y revestimientos/);
+    expect(j.parametros.figura).toBe("5.3-2A");
+    expect(j.parametros.alturaReferencia.cual).toBe("alero");
+    // El mínimo viaja CONVERTIDO al perfil del archivo, como todo lo demás: 800 N/m² son
+    // 0,80 kN/m², que es la unidad que declara `unidades`. Escribirlo en N/m² sería el
+    // único número del archivo en otra unidad que la del encabezado.
+    expect(j.unidades.presion).toBe("kN/m²");
+    expect(j.parametros.minimo).toEqual({ valor: 0.8, ref: "art. 5.2.2" });
+    expect(j.zonas.cubierta).toEqual(["1'", "1", "2", "3"]);
+    expect(j.zonas.pared).toEqual(["4", "5"]);
+    // Los anchos salen del motor, no del croquis: es lo que se transcribe al plano.
+    expect(j.zonas.anchos.some(a => a.simbolo === "0,6h")).toBe(true);
+    expect(j.elementos).toHaveLength(6);
+  });
+
+  it('el JSON declara sus unidades y describe cada columna', () => {
+    const j = jsonCyR({ cyr, perfil: PERFILES.memoria });
+    expect(j.unidades.presion).toBe("kN/m²");
+    expect(j.columnas.find(c => c.campo === "areaTributaria").descripcion)
+      .toMatch(/No es la misma que la efectiva/);
+    // Y las presiones están convertidas a ese perfil.
+    expect(Math.abs(j.elementos[0].pPos)).toBeLessThan(10);
   });
 });
