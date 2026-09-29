@@ -208,8 +208,8 @@ La página del PDF del capítulo y la del Reglamento se corresponden con `Cap. 5
 |---|---|---|
 | ✅ | Las 56 curvas de las Figs. 5.3-1 y 5.3-2A a 2G, y el evaluador | `constants/cyrCurvas.js` + `engine/cyr.js`, con `tests/cyrCurvas.test.js` (24 tests, 10 mutantes sin sobrevivientes) |
 | ✅ | Clasificador de zonas por punto, `a`, y las cinco zonificaciones | `engine/cyrZonas.js`, con `tests/cyrZonas.test.js` (34 tests, 12 mutantes sin sobrevivientes) |
-| ⏳ | Selección de figura y `a` | `engine/cyrFiguras.js` |
-| ⏳ | Área efectiva por tipo de elemento | `engine/cyrElementos.js` |
+| ✅ | Selección de figura, interpolación 27°–45°, altura y reducción de pared | `engine/cyrFiguras.js`, con `tests/cyrFiguras.test.js` (37 tests, 15 mutantes sin sobrevivientes) |
+| ✅ | Área efectiva por tipo de elemento | `engine/cyrElementos.js` |
 | ⏳ | Pantalla, croquis de zonas, exportación y capítulo de memoria | |
 | 📥 | Transcripción de las Figs. 5.3-5A y 5B | `docs/verificar-cyr.md`, a controlar contra el PDF |
 
@@ -224,6 +224,31 @@ Fig. C 5-1** y sí en el comentario C 5.1 —mayor dimensión < 0,4·h, toda la 
 **Plantas irregulares: fuera del alcance.** La Fig. C 5.3-2 (plantas en L, en T, esquinas
 ≥ 135°, la regla de `X ≤ a`) no se implementa, porque la geometría de la app es
 rectangular. Va declarado en el Alcance de la memoria, no como un ⏳.
+
+#### Selección de figura — lo que quedó decidido
+
+- **Cuatro aguas con θ ≤ 7°** → Fig. 5.3-2A, que se titula «cubiertas a dos aguas». Es una
+  decisión de lectura, así que va con aviso **info** visible: las figuras de cuatro aguas
+  arrancan en 7°, y el **paso 6 del art. 5.3** agrupa «cubiertas planas, cubiertas a dos y
+  a cuatro aguas» bajo la Figura 5.3-2.
+- **Cuatro aguas entre 27° y 45°** → interpolación lineal en θ entre la 2F y la 2G,
+  **zona por zona y después de leer cada curva con el área del elemento** (C 5.3.2).
+  Mezclar las curvas y leer después daría otro número, porque la lectura es lineal en log A.
+- **Vertiente única con θ ≤ 3°** → Fig. 5.3-2A, por la nota 5 de la Fig. 5.3-5A.
+- **Lo que no está, no se aproxima.** Dos aguas > 45°, vertiente única > 30°, mansarda,
+  diente de sierra: aviso **error** y ningún número. El evaluador tira si se lo llama
+  igual. El motivo distingue «no está en el reglamento» de «no está transcripta todavía»,
+  que para el proyectista son dos situaciones distintas.
+- **Plantas irregulares (Fig. C 5.3-2): fuera del alcance**, al Alcance de la memoria.
+
+#### La regla del tercio esconde su propio error
+
+`A = L · máx(s; L/3)`. Olvidarse del tercio **achica** el área y por lo tanto **agranda** el
+`(GC_p)` —las curvas pierden magnitud con A—: el error queda del lado seguro y no lo
+detecta ningún control de resultados. Hay test que lo muestra con la correa de 6 m cada
+1,50 m (12 m² efectivos contra 9 m² tributarios). Y son **dos áreas distintas**: el `(GC_p)`
+se lee con A, la presión se aplica sobre el área tributaria real (C 1.2). Se devuelven las
+dos y la pantalla lo dice.
 
 #### Las zonificaciones son CINCO y no una, y la 2C y la 2D no se parecen
 
@@ -249,12 +274,23 @@ voladizos de cubierta al art. 5.7, que es la etapa 5.2.
 
 #### Dos cosas que se midieron sobre las curvas y conviene no volver a discutir
 
-**1. El alero no siempre agrava.** La Fig. 5.3-2A trae dos gráficos, CUBIERTAS y ALERO, y
-no dicen lo mismo: con voladizo la zona 1′ llega a 0,80 **más** de succión (−1,7 contra
-−0,9 en A = 1 m²) y la zona 1 hasta 0,31 más, pero las **zonas 2 y 3 son hasta 0,30 MENOS**
-succionadas, porque su meseta final es −1,1 y la de la cubierta −1,4. La simplificación
-intuitiva —«el voladizo siempre agrava»— haría pasar por buenas dos curvas cambiadas de
-gráfico. Hay test con los tres números.
+**1. Los dos gráficos de la Fig. 5.3-2A son UBICACIONES DEL ELEMENTO, no variantes del
+edificio.** CUBIERTAS es un elemento de cubierta sobre el recinto cerrado; ALERO es un
+elemento ubicado **en el voladizo**, cuyo `(GC_p)` ya incluye las dos caras (nota 6) y cuya
+presión interna sale del art. 5.7 —`GC_pi = 0` si las caras no configuran volumen interno—.
+Un edificio con voladizo **no** pasa a calcular toda su cubierta con la curva del alero.
+
+Por eso la clave del modelo es `ubicacion` (`pared` · `cubierta` · `voladizo`) y no
+`sinVoladizo / conVoladizo`: con ese nombre el modelo invitaba al error, porque «¿tiene
+voladizo?» es una pregunta del edificio y la respuesta correcta es del elemento. Hay una
+guarda en `gcpDeFuente` y un test: ningún elemento de cubierta sobre el recinto puede leer
+la curva del alero, y las Figs. 5.3-2B a 2G se niegan a dar una curva de alero que no
+tienen —ahí el voladizo se arma por suma, art. 5.7—.
+
+Los números de las dos curvas, que sí son dato y están fijados con test: en el alero las
+zonas 1 y 1′ llegan más abajo que en la cubierta (0,80 y 0,31) y las zonas 2 y 3 menos
+(hasta 0,30), porque su meseta final es −1,1 contra −1,4. **Eso no se lee como «el voladizo
+agrava o alivia»**: son elementos distintos.
 
 **2. Las zonas 1 y 2 del alero se cruzan, y el cruce es ruido de redondeo.** Es la única
 excepción al orden de severidad `3 ≤ 2 ≤ 1 ≤ 1′` en todo el capítulo: entre `A = 9,76` y

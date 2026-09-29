@@ -15,7 +15,7 @@
 // control cruzado contra la Tabla 5.13-2, que llega después y es independiente de veras.
 import { describe, it, expect } from 'vitest';
 import {
-  FIGURAS, FIGURAS_LISTA, FIGURAS_PENDIENTES, ERRATAS, VARIANTE, ALTURA_H, ETIQUETA_ALTURA_H,
+  FIGURAS, FIGURAS_LISTA, FIGURAS_PENDIENTES, ERRATAS, UBICACION, ALTURA_H, ETIQUETA_ALTURA_H,
 } from '../src/constants/cyrCurvas.js';
 import { gcpDeCurva, gcp } from '../src/engine/cyr.js';
 
@@ -107,44 +107,44 @@ const T8 = {
 
 // figura · variante · zona · signo → ecuación
 const ECUACIONES = [
-  ["5.3-1", "unica", "4", "pos", T1.pos], ["5.3-1", "unica", "4", "neg", T1.neg4],
-  ["5.3-1", "unica", "5", "pos", T1.pos], ["5.3-1", "unica", "5", "neg", T1.neg5],
+  ["5.3-1", "pared", "4", "pos", T1.pos], ["5.3-1", "pared", "4", "neg", T1.neg4],
+  ["5.3-1", "pared", "5", "pos", T1.pos], ["5.3-1", "pared", "5", "neg", T1.neg5],
 
-  ["5.3-2A", "sinVoladizo", "1'", "pos", T2.pos], ["5.3-2A", "sinVoladizo", "1'", "neg", T2.sv1p],
-  ["5.3-2A", "sinVoladizo", "1", "pos", T2.pos],  ["5.3-2A", "sinVoladizo", "1", "neg", T2.sv1],
-  ["5.3-2A", "sinVoladizo", "2", "pos", T2.pos],  ["5.3-2A", "sinVoladizo", "2", "neg", T2.sv2],
-  ["5.3-2A", "sinVoladizo", "3", "pos", T2.pos],  ["5.3-2A", "sinVoladizo", "3", "neg", T2.sv3],
-  ["5.3-2A", "conVoladizo", "1'", "pos", T2.pos], ["5.3-2A", "conVoladizo", "1'", "neg", T2.cv1],
-  ["5.3-2A", "conVoladizo", "1", "pos", T2.pos],  ["5.3-2A", "conVoladizo", "1", "neg", T2.cv1],
-  ["5.3-2A", "conVoladizo", "2", "pos", T2.pos],  ["5.3-2A", "conVoladizo", "2", "neg", T2.cv2],
-  ["5.3-2A", "conVoladizo", "3", "pos", T2.pos],  ["5.3-2A", "conVoladizo", "3", "neg", T2.cv3],
+  ["5.3-2A", "cubierta", "1'", "pos", T2.pos], ["5.3-2A", "cubierta", "1'", "neg", T2.sv1p],
+  ["5.3-2A", "cubierta", "1", "pos", T2.pos],  ["5.3-2A", "cubierta", "1", "neg", T2.sv1],
+  ["5.3-2A", "cubierta", "2", "pos", T2.pos],  ["5.3-2A", "cubierta", "2", "neg", T2.sv2],
+  ["5.3-2A", "cubierta", "3", "pos", T2.pos],  ["5.3-2A", "cubierta", "3", "neg", T2.sv3],
+  ["5.3-2A", "voladizo", "1'", "pos", T2.pos], ["5.3-2A", "voladizo", "1'", "neg", T2.cv1],
+  ["5.3-2A", "voladizo", "1", "pos", T2.pos],  ["5.3-2A", "voladizo", "1", "neg", T2.cv1],
+  ["5.3-2A", "voladizo", "2", "pos", T2.pos],  ["5.3-2A", "voladizo", "2", "neg", T2.cv2],
+  ["5.3-2A", "voladizo", "3", "pos", T2.pos],  ["5.3-2A", "voladizo", "3", "neg", T2.cv3],
 
-  ["5.3-2B", "unica", "1", "pos", T3.pos], ["5.3-2B", "unica", "1", "neg", T3.z1],
-  ["5.3-2B", "unica", "2", "pos", T3.pos], ["5.3-2B", "unica", "2", "neg", T3.z2],
-  ["5.3-2B", "unica", "3", "pos", T3.pos], ["5.3-2B", "unica", "3", "neg", T3.z3],
+  ["5.3-2B", "cubierta", "1", "pos", T3.pos], ["5.3-2B", "cubierta", "1", "neg", T3.z1],
+  ["5.3-2B", "cubierta", "2", "pos", T3.pos], ["5.3-2B", "cubierta", "2", "neg", T3.z2],
+  ["5.3-2B", "cubierta", "3", "pos", T3.pos], ["5.3-2B", "cubierta", "3", "neg", T3.z3],
 
-  ["5.3-2C", "unica", "1", "pos", T4.pos], ["5.3-2C", "unica", "1", "neg", T4.z1],
-  ["5.3-2C", "unica", "2", "pos", T4.pos], ["5.3-2C", "unica", "2", "neg", T4.z2],
-  ["5.3-2C", "unica", "3", "pos", T4.pos], ["5.3-2C", "unica", "3", "neg", T4.z3],
+  ["5.3-2C", "cubierta", "1", "pos", T4.pos], ["5.3-2C", "cubierta", "1", "neg", T4.z1],
+  ["5.3-2C", "cubierta", "2", "pos", T4.pos], ["5.3-2C", "cubierta", "2", "neg", T4.z2],
+  ["5.3-2C", "cubierta", "3", "pos", T4.pos], ["5.3-2C", "cubierta", "3", "neg", T4.z3],
 
-  ["5.3-2D", "unica", "1", "pos", T5.pos], ["5.3-2D", "unica", "1", "neg", T5.z1],
-  ["5.3-2D", "unica", "2", "pos", T5.pos], ["5.3-2D", "unica", "2", "neg", T5.z2],
-  ["5.3-2D", "unica", "3", "pos", T5.pos], ["5.3-2D", "unica", "3", "neg", T5.z3],
+  ["5.3-2D", "cubierta", "1", "pos", T5.pos], ["5.3-2D", "cubierta", "1", "neg", T5.z1],
+  ["5.3-2D", "cubierta", "2", "pos", T5.pos], ["5.3-2D", "cubierta", "2", "neg", T5.z2],
+  ["5.3-2D", "cubierta", "3", "pos", T5.pos], ["5.3-2D", "cubierta", "3", "neg", T5.z3],
 
-  ["5.3-2E", "unica", "1", "pos", T6.pos], ["5.3-2E", "unica", "1", "neg", T6.z1],
-  ["5.3-2E", "unica", "2", "pos", T6.pos], ["5.3-2E", "unica", "2", "neg", T6.z2],
-  ["5.3-2E", "unica", "3", "pos", T6.pos], ["5.3-2E", "unica", "3", "neg", T6.z3],
+  ["5.3-2E", "cubierta", "1", "pos", T6.pos], ["5.3-2E", "cubierta", "1", "neg", T6.z1],
+  ["5.3-2E", "cubierta", "2", "pos", T6.pos], ["5.3-2E", "cubierta", "2", "neg", T6.z2],
+  ["5.3-2E", "cubierta", "3", "pos", T6.pos], ["5.3-2E", "cubierta", "3", "neg", T6.z3],
 
-  ["5.3-2F", "unica", "1", "pos", T7.pos], ["5.3-2F", "unica", "1", "neg", T7.z1],
-  ["5.3-2F", "unica", "2", "pos", T7.pos], ["5.3-2F", "unica", "2", "neg", T7.z2y3],
-  ["5.3-2F", "unica", "3", "pos", T7.pos], ["5.3-2F", "unica", "3", "neg", T7.z2y3],
+  ["5.3-2F", "cubierta", "1", "pos", T7.pos], ["5.3-2F", "cubierta", "1", "neg", T7.z1],
+  ["5.3-2F", "cubierta", "2", "pos", T7.pos], ["5.3-2F", "cubierta", "2", "neg", T7.z2y3],
+  ["5.3-2F", "cubierta", "3", "pos", T7.pos], ["5.3-2F", "cubierta", "3", "neg", T7.z2y3],
 
-  ["5.3-2G", "unica", "1", "pos", T8.pos], ["5.3-2G", "unica", "1", "neg", T8.z1],
-  ["5.3-2G", "unica", "2", "pos", T8.pos], ["5.3-2G", "unica", "2", "neg", T8.z2],
-  ["5.3-2G", "unica", "3", "pos", T8.pos], ["5.3-2G", "unica", "3", "neg", T8.z3],
+  ["5.3-2G", "cubierta", "1", "pos", T8.pos], ["5.3-2G", "cubierta", "1", "neg", T8.z1],
+  ["5.3-2G", "cubierta", "2", "pos", T8.pos], ["5.3-2G", "cubierta", "2", "neg", T8.z2],
+  ["5.3-2G", "cubierta", "3", "pos", T8.pos], ["5.3-2G", "cubierta", "3", "neg", T8.z3],
 ];
 
-const curvaDe = (fig, variante, zona, signo) => FIGURAS[fig].curvas[variante][zona][signo];
+const curvaDe = (fig, ubicacion, zona, signo) => FIGURAS[fig].curvas[ubicacion][zona][signo];
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // EL HARNESS
@@ -153,10 +153,10 @@ const curvaDe = (fig, variante, zona, signo) => FIGURAS[fig].curvas[variante][zo
 describe('Tablas C 5.3-1 a C 5.3-8 — las ecuaciones contra los puntos de quiebre', () => {
   it('cada curva reproduce su ecuación en las diez áreas', () => {
     let comparaciones = 0;
-    for (const [fig, variante, zona, signo, ecuacion] of ECUACIONES) {
-      const curva = curvaDe(fig, variante, zona, signo);
+    for (const [fig, ubic, zona, signo, ecuacion] of ECUACIONES) {
+      const curva = curvaDe(fig, ubic, zona, signo);
       for (const A of AREAS) {
-        const donde = `${fig} · ${variante} · zona ${zona} · ${signo} · A = ${A} m²`;
+        const donde = `${fig} · ${ubic} · zona ${zona} · ${signo} · A = ${A} m²`;
         expect(Math.abs(gcp(curva, A) - ecuacion(A)), donde).toBeLessThanOrEqual(TOL);
         comparaciones++;
       }
@@ -173,7 +173,7 @@ describe('Tablas C 5.3-1 a C 5.3-8 — las ecuaciones contra los puntos de quieb
     const quiebres = new Set();
     for (const fig of FIGURAS_LISTA) {
       const f = FIGURAS[fig];
-      for (const v of f.variantes) {
+      for (const v of f.ubicaciones) {
         for (const z of f.zonas) {
           for (const s of ["pos", "neg"]) f.curvas[v][z][s].forEach(([A]) => quiebres.add(A));
         }
@@ -203,7 +203,7 @@ describe('Erratas de las Tablas C 5.3-2 y C 5.3-4', () => {
   it('están registradas en el código, con su figura y su zona', () => {
     expect(ERRATAS).toHaveLength(2);
     const c532 = ERRATAS.find(e => e.tabla === "C 5.3-2");
-    expect(c532).toMatchObject({ figura: "5.3-2A", variante: VARIANTE.CON_VOLADIZO, zona: "2" });
+    expect(c532).toMatchObject({ figura: "5.3-2A", ubicacion: UBICACION.VOLADIZO, zona: "2" });
     expect(ERRATAS.find(e => e.tabla === "C 5.3-4")).toMatchObject({ figura: "5.3-2C", zona: "3" });
   });
 
@@ -216,12 +216,12 @@ describe('Erratas de las Tablas C 5.3-2 y C 5.3-4', () => {
     expect(Math.abs(recta(5) - (-1.1))).toBeCloseTo(0.706, 3);
     expect(recta(50)).toBeCloseTo(-1.1, 4);
     // Y la curva transcripta es la corregida: sigue la recta hasta 50.
-    expect(gcp(curvaDe("5.3-2A", "conVoladizo", "2", "neg"), 10)).toBeCloseTo(recta(10), 3);
+    expect(gcp(curvaDe("5.3-2A", "voladizo", "2", "neg"), 10)).toBeCloseTo(recta(10), 3);
   });
 
   it('C 5.3-4 zona 3: el «−1.4» con punto es −1,4, y cae exacto sobre la recta', () => {
     expect(-3.0 + 1.600 * log(10)).toBeCloseTo(-1.4, 10);
-    expect(gcp(curvaDe("5.3-2C", "unica", "3", "neg"), 100)).toBeCloseTo(-1.4, 10);
+    expect(gcp(curvaDe("5.3-2C", "cubierta", "3", "neg"), 100)).toBeCloseTo(-1.4, 10);
   });
 });
 
@@ -233,7 +233,7 @@ describe('Forma de las curvas', () => {
   const todas = [];
   for (const fig of FIGURAS_LISTA) {
     const f = FIGURAS[fig];
-    for (const v of f.variantes) for (const z of f.zonas) for (const s of ["pos", "neg"]) {
+    for (const v of f.ubicaciones) for (const z of f.zonas) for (const s of ["pos", "neg"]) {
       todas.push([`${fig}·${v}·${z}·${s}`, f.curvas[v][z][s], s]);
     }
   }
@@ -284,9 +284,9 @@ describe('Forma de las curvas', () => {
     for (const fig of FIGURAS_LISTA) {
       const f = FIGURAS[fig];
       if (f.superficie !== "cubierta") continue;
-      for (const v of f.variantes) {
+      for (const v of f.ubicaciones) {
         // El gráfico del ALERO se cruza; tiene su propio test, abajo.
-        if (v === VARIANTE.CON_VOLADIZO) continue;
+        if (v === UBICACION.VOLADIZO) continue;
         const zs = orden.filter(z => f.zonas.includes(z));
         for (const A of AREAS) {
           for (let i = 1; i < zs.length; i++) {
@@ -299,28 +299,29 @@ describe('Forma de las curvas', () => {
     }
     // Y en paredes, la zona 5 (esquina) nunca por encima de la 4.
     for (const A of AREAS) {
-      expect(gcp(FIGURAS["5.3-1"].curvas.unica["5"].neg, A))
-        .toBeLessThanOrEqual(gcp(FIGURAS["5.3-1"].curvas.unica["4"].neg, A) + 1e-12);
+      expect(gcp(FIGURAS["5.3-1"].curvas.pared["5"].neg, A))
+        .toBeLessThanOrEqual(gcp(FIGURAS["5.3-1"].curvas.pared["4"].neg, A) + 1e-12);
     }
   });
 
   it('la Fig. 5.3-2F comparte curva entre las zonas 2 y 3', () => {
-    const c = FIGURAS["5.3-2F"].curvas.unica;
+    const c = FIGURAS["5.3-2F"].curvas.cubierta;
     expect(c["2"].neg).toEqual(c["3"].neg);
     expect(c["2"].pos).toEqual(c["3"].pos);
   });
 
-  it('el alero es MÁS succionado en las zonas 1 y 1\' y MENOS en las 2 y 3', () => {
-    // Suena al revés y no lo es: son los dos gráficos que trae la Fig. 5.3-2A, CUBIERTAS y
-    // ALERO, y no dicen lo mismo. Medido sobre las diez áreas:
-    //   · zona 1' — el alero llega a 0,80 más de succión (−1,7 contra −0,9 en A = 1 m²);
-    //   · zona 1  — hasta 0,31 más (en A = 10 m²), y empatan en A = 1 y A ≥ 50;
-    //   · zonas 2 y 3 — el alero es hasta 0,30 MENOS succionado, porque su meseta final es
-    //     −1,1 y la de la cubierta −1,4.
-    // Escribirlo al revés —«el voladizo siempre agrava»— es la simplificación intuitiva, y
-    // haría pasar por buenas las dos curvas cambiadas de gráfico.
-    const { sinVoladizo, conVoladizo } = FIGURAS["5.3-2A"].curvas;
-    const dif = (z, A) => gcp(conVoladizo[z].neg, A) - gcp(sinVoladizo[z].neg, A);
+  it('las curvas de cubierta y de alero son distintas, zona por zona', () => {
+    // Los dos gráficos de la Fig. 5.3-2A son DOS UBICACIONES DEL ELEMENTO, no dos
+    // edificios: CUBIERTAS es un elemento sobre el recinto cerrado y ALERO uno ubicado en
+    // el voladizo, cuyo (GC_p) ya incluye las dos caras (nota 6). Compararlos no dice
+    // «con voladizo el techo se carga más»: son elementos distintos, con presión interna
+    // distinta —la del alero sale del art. 5.7—.
+    //
+    // Lo que sí fija este test son los números de las curvas, que es lo que se controla
+    // contra el papel: en el alero las zonas 1 y 1' llegan más abajo que en la cubierta, y
+    // las zonas 2 y 3 menos, porque su meseta final es −1,1 contra −1,4.
+    const { cubierta, voladizo } = FIGURAS["5.3-2A"].curvas;
+    const dif = (z, A) => gcp(voladizo[z].neg, A) - gcp(cubierta[z].neg, A);
     for (const A of AREAS) {
       expect(dif("1'", A), `zona 1', A = ${A} m²`).toBeLessThan(-0.4);
       expect(dif("1", A), `zona 1, A = ${A} m²`).toBeLessThanOrEqual(1e-12);
@@ -330,6 +331,8 @@ describe('Forma de las curvas', () => {
     }
     expect(Math.min(...AREAS.map(A => dif("1", A)))).toBeCloseTo(-0.312, 3);
     expect(Math.max(...AREAS.map(A => dif("2", A)))).toBeCloseTo(0.300, 3);
+    expect(gcp(voladizo["2"].neg, 100)).toBeCloseTo(-1.1, 10);
+    expect(gcp(cubierta["2"].neg, 100)).toBeCloseTo(-1.4, 10);
   });
 
   it('en el gráfico del alero, las zonas 1 y 2 se cruzan — y el cruce es ruido de redondeo', () => {
@@ -342,9 +345,9 @@ describe('Forma de las curvas', () => {
     //
     // Queda fijado acá para que la próxima vez que alguien vea el cruce sepa que ya se
     // miró, y para que el día que se corrija un coeficiente se note que el cruce cambió.
-    const { conVoladizo } = FIGURAS["5.3-2A"].curvas;
+    const { voladizo } = FIGURAS["5.3-2A"].curvas;
     // Positivo = la zona 1 quedó MÁS succionada que la zona 2, que es el orden invertido.
-    const invertido = A => gcp(conVoladizo["2"].neg, A) - gcp(conVoladizo["1"].neg, A);
+    const invertido = A => gcp(voladizo["2"].neg, A) - gcp(voladizo["1"].neg, A);
     expect(invertido(9.5)).toBeLessThan(0);          // antes del cruce, el orden es el normal
     expect(invertido(10)).toBeCloseTo(0.0063, 4);    // el peor punto
     expect(invertido(12)).toBeLessThan(0);           // pasado el cruce vuelve a ordenarse
@@ -368,7 +371,7 @@ describe('Qué declara cada figura', () => {
     // y JavaScript los adelanta. Este test no verifica el reglamento: verifica que la
     // trampa sigue siendo real, para que nadie reemplace `zonas` por `Object.keys` viendo
     // que «total, da lo mismo».
-    const curvas = FIGURAS["5.3-2A"].curvas.sinVoladizo;
+    const curvas = FIGURAS["5.3-2A"].curvas.cubierta;
     expect(Object.keys(curvas)).toEqual(["1", "2", "3", "1'"]);
     expect(FIGURAS["5.3-2A"].zonas).toEqual(["1'", "1", "2", "3"]);
   });
@@ -376,21 +379,26 @@ describe('Qué declara cada figura', () => {
   it('las zonas declaradas son exactamente las que tienen curva, en toda variante', () => {
     for (const fig of FIGURAS_LISTA) {
       const f = FIGURAS[fig];
-      expect(f.variantes.length, fig).toBeGreaterThanOrEqual(1);
-      for (const v of f.variantes) {
+      expect(f.ubicaciones.length, fig).toBeGreaterThanOrEqual(1);
+      for (const v of f.ubicaciones) {
         expect(new Set(Object.keys(f.curvas[v])), `${fig}·${v}`).toEqual(new Set(f.zonas));
       }
-      expect(new Set(Object.keys(f.curvas)), fig).toEqual(new Set(f.variantes));
+      expect(new Set(Object.keys(f.curvas)), fig).toEqual(new Set(f.ubicaciones));
     }
   });
 
-  it('sólo la 5.3-2A distingue voladizo, y sólo ella zonifica por h', () => {
+  it('sólo la 5.3-2A tiene curva de alero, y sólo ella zonifica por h', () => {
+    // La ubicación es del ELEMENTO, no del edificio: `voladizo` existe únicamente donde la
+    // figura trae su propio gráfico de alero. En las 2B a 2G el voladizo se arma por suma
+    // (art. 5.7), y por eso ahí no hay curva que ofrecer.
     for (const fig of FIGURAS_LISTA) {
       const f = FIGURAS[fig];
-      const esperado = fig === "5.3-2A"
-        ? { variantes: [VARIANTE.SIN_VOLADIZO, VARIANTE.CON_VOLADIZO], zonificaPor: "h" }
-        : { variantes: [VARIANTE.UNICA], zonificaPor: "a" };
-      expect({ variantes: f.variantes, zonificaPor: f.zonificaPor }, fig).toEqual(esperado);
+      const esperado = fig === "5.3-1"
+        ? { ubicaciones: [UBICACION.PARED], zonificaPor: "a" }
+        : fig === "5.3-2A"
+          ? { ubicaciones: [UBICACION.CUBIERTA, UBICACION.VOLADIZO], zonificaPor: "h" }
+          : { ubicaciones: [UBICACION.CUBIERTA], zonificaPor: "a" };
+      expect({ ubicaciones: f.ubicaciones, zonificaPor: f.zonificaPor }, fig).toEqual(esperado);
     }
   });
 
@@ -437,7 +445,7 @@ describe('Qué declara cada figura', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('gcpDeCurva — interpolación en log A con los extremos congelados', () => {
-  const curva = FIGURAS["5.3-2A"].curvas.sinVoladizo["3"].neg;  // [[1, −3,2], [50, −1,4]]
+  const curva = FIGURAS["5.3-2A"].curvas.cubierta["3"].neg;  // [[1, −3,2], [50, −1,4]]
 
   it('congela por debajo y por encima, y lo dice', () => {
     expect(gcpDeCurva(curva, 0.1)).toMatchObject({ valor: -3.2, fuera: "debajo" });

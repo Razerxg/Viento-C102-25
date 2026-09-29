@@ -50,10 +50,10 @@
  * @property {string} pagina      página del reglamento donde está la figura
  * @property {"pared"|"cubierta"} superficie
  * @property {string[]} zonas     en el orden de la figura — ver la advertencia de arriba
- * @property {string[]} variantes
+ * @property {string[]} ubicaciones  dónde está el elemento; ver UBICACION
  * @property {"h"|"a"} zonificaPor
  * @property {string} alturaH     cuál de las dos alturas evalúa esta figura
- * @property {Object<string, Object<string, {pos: Curva, neg: Curva}>>} curvas
+ * @property {Object<string, Object<string, {pos: Curva, neg: Curva}>>} curvas  por ubicación y zona
  */
 
 // ── QUÉ ALTURA USA CADA FIGURA ─────────────────────────────────────────────────
@@ -80,9 +80,12 @@ export const ETIQUETA_ALTURA_H = {
   [ALTURA_H.ALERO_SI_THETA_10]: "altura media de la cubierta; altura del alero si θ ≤ 10°",
 };
 
-// Las dos variantes de la Fig. 5.3-2A. El resto de las figuras no distingue voladizo: el
-// comentario no da ecuaciones de voladizo para ellas.
-export const VARIANTE = { UNICA: "unica", SIN_VOLADIZO: "sinVoladizo", CON_VOLADIZO: "conVoladizo" };
+// ── DÓNDE ESTÁ EL ELEMENTO ─────────────────────────────────────────────────────
+// No es una variante del edificio: es la ubicación del elemento que se está verificando.
+// `voladizo` existe sólo en la Fig. 5.3-2A, que es la única que trae su propio gráfico de
+// alero; en las Figs. 5.3-2B a 2G el voladizo se arma por suma, según el art. 5.7 y la
+// nota 5 de esas figuras.
+export const UBICACION = { PARED: "pared", CUBIERTA: "cubierta", VOLADIZO: "voladizo" };
 
 /** @type {Object<string, Figura>} */
 export const FIGURAS = {
@@ -101,11 +104,11 @@ export const FIGURAS = {
     pagina: "Cap. 5-166",
     superficie: "pared",
     zonas: ["4", "5"],
-    variantes: [VARIANTE.UNICA],
+    ubicaciones: [UBICACION.PARED],
     zonificaPor: "a",
     alturaH: ALTURA_H.ALERO_SI_THETA_10,
     curvas: {
-      unica: {
+      pared: {
         //        pos: 1,0 · 1,0 − 0,1766 log A (1 < A ≤ 50) · 0,7
         "4": { pos: [[1, 1.0], [50, 0.7]],
         //        neg: −1,1 · −1,1 + 0,1766 log A (1 < A ≤ 50) · −0,8
@@ -126,21 +129,32 @@ export const FIGURAS = {
   // 1' interior existe sólo si la planta es lo bastante grande frente a `h`. El
   // clasificador por punto de `engine/cyrZonas.js` hace que aparezca sola.
   //
-  // La figura trae DOS gráficos: CUBIERTAS (sin voladizo) y ALERO (con voladizo). El
-  // comentario los separa igual. Los valores del voladizo ya incluyen la contribución de
-  // las dos caras, superior e inferior (nota 6 de la figura).
+  // ⚠ LOS DOS GRÁFICOS DE LA FIGURA NO SON DOS EDIFICIOS: SON DOS UBICACIONES DEL
+  // ELEMENTO. El gráfico CUBIERTAS da el (GC_p) de un elemento de cubierta sobre el
+  // recinto cerrado, y el gráfico ALERO el de un elemento ubicado EN EL VOLADIZO, cuyos
+  // valores ya incluyen las dos caras, superior e inferior (nota 6 de la figura).
+  //
+  // Un edificio con voladizo NO pasa a calcular toda su cubierta con la curva del alero:
+  // sigue usando la de cubierta sobre el recinto, y la del alero sólo para los elementos
+  // que están en el vuelo. Por eso la clave es la UBICACIÓN y no una variante del
+  // edificio: con «sinVoladizo / conVoladizo» el modelo invita al error, porque la
+  // pregunta «¿tiene voladizo?» es del edificio y la respuesta correcta es del elemento.
+  //
+  // La presión del elemento de alero además no se arma igual —`GC_pi` según el art. 5.7,
+  // que es cero si las dos caras no encierran un volumen interno—, así que la curva
+  // ALERO recién se usa en la etapa de voladizos.
   "5.3-2A": {
     tabla: "C 5.3-2",
     titulo: "Cubiertas a dos aguas, θ ≤ 7°",
     pagina: "Cap. 5-168",
     superficie: "cubierta",
     zonas: ["1'", "1", "2", "3"],
-    variantes: [VARIANTE.SIN_VOLADIZO, VARIANTE.CON_VOLADIZO],
+    ubicaciones: [UBICACION.CUBIERTA, UBICACION.VOLADIZO],
     zonificaPor: "h",
     alturaH: ALTURA_H.ALERO,
     curvas: {
-      // Positivo, IGUAL con y sin voladizo: 0,3 · 0,3 − 0,1 log A (1 < A ≤ 10) · 0,2
-      sinVoladizo: {
+      // Positivo, IGUAL en cubierta y en alero: 0,3 · 0,3 − 0,1 log A (1 < A ≤ 10) · 0,2
+      cubierta: {
         //         1': −0,9 (A ≤ 10) · −1,4 + 0,5000 log A (10 < A ≤ 100) · −0,4
         "1'": { pos: [[1, 0.3], [10, 0.2]], neg: [[10, -0.9], [100, -0.4]] },
         //         1:  −1,7 · −1,7 + 0,4120 log A (1 < A ≤ 50) · −1,0
@@ -150,7 +164,7 @@ export const FIGURAS = {
         //         3:  −3,2 · −3,2 + 1,0595 log A (1 < A ≤ 50) · −1,4
         "3":  { pos: [[1, 0.3], [10, 0.2]], neg: [[1, -3.2], [50, -1.4]] },
       },
-      conVoladizo: {
+      voladizo: {
         // Zonas 1 y 1' comparten curva, y es la única de todo el capítulo con DOS rectas:
         // −1,7 · −1,7 + 0,1000 log A (1 < A ≤ 10) · −2,4584 + 0,8584 log A (10 < A ≤ 50) · −1,0
         // El quiebre intermedio en A = 10 vale −1,6 y no está impreso en la norma: es el
@@ -177,11 +191,11 @@ export const FIGURAS = {
     pagina: "Cap. 5-169",
     superficie: "cubierta",
     zonas: ["1", "2", "3"],
-    variantes: [VARIANTE.UNICA],
+    ubicaciones: [UBICACION.CUBIERTA],
     zonificaPor: "a",
     alturaH: ALTURA_H.ALERO_SI_THETA_10,
     curvas: {
-      unica: {
+      cubierta: {
         // pos todas: 0,6 · 0,6 − 0,2306 log A (1 < A ≤ 20) · 0,3
         "1": { pos: [[1, 0.6], [20, 0.3]], neg: [[2, -2.0], [30, -0.5]] },
         "2": { pos: [[1, 0.6], [20, 0.3]], neg: [[1, -2.7], [20, -1.0]] },
@@ -199,11 +213,11 @@ export const FIGURAS = {
     pagina: "Cap. 5-170",
     superficie: "cubierta",
     zonas: ["1", "2", "3"],
-    variantes: [VARIANTE.UNICA],
+    ubicaciones: [UBICACION.CUBIERTA],
     zonificaPor: "a",
     alturaH: ALTURA_H.MEDIA,
     curvas: {
-      unica: {
+      cubierta: {
         "1": { pos: [[1, 0.6], [20, 0.3]], neg: [[1, -1.5], [20, -0.8]] },
         "2": { pos: [[1, 0.6], [20, 0.3]], neg: [[1, -2.5], [10, -1.2]] },
         //        3: la meseta figura como «−1.4», con punto decimal — ver ERRATAS
@@ -221,11 +235,11 @@ export const FIGURAS = {
     pagina: "Cap. 5-171",
     superficie: "cubierta",
     zonas: ["1", "2", "3"],
-    variantes: [VARIANTE.UNICA],
+    ubicaciones: [UBICACION.CUBIERTA],
     zonificaPor: "a",
     alturaH: ALTURA_H.MEDIA,
     curvas: {
-      unica: {
+      cubierta: {
         // pos todas: 0,9 · 0,9 − 0,3074 log A (1 < A ≤ 20) · 0,5 — la única figura cuyo
         // positivo llega a 0,9: con θ > 27° el faldón a barlovento empuja de verdad.
         "1": { pos: [[1, 0.9], [20, 0.5]], neg: [[1, -1.8], [10, -0.8]] },
@@ -247,11 +261,11 @@ export const FIGURAS = {
     pagina: "Cap. 5-172",
     superficie: "cubierta",
     zonas: ["1", "2", "3"],
-    variantes: [VARIANTE.UNICA],
+    ubicaciones: [UBICACION.CUBIERTA],
     zonificaPor: "a",
     alturaH: ALTURA_H.ALERO_SI_THETA_10,
     curvas: {
-      unica: {
+      cubierta: {
         // pos todas: 0,7 · 0,7 − 0,400 log A (1 < A ≤ 10) · 0,3
         "1": { pos: [[1, 0.7], [10, 0.3]], neg: [[2, -1.8], [20, -0.8]] },
         "2": { pos: [[1, 0.7], [10, 0.3]], neg: [[1, -2.4], [20, -1.3]] },
@@ -275,11 +289,11 @@ export const FIGURAS = {
     pagina: "Cap. 5-173",
     superficie: "cubierta",
     zonas: ["1", "2", "3"],
-    variantes: [VARIANTE.UNICA],
+    ubicaciones: [UBICACION.CUBIERTA],
     zonificaPor: "a",
     alturaH: ALTURA_H.ALERO_SI_THETA_10,
     curvas: {
-      unica: {
+      cubierta: {
         "1": { pos: [[1, 0.7], [10, 0.3]], neg: [[1, -1.4], [20, -0.8]] },
         "2": { pos: [[1, 0.7], [10, 0.3]], neg: [[1, -2.0], [20, -1.0]] },
         "3": { pos: [[1, 0.7], [10, 0.3]], neg: [[1, -2.0], [20, -1.0]] },
@@ -300,11 +314,11 @@ export const FIGURAS = {
     pagina: "Cap. 5-174",
     superficie: "cubierta",
     zonas: ["1", "2", "3"],
-    variantes: [VARIANTE.UNICA],
+    ubicaciones: [UBICACION.CUBIERTA],
     zonificaPor: "a",
     alturaH: ALTURA_H.MEDIA,
     curvas: {
-      unica: {
+      cubierta: {
         "1": { pos: [[1, 0.7], [10, 0.3]], neg: [[1, -1.5], [20, -0.7]] },
         "2": { pos: [[1, 0.7], [10, 0.3]], neg: [[1, -1.8], [20, -0.8]] },
         "3": { pos: [[1, 0.7], [10, 0.3]], neg: [[1, -2.4], [20, -1.0]] },
@@ -338,14 +352,14 @@ export const FIGURAS_PENDIENTES = {
 // no en la que imprime la tabla.
 export const ERRATAS = [
   {
-    tabla: "C 5.3-2", figura: "5.3-2A", variante: VARIANTE.CON_VOLADIZO, zona: "2",
+    tabla: "C 5.3-2", figura: "5.3-2A", ubicacion: UBICACION.VOLADIZO, zona: "2",
     dice: "(GC_p) = −1,1 para A > 5,0 m²",
     corresponde: "A > 50,0 m²",
     verificacion: "−2,3 + 0,7063·log 50 = −1,10002. En A = 5 la recta vale −1,80631, "
       + "así que leído al pie de la letra el «5,0» abriría un salto de 0,706 en el empalme.",
   },
   {
-    tabla: "C 5.3-4", figura: "5.3-2C", variante: VARIANTE.UNICA, zona: "3",
+    tabla: "C 5.3-4", figura: "5.3-2C", ubicacion: UBICACION.CUBIERTA, zona: "3",
     dice: "(GC_p) = −1.4 (con punto decimal)",
     corresponde: "−1,4",
     verificacion: "−3,0 + 1,600·log 10 = −1,40000 exacto. Es un error de tipografía, no de valor.",
