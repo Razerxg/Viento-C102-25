@@ -13,14 +13,15 @@
 import { kz, q as qDinamica, kztEn, kztVariable,
   gobernanteTramo, alturasCriticasKzt } from './presionDinamica.js';
 import { ALTURAS_KZ } from '../constants/exposicion.js';
-import { CP_PARED, CP_CUBIERTA_BARLOVENTO, CP_CUBIERTA_SOTAVENTO, CP_CUBIERTA_PARALELO,
+import { CP_PARED, CP_VOLADIZO_INFERIOR,
+  CP_CUBIERTA_BARLOVENTO, CP_CUBIERTA_SOTAVENTO, CP_CUBIERTA_PARALELO,
   ANG_BARLOVENTO, ANG_SOTAVENTO, CERO_INTERPOLACION, CP_PENDIENTE_EXTREMA,
   FACTOR_AREA } from '../constants/presionesExternas.js';
 import { interp, cpSotavento, presion } from './presiones.js';
 import { gcpiDe } from '../constants/presionInterna.js';
 import { fachadasDe, areaHasta, momentoHasta } from './fachadas.js';
 import { tipoDe } from '../constants/cubiertas.js';
-import { normalizarVoladizo } from './voladizo.js';
+import { normalizarVoladizo, vueloABarlovento, aporteDeVoladizo } from './voladizo.js';
 // El parseo de los campos es uno solo: `lib/parseo.js`. Antes había tres `num()` en el
 // motor y dos usaban `parseFloat` pelado, que con la coma habilitada en los campos lee
 // «12,5» como 12 y descarta el resto sin avisar.
@@ -600,7 +601,51 @@ export function analizarDireccion({ geo, sitio, cerramiento, G = 0.85, modoG = "
     });
   }
 
+  // ── ART. 2.4.4 — LA CARA INFERIOR DEL VOLADIZO A BARLOVENTO ───────────────────
+  //
+  // El artículo completo, y no hay más:
+  //
+  //   «La presión externa positiva en la superficie inferior de voladizos de cubierta a
+  //    barlovento se debe calcular usando C_p = +0,8 y combinada con las presiones en la
+  //    superficie superior calculadas usando la Figura 2.4-1.»
+  //
+  // No tiene comentario —C 2.4.4 no existe— y las siete notas de la Fig. 2.4-1 no
+  // mencionan voladizos. ⚠ TRES COSAS QUEDAN SIN ESCRIBIR, y las tres las definió el
+  // proyectista; van anotadas acá porque son decisiones, no lecturas:
+  //
+  //   · LA PRESIÓN DINÁMICA ES `q_h`, la misma que la cara superior de cubierta. En una
+  //     cubierta inclinada es además lo conservador: h > h_alero, así que q_h > q_z del
+  //     alero. En cubierta plana las dos coinciden.
+  //   · SE APLICA SÓLO AL BORDE A BARLOVENTO, en todo su largo. Es literalmente lo que
+  //     dice el artículo; los otros tres bordes quedan con la presión de la cara superior
+  //     y nada más.
+  //   · EL FACTOR DE RÁFAGA MULTIPLICA: `q·G·C_p`, como toda la figura con la que se
+  //     combina. Si las dos caras se suman, tienen que estar en las mismas unidades.
+  //
+  // La cara superior NO se agrega de nuevo: ya está en las superficies de cubierta, que
+  // cubren toda la planta del techo. Acá se suma la cara de abajo.
+  const vuelo = vueloABarlovento(g.voladizo, dir);
+  if (vuelo > 1e-9) {
+    const aporte = aporteDeVoladizo(g, g.voladizo, dir);
+    const franja = aporte.franjas.find(f => f.nombre === "barlovento");
+    agregar({
+      id: "voladizo_inferior", nombre: "Voladizo a barlovento — cara inferior",
+      // ⚠ TIPO PROPIO, NO «cubierta». Media docena de consumidores filtran por
+      // `tipo === "cubierta"` para quedarse con los faldones: la integración de las
+      // resultantes, el croquis de elevación, la vista 3D y la exportación. Con el tipo
+      // de cubierta, la cara inferior entraba en el reparto de franjas como si fuera un
+      // faldón que cubre toda la planta —640 m² donde el voladizo tiene 32— y daba vuelta
+      // el signo del levantamiento. Es una superficie de VOLADIZO y se declara así.
+      tipo: "voladizo", usar: "qh", cp: CP_VOLADIZO_INFERIOR, q: qh,
+      voladizo: { vuelo, area: franja?.area ?? 0, brazo: franja?.brazo ?? 0 },
+      cpRef: "Art. 2.4.4 — cara inferior de voladizos de cubierta a barlovento",
+    });
+  }
+
   return { dir, geo: g, L, B, hL, qh, GCpi, GCpiTabla, ri: ri ?? null,
+    // El aporte del voladizo al área de cubierta y a su brazo, para las resultantes.
+    // `h` NO cambia: la altura media se mide sobre la línea de pared.
+    voladizo: g.voladizo?.hay ? aporteDeVoladizo(g, g.voladizo, dir) : null,
     G, modoG, cerramiento, sitio, fachadas: fach,
     // `perfil` en la raíz son los PUNTOS, que es lo que consumen el croquis y la tabla de
     // cotas. Los tramos con extensión viven dentro de la superficie.

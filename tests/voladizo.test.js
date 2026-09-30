@@ -17,7 +17,9 @@ import {
   BORDES, normalizarVoladizo, gruposDe, plantaDeCubierta, vueloABarlovento,
   aporteDeVoladizo,
 } from '../src/engine/voladizo.js';
-import { normalizarGeo, DIRECCIONES } from '../src/engine/edificio.js';
+import { normalizarGeo, DIRECCIONES, analizarDireccion } from '../src/engine/edificio.js';
+import { aporteCubierta } from '../src/engine/resultantes.js';
+import { CP_VOLADIZO_INFERIOR } from '../src/constants/presionesExternas.js';
 import { analizarCyR } from '../src/engine/cyrPresiones.js';
 import { UBICACION } from '../src/constants/cyrCurvas.js';
 import { geometria } from '../src/lib/memoriaCapitulos.js';
@@ -87,6 +89,21 @@ describe('normalizarVoladizo', () => {
     const v = normalizarVoladizo({ modo: "porLado", porBorde: { "+X": "-3" } }, geo);
     expect(v.porBorde["+X"]).toBe(0);
     expect(v.hay).toBe(false);
+  });
+
+  it('⚠ NORMALIZAR DOS VECES DA LO MISMO', () => {
+    // `normalizarGeo` se llama sobre una geometría YA normalizada en más de un camino:
+    // `analizarDireccion` lo hace con lo que recibe, venga del formulario o de otro
+    // análisis. Un voladizo ya normalizado trae `grupos` como ARREGLO y no como objeto
+    // por id; leyéndolo como objeto, los cuatro vuelos se iban a cero y el voladizo
+    // desaparecía en silencio: el edificio se calculaba sin él y nada lo decía.
+    const una = normalizarGeo({ a: "20", b: "30", hAlero: "6", theta: "15",
+      tipo: "dos_aguas", cumbrera: "X",
+      voladizo: { modo: "simetrico", grupos: { aleros: "1", hastiales: "0.5" } } });
+    const dos = normalizarGeo(una);
+    expect(dos.voladizo.porBorde).toEqual(una.voladizo.porBorde);
+    expect(dos.voladizo.hay).toBe(true);
+    expect(normalizarGeo(dos).voladizo.porBorde).toEqual(una.voladizo.porBorde);
   });
 
   it('acepta la coma decimal, como todos los campos del formulario', () => {
@@ -335,5 +352,151 @@ describe('El voladizo queda escrito en la memoria y en la traza', () => {
     const an = analizar(geoN);
     expect(an.voladizo.hay).toBe(true);
     expect(an.voladizo.pared).toEqual({ x: 0.5, y: 1, ancho: 20, largo: 30 });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CAPÍTULO 2 — ART. 2.4.4
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const SITIO = { exposicion: "C", V: 45, altitud: 0, kd: 0.85, Kzt: 1, puntosPerfil: 10 };
+const CERR = { gcpi: 0.18, RiAplicado: 1 };
+const dirDe = (id) => DIRECCIONES.find(d => d.id === id);
+/** El análisis del capítulo 2 en una dirección. `analizar` ya es el del capítulo 5. */
+const cap2 = (geo, dir = dirDe("Wx+")) => analizarDireccion(
+  { geo, sitio: SITIO, cerramiento: CERR, G: 0.85, modoG: "defecto" }, dir);
+
+describe('Art. 2.4.4 — la cara inferior del voladizo a barlovento', () => {
+  const base = { a: "20", b: "30", hAlero: "6", theta: "0", tipo: "plana", cumbrera: "X" };
+  const conVueloX = conVuelo(base,
+    { modo: "porLado", porBorde: { "-X": "1.2", "+X": "0.8", "-Y": "0", "+Y": "0" } });
+
+  it('aparece como superficie propia, con C_p = +0,8', () => {
+    const r = cap2(conVueloX);
+    const inf = r.superficies.find(s => s.id === "voladizo_inferior");
+    expect(inf).toBeTruthy();
+    expect(inf.cp).toBe(CP_VOLADIZO_INFERIOR);
+    expect(inf.cp).toBe(0.8);
+    expect(inf.cpRef).toMatch(/2\.4\.4/);
+  });
+
+  it('usa q_h, la misma que la cara superior de cubierta', () => {
+    // El artículo no lo dice: lo definió el proyectista. En cubierta inclinada es además
+    // lo conservador, porque h > h_alero.
+    const r = cap2(conVueloX);
+    const inf = r.superficies.find(s => s.id === "voladizo_inferior");
+    expect(inf.usar).toBe("qh");
+    expect(inf.q).toBe(r.qh);
+  });
+
+  it('el factor de ráfaga multiplica, como en toda la Fig. 2.4-1', () => {
+    // Si las dos caras se suman, tienen que estar en las mismas unidades.
+    const r = cap2(conVueloX);
+    const inf = r.superficies.find(s => s.id === "voladizo_inferior");
+    expect(inf.externa).toBeCloseTo(r.qh * r.G * 0.8, 6);
+  });
+
+  it('⚠ SÓLO EN EL BORDE A BARLOVENTO, y cuál es depende de la dirección', () => {
+    // Con viento según +X la cara que el viento golpea primero es la que mira a −X, que
+    // acá tiene 1,2 m de vuelo. Con viento según −X, el de barlovento es el de +X.
+    const wxp = cap2(conVueloX, dirDe("Wx+"));
+    expect(wxp.superficies.find(s => s.id === "voladizo_inferior").voladizo.vuelo).toBe(1.2);
+    const wxn = cap2(conVueloX, dirDe("Wx-"));
+    expect(wxn.superficies.find(s => s.id === "voladizo_inferior").voladizo.vuelo).toBe(0.8);
+  });
+
+  it('sobre el eje sin vuelo NO aparece la superficie', () => {
+    // Agregarla con área cero llenaría la tabla de resultados de renglones en cero.
+    const wyp = cap2(conVueloX, dirDe("Wy+"));
+    expect(wyp.superficies.find(s => s.id === "voladizo_inferior")).toBeUndefined();
+  });
+
+  it('⚠ LA CARA INFERIOR NO ES UNA SUPERFICIE DE CUBIERTA', () => {
+    // Media docena de consumidores filtran por `tipo === "cubierta"` para quedarse con
+    // los faldones: la integración de las resultantes, el croquis de elevación, la vista
+    // 3D y la exportación. Con el tipo de cubierta, la cara inferior entraba en el reparto
+    // de franjas como si fuera un faldón que cubre toda la planta —640 m² donde el
+    // voladizo tiene 32— y daba vuelta el signo del levantamiento.
+    const r = cap2(conVueloX);
+    expect(r.superficies.find(s => s.id === "voladizo_inferior").tipo).toBe("voladizo");
+    const cubiertas = r.superficies.filter(s => s.tipo === "cubierta");
+    expect(cubiertas.some(s => s.id === "voladizo_inferior")).toBe(false);
+  });
+
+  it('sin voladizo declarado no existe', () => {
+    const r = cap2(normalizarGeo(base));
+    expect(r.superficies.find(s => s.id === "voladizo_inferior")).toBeUndefined();
+    expect(r.voladizo).toBeNull();
+  });
+});
+
+describe('El voladizo en las resultantes: más levantamiento y más vuelco', () => {
+  const base = { a: "20", b: "30", hAlero: "6", theta: "0", tipo: "plana", cumbrera: "X" };
+  const sin = cap2(normalizarGeo(base));
+  const con = cap2(conVuelo(base, { modo: "simetrico", grupos: { perimetral: "1" } }));
+
+  it('el área de cubierta crece con el anillo del vuelo', () => {
+    const a = (r) => aporteCubierta({ analisis: r }).partes
+      .filter(p => !p.caraInferior).reduce((t, p) => t + p.areaProy, 0);
+    // Anillo de 1 m alrededor de 20 × 30: 704 − 600 = 104 m².
+    expect(a(con) - a(sin)).toBeCloseTo(104, 6);
+  });
+
+  it('el levantamiento crece, y crece MÁS que en proporción al área', () => {
+    // ⚠ Es el punto del artículo. La cara superior del voladizo succiona como el resto de
+    // la cubierta, y ADEMÁS la inferior del de barlovento recibe presión positiva que
+    // empuja hacia arriba. Si el signo de esa cara estuviera al revés, el levantamiento
+    // crecería MENOS que el área y este test lo diría.
+    const V = (r) => aporteCubierta({ analisis: r }).V;
+    expect(V(con)).toBeGreaterThan(V(sin));
+    const areaSin = aporteCubierta({ analisis: sin }).partes
+      .reduce((t, p) => t + p.areaProy, 0);
+    expect(V(con) / V(sin)).toBeGreaterThan((areaSin + 104) / areaSin);
+  });
+
+  it('la cara inferior entra con el signo que LEVANTA', () => {
+    const r = aporteCubierta({ analisis: con });
+    const inf = r.partes.find(p => p.caraInferior);
+    expect(inf).toBeTruthy();
+    expect(inf.p).toBeGreaterThan(0);        // presión positiva: empuja la cara de abajo
+    expect(inf.vertical).toBeGreaterThan(0); // y el aporte vertical levanta
+  });
+
+  it('la cara inferior NO aporta corte', () => {
+    // Es una fuerza normal a una superficie casi horizontal; su componente horizontal ya
+    // está contada en la cara de arriba a través de la pendiente.
+    const r = aporteCubierta({ analisis: con });
+    expect(r.partes.find(p => p.caraInferior).horizontal).toBe(0);
+  });
+
+  it('⚠ EL BRAZO DEL VOLADIZO CAE FUERA DE LA LÍNEA DE PARED', () => {
+    // Es lo que hace que un metro cuadrado de cubierta afuera aporte más al vuelco que el
+    // mismo metro cuadrado adentro. La franja de barlovento va de −1 a 0.
+    const r = aporteCubierta({ analisis: con });
+    const bar = r.partes.find(p => p.desde < 0 && !p.caraInferior);
+    expect(bar).toBeTruthy();
+    expect(bar.desde).toBe(-1);
+    expect(bar.hasta).toBe(0);
+    const sot = r.partes.find(p => p.hasta > con.L);
+    expect(sot.desde).toBe(con.L);
+  });
+
+  it('el punto de aplicación se corre hacia barlovento', () => {
+    // El voladizo de barlovento suma su propia cara inferior, que el de sotavento no
+    // tiene: el centro de la resultante vertical se corre hacia el viento.
+    const xSin = aporteCubierta({ analisis: sin }).xV;
+    const xCon = aporteCubierta({ analisis: con }).xV;
+    expect(xCon).toBeLessThan(xSin);
+  });
+
+  it('los vuelos laterales ensanchan las franjas, no agregan una parte suelta', () => {
+    // Una franja de cubierta con vuelo lateral mide B más los dos vuelos: partirla en
+    // tres duplicaría los rótulos y no cambiaría un número.
+    const soloLat = cap2(conVuelo(base,
+      { modo: "porLado", porBorde: { "-X": "0", "+X": "0", "-Y": "1", "+Y": "1" } }));
+    const r = aporteCubierta({ analisis: soloLat });
+    expect(r.partes.every(p => p.desde >= 0 && p.hasta <= soloLat.L + 1e-9)).toBe(true);
+    const anchoEfectivo = r.partes[0].areaProy / (r.partes[0].hasta - r.partes[0].desde);
+    expect(anchoEfectivo).toBeCloseTo(soloLat.B + 2, 6);
   });
 });

@@ -89,8 +89,24 @@ export const FACTOR_AREA = [[10, 1.0], [25, 0.9], [100, 0.8]];
 // Nota # de la figura: por encima de 80° de pendiente la cubierta se comporta como pared.
 export const CP_PENDIENTE_EXTREMA = { desde: 80, cp: 0.8 };
 
-// Voladizos de cubierta (art. 2.4.4): la cara INFERIOR a barlovento recibe presión positiva
-// y se combina con la de la cara superior sacada de esta figura.
+// ── CARA INFERIOR DE UN VOLADIZO A BARLOVENTO — art. 2.4.4 ───────────────────────
+//
+// El artículo completo es UNA sola oración, y conviene tenerla a la vista porque lo que
+// NO dice es tanto como lo que dice:
+//
+//   «La presión externa positiva en la superficie inferior de voladizos de cubierta a
+//    barlovento se debe calcular usando C_p = +0,8 y combinada con las presiones en la
+//    superficie superior calculadas usando la Figura 2.4-1.»
+//
+// No tiene comentario —C 2.4.4 no existe— y las siete notas de la Fig. 2.4-1 no mencionan
+// voladizos. Quedan sin escribir la presión dinámica de la cara inferior, la zonificación
+// y si el factor de ráfaga multiplica; las tres las definió el proyectista y están
+// anotadas donde se aplican, en `engine/edificio.js`.
+//
+// El valor coincide con el de la pared a barlovento, y no es casualidad: es el mismo flujo
+// que empuja contra la pared el que entra por debajo del voladizo —el comentario C 5.9 lo
+// dice al pasar—. Se guardan separados igual: son dos superficies distintas, y el día que
+// el reglamento cambie una, la otra no tiene por qué moverse.
 export const CP_VOLADIZO_INFERIOR = 0.8;
 
 // Parapetos (art. 2.4.5): presión NETA combinada de las dos caras, no se separan.

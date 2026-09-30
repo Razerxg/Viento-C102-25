@@ -87,6 +87,57 @@ export function aporteParedes({ analisis }) {
 const rad2 = (g) => g * Math.PI / 180;
 
 /**
+ * Las partes de cubierta, con el VOLADIZO sumado.
+ *
+ * ── QUÉ AGREGA UN VOLADIZO, Y CON QUÉ CRITERIO ──────────────────────────────────
+ * El voladizo es la misma cubierta que sigue de largo, así que recibe la misma presión
+ * externa que el trozo de techo al que prolonga. Tres aportes:
+ *
+ *   · los VUELOS LATERALES —los paralelos al viento— ensanchan todas las partes: la
+ *     franja que medía B ahora mide B más los dos vuelos;
+ *   · el vuelo a BARLOVENTO agrega una franja por fuera de la línea de pared, con la
+ *     presión de la parte más a barlovento;
+ *   · el de SOTAVENTO, otra del lado opuesto, con la presión de la parte más a sotavento.
+ *
+ * ⚠ LA ZONIFICACIÓN DE LA FIG. 2.4-1 SE PROLONGA HACIA AFUERA, Y ESO ES UNA DECISIÓN.
+ * El art. 2.4.4 no dice si las franjas se miden desde el borde de la cubierta o desde la
+ * línea de pared. Se adopta prolongar la primera y la última franja sobre su voladizo, que
+ * es lo que hace el capítulo 5 con su nota 7 —«la distancia al borde se medirá desde el
+ * borde exterior del voladizo»— y lo único que no deja un pedazo de techo sin coeficiente.
+ *
+ * Y el brazo: cada franja conserva su `desde`/`hasta`, así que la del voladizo a
+ * barlovento va de `−vuelo` a `0`. Queda FUERA de la línea de pared, que es exactamente lo
+ * que hace que aporte más al vuelco que el mismo metro cuadrado adentro.
+ *
+ * Aparte va la CARA INFERIOR del voladizo a barlovento, que es una superficie propia
+ * —art. 2.4.4— y no una prolongación de nada.
+ */
+function conVoladizo(analisis, partes) {
+  const vol = analisis.geo?.voladizo;
+  if (!vol?.hay || !partes.length) return partes;
+  const { dir, B, L } = analisis;
+  const bar = `${dir.signo > 0 ? "-" : "+"}${dir.eje}`;
+  const sot = `${dir.signo > 0 ? "+" : "-"}${dir.eje}`;
+  const lat = ["+X", "-X", "+Y", "-Y"].filter(b => !b.endsWith(dir.eje));
+  const vBar = vol.porBorde[bar], vSot = vol.porBorde[sot];
+  const ancho = B + lat.reduce((t, b) => t + vol.porBorde[b], 0);
+
+  const conAncho = partes.map(p => ({ ...p, ancho }));
+  const primera = conAncho[0], ultima = conAncho[conAncho.length - 1];
+  const extra = [];
+  if (vBar > 1e-9) {
+    extra.push({ ...primera, desde: -vBar, hasta: 0, voladizo: "barlovento" });
+    const inf = analisis.superficies.find(o => o.id === "voladizo_inferior");
+    if (inf) {
+      extra.push({ s: inf, desde: -vBar, hasta: 0, sentido: 0, ancho,
+        caraInferior: true, voladizo: "barlovento — cara inferior" });
+    }
+  }
+  if (vSot > 1e-9) extra.push({ ...ultima, desde: L, hasta: L + vSot, voladizo: "sotavento" });
+  return [...conAncho, ...extra];
+}
+
+/**
  * Las partes de cubierta que ve esta dirección, con su extensión en planta.
  *
  * `desde` y `hasta` se miden DESDE EL BORDE DE BARLOVENTO, en metros. Se usan para el
@@ -178,9 +229,10 @@ export function aporteCubierta({ analisis, casoNota3 = "negativo",
   let V = 0, H = 0, Mv = 0;   // Mv = momento estático de V en planta, para el brazo
   const partes = [];
 
-  for (const { s, desde, hasta, sentido, factorH = 1 } of partesCubierta(analisis, casoNota3)) {
+  for (const { s, desde, hasta, sentido, factorH = 1, ancho = B, caraInferior = false }
+    of conVoladizo(analisis, partesCubierta(analisis, casoNota3))) {
     if (!s || !(hasta > desde)) continue;
-    const areaProy = (hasta - desde) * B;
+    const areaProy = (hasta - desde) * ancho;
     // El área que empuja EN LA DIRECCIÓN DEL VIENTO puede ser menor que la proyectada:
     // en cuatro aguas los triángulos de punta inclinan transversalmente. Para el
     // levantamiento vale la proyectada entera.
@@ -198,12 +250,21 @@ export function aporteCubierta({ analisis, casoNota3 = "negativo",
     // RESULTANTE GLOBAL, no la carga local.
     const pInt = pisoSolidario ? s.externa : s[casoInterno];
     const pExt = s.externa;               // corte: sólo externa
-    const v = -pInt * areaProy;           // p negativa (succión) ⇒ V positivo = levanta
-    const h = sentido * pExt * tan * areaH;
+    // ⚠ LA CARA INFERIOR DE UN VOLADIZO LLEVA EL SIGNO AL REVÉS. En la cara superior una
+    // presión negativa —succión— levanta; en la inferior, una presión POSITIVA empuja
+    // hacia arriba. Sin el cambio de signo, el C_p = +0,8 del art. 2.4.4 restaría del
+    // levantamiento en vez de sumarle, que es justo lo contrario de lo que pasa.
+    //
+    // Y no aporta CORTE: es una fuerza normal a una superficie casi horizontal, igual que
+    // la succión de la cubierta, y su componente horizontal ya está contada en la cara de
+    // arriba a través de la pendiente.
+    const v = (caraInferior ? +1 : -1) * pInt * areaProy;
+    const h = caraInferior ? 0 : sentido * pExt * tan * areaH;
     V += v; H += h;
     Mv += v * (desde + hasta) / 2;
     partes.push({ id: s.id, nombre: s.nombre, cp: s.cp, p: pInt, externa: pExt,
-      desde, hasta, areaProy, areaH, factorH, vertical: v, horizontal: h, sentido });
+      desde, hasta, areaProy, areaH, factorH, vertical: v, horizontal: h, sentido,
+      ...(caraInferior ? { caraInferior: true } : {}) });
   }
   // Punto de aplicación de la resultante vertical, medido desde el borde de barlovento.
   // Sin resultante no hay punto de aplicación: `null` y no un 0 que parezca una cota.

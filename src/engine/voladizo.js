@@ -89,6 +89,20 @@ export function normalizarVoladizo(v, geo) {
   /** @type {Record<string, number>} */
   const porBorde = { "+X": 0, "-X": 0, "+Y": 0, "-Y": 0 };
 
+  // ⚠ NORMALIZAR DOS VECES TIENE QUE DAR LO MISMO. `normalizarGeo` se llama sobre una
+  // geometría YA normalizada en más de un camino —`analizarDireccion` lo hace con lo que
+  // recibe, venga del formulario o de otro análisis—, y un voladizo ya normalizado trae
+  // `grupos` como ARREGLO, no como objeto por id. Leyéndolo como objeto daba `undefined`
+  // en cada grupo y los cuatro vuelos se iban a cero: el voladizo desaparecía en silencio
+  // y el edificio se calculaba sin él.
+  if (Array.isArray(v?.grupos) && v?.porBorde) {
+    for (const b of BORDES) porBorde[b] = Math.max(0, num(v.porBorde[b]));
+    return {
+      hay: BORDES.some(b => porBorde[b] > 1e-9), modo, porBorde,
+      grupos: grupos.map(g => ({ ...g, vuelo: porBorde[g.bordes[0]] })),
+    };
+  }
+
   if (modo === "porLado") {
     for (const b of BORDES) porBorde[b] = Math.max(0, num(v?.porBorde?.[b]));
   } else {
