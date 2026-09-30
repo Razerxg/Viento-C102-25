@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   P_MINIMA, PARAPETO_MINIMO, FIGURAS_CON_NOTA_PARAPETO, FORMA_DE_TIPO,
-  gcpDeZona, presionDeZona, verificarElemento, analizarCyR,
+  gcpDeZona, presionDeZona, verificarElemento, analizarCyR, presionesPorZona,
 } from '../src/engine/cyrPresiones.js';
 import { FORMA, figuraCubierta } from '../src/engine/cyrFiguras.js';
 import { normalizarGeo } from '../src/engine/edificio.js';
@@ -350,5 +350,69 @@ describe('analizarCyR — de la geometría del proyecto a los elementos verifica
       plana: FORMA.PLANA, dos_aguas: FORMA.DOS_AGUAS,
       cuatro_aguas: FORMA.CUATRO_AGUAS, vertiente_unica: FORMA.VERTIENTE_UNICA,
     });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+describe('presionesPorZona — lo que pinta el croquis 3D', () => {
+  const geo = normalizarGeo({ a: "20", b: "30", hAlero: "6", theta: "15",
+    tipo: "dos_aguas", cumbrera: "X" });
+  const base = {
+    geo, V: 45, exposicion: "C", altitud: 0, kd: 0.85, kztDe: () => [1], gcpi: 0.18,
+    elementos: [{ id: "e1", nombre: "Correa", tipo: "correa", superficie: "cubierta",
+      L: 6, s: 1.5 }],
+  };
+
+  it('⚠ DA LOS MISMOS NÚMEROS QUE EL ELEMENTO, PARA LA MISMA ÁREA', () => {
+    // Es lo único que impide que el color del volumen y el número de la tabla se separen. El
+    // croquis 3D no lee las zonas del elemento —necesita también las de pared y las de
+    // voladizo, que ese elemento no tiene— así que vuelve a entrar al motor con su área; si
+    // ese camino diera algo distinto, el croquis estaría pintando otra cosa que la tabla.
+    const r = analizarCyR(base);
+    const el = r.elementos[0];
+    const porZona = presionesPorZona(r.ctx, { A: el.area.A });
+    for (const z of el.zonas) {
+      expect(porZona.cubierta[z.zona].pPos, `zona ${z.zona}`).toBeCloseTo(z.pPos, 9);
+      expect(porZona.cubierta[z.zona].pNeg, `zona ${z.zona}`).toBeCloseTo(z.pNeg, 9);
+    }
+  });
+
+  it('trae las tres ubicaciones: cubierta, pared y voladizo', () => {
+    const r = analizarCyR(base);
+    const p = presionesPorZona(r.ctx, { A: 10 });
+    expect(Object.keys(p.pared).sort()).toEqual(["4", "5"]);
+    expect(Object.keys(p.cubierta).length).toBeGreaterThan(0);
+    // El voladizo existe para las MISMAS zonas de cubierta: una zona que existe sobre el
+    // recinto existe también sobre el vuelo que la prolonga.
+    expect(Object.keys(p.voladizo).sort()).toEqual(Object.keys(p.cubierta).sort());
+  });
+
+  it('⚠ EL VOLADIZO SIEMPRE QUEDA MÁS EXIGIDO QUE LA CUBIERTA, EN LOS DOS SENTIDOS', () => {
+    // El art. 5.7 compone las dos caras y las dos contribuciones suman en MAGNITUD: el viento
+    // que empuja contra la pared entra por debajo del voladizo y lo levanta, no lo sujeta. Si
+    // algún día esto se invierte, alguien sumó con el signo al revés.
+    const r = analizarCyR(base);
+    const p = presionesPorZona(r.ctx, { A: 5 });
+    for (const zona of Object.keys(p.cubierta)) {
+      expect(p.voladizo[zona].pNeg, `zona ${zona}`).toBeLessThanOrEqual(p.cubierta[zona].pNeg);
+      expect(p.voladizo[zona].pPos, `zona ${zona}`).toBeGreaterThanOrEqual(p.cubierta[zona].pPos);
+    }
+  });
+
+  it('el (GC_pi) = 0 del art. 5.7 llega por `volumenInterno: false`', () => {
+    const r = analizarCyR(base);
+    const con = presionesPorZona(r.ctx, { A: 5 });
+    const sin = presionesPorZona(r.ctx, { A: 5, volumenInterno: false });
+    const zona = Object.keys(con.voladizo)[0];
+    // Sin presión interna la succión es MENOR en magnitud: es el término que se deja de sumar.
+    expect(sin.voladizo[zona].pNeg).toBeGreaterThan(con.voladizo[zona].pNeg);
+    // Y la cubierta sobre el recinto no se toca: la declaración es del voladizo.
+    expect(sin.cubierta[zona].pNeg).toBeCloseTo(con.cubierta[zona].pNeg, 9);
+  });
+
+  it('sin área no inventa nada', () => {
+    const r = analizarCyR(base);
+    const p = presionesPorZona(r.ctx, { A: 0 });
+    expect(p).toEqual({ cubierta: {}, pared: {}, voladizo: {} });
   });
 });

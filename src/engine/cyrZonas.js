@@ -488,6 +488,34 @@ export function regionesDe(geo) {
   // Los layouts rectangulares se resuelven con una grilla de celdas: dentro de cada celda
   // las distancias a los bordes no cruzan ninguna frontera, así que la celda entera es de
   // una sola zona y alcanza con clasificar su centro.
+  const [cortesX, cortesY] = cortesDeLayout(geo);
+
+  /** @type {PiezaRect[]} */
+  const piezas = [];
+  for (let i = 1; i < cortesX.length; i++) {
+    for (let j = 1; j < cortesY.length; j++) {
+      const [x0, x1] = [cortesX[i - 1], cortesX[i]];
+      const [y0, y1] = [cortesY[j - 1], cortesY[j]];
+      if (x1 - x0 <= 0 || y1 - y0 <= 0) continue;
+      piezas.push({ tipo: "rect", zona: zonaEn((x0 + x1) / 2, (y0 + y1) / 2, geo),
+        x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+    }
+  }
+  return piezas;
+}
+
+/**
+ * Los cortes de los dos ejes para los layouts de frontera paralela a los ejes.
+ *
+ * Vive aparte porque lo usan `regionesDe` —que dibuja en 2D— y `celdasDeZona` —que recorta
+ * caras en 3D—, y con dos copias un día la planta y el volumen mostrarían zonas distintas
+ * para el mismo edificio.
+ *
+ * @param {GeoZonas} geo
+ * @returns {[number[], number[]]}
+ */
+function cortesDeLayout(geo) {
+  const { layout, bx, by, h, a } = geo;
   let cortesX, cortesY;
   if (layout === LAYOUT.UNA_AGUA_PRIMADA || layout === LAYOUT.UNA_AGUA) {
     // Las fronteras están a a, 2a y 4a de los bordes, y las DOS figuras usan distancias
@@ -514,19 +542,70 @@ export function regionesDe(geo) {
       : cortes(Lv, [a]);
     [cortesX, cortesY] = geo.ejeCumbrera === "Y" ? [enV, enU] : [enU, enV];
   }
+  return [cortesX, cortesY];
+}
 
-  /** @type {PiezaRect[]} */
-  const piezas = [];
+/**
+ * La planta partida en CELDAS DISJUNTAS, cada una de una sola zona. Para el 3D.
+ *
+ * ── POR QUÉ NO ALCANZA CON `regionesDe` ─────────────────────────────────────────
+ * `regionesDe` devuelve las piezas EN ORDEN DE PINTADO: en cuatro aguas la zona 1 es un
+ * rectángulo que cubre toda la planta y después queda tapado por la banda de cumbrera y por
+ * el perímetro. Eso sirve para dibujar en 2D, donde lo último que se pinta gana, y NO sirve
+ * para recortar caras en 3D: cada pedazo de faldón tiene que pertenecer a una zona y a una
+ * sola, o la misma superficie se dibujaría dos veces con dos colores.
+ *
+ * Acá las celdas son una partición: se clasifica el CENTRO de cada celda con `zonaEn`, que es
+ * la misma función que decide la zona de un punto en el resto del capítulo.
+ *
+ * ⚠ EN CUATRO AGUAS ES UN MUESTREO, y no por comodidad: la banda de cumbrera y limatesas es
+ * el conjunto de puntos a distancia ≤ a de segmentos a 45°, así que su frontera no es
+ * paralela a los ejes y ninguna grilla la reproduce exacto. Es la misma aproximación que ya
+ * declara `zonasPresentes`, y por el mismo motivo es aceptable: ESTE RESULTADO NO GOBIERNA EL
+ * CÁLCULO —los (GC_p) se dan para todas las zonas de la figura— sino el dibujo.
+ *
+ * @param {GeoZonas} geo
+ * @param {number} [pasoMinimo]  celdas por lado en los layouts que hay que muestrear
+ * @returns {{x0: number, x1: number, y0: number, y1: number, zona: string}[]}
+ */
+export function celdasDeZona(geo, pasoMinimo = 28) {
+  const { layout, bx, by, h, a } = geo;
+  if (layout === LAYOUT.PARED) {
+    throw new Error("celdasDeZona: las paredes se zonifican por su largo; usar `franjasDePared`");
+  }
+
+  let cortesX, cortesY;
+  if (layout === LAYOUT.CUATRO_AGUAS) {
+    // ⚠ EL PASO LO MANDA `a`, NO EL TAMAÑO DEL EDIFICIO. La banda de cumbrera y limatesas
+    // mide 2a de ancho; con celdas más gruesas que eso la banda puede caer entera adentro de
+    // una celda cuyo centro quede afuera y DESAPARECER del croquis, que es justo la zona más
+    // succionada de la cubierta. Con `a/2` quedan cuatro celdas cruzando la banda.
+    //
+    // El `pasoMinimo` es un piso de resolución para cuando `a` es grande —una planta chica
+    // frente a su altura— y el tope de 120 celdas por eje es el freno para el caso patológico
+    // de una planta muy alargada, donde el paso fino daría miles de celdas. Degradar la
+    // aproximación es preferible a colgar el dibujo, y `unirFilas` se lleva la mayoría.
+    const largo = Math.max(bx, by);
+    const paso = Math.max(Math.min(a / 2, largo / pasoMinimo), largo / 120);
+    const grilla = (L) => {
+      const n = Math.max(2, Math.ceil(L / paso));
+      return [...Array(n + 1)].map((_, i) => (L * i) / n);
+    };
+    cortesX = grilla(bx); cortesY = grilla(by);
+  } else {
+    [cortesX, cortesY] = cortesDeLayout(geo);
+  }
+
+  const celdas = [];
   for (let i = 1; i < cortesX.length; i++) {
     for (let j = 1; j < cortesY.length; j++) {
       const [x0, x1] = [cortesX[i - 1], cortesX[i]];
       const [y0, y1] = [cortesY[j - 1], cortesY[j]];
-      if (x1 - x0 <= 0 || y1 - y0 <= 0) continue;
-      piezas.push({ tipo: "rect", zona: zonaEn((x0 + x1) / 2, (y0 + y1) / 2, geo),
-        x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+      if (x1 - x0 <= 1e-9 || y1 - y0 <= 1e-9) continue;
+      celdas.push({ x0, x1, y0, y1, zona: zonaEn((x0 + x1) / 2, (y0 + y1) / 2, geo) });
     }
   }
-  return piezas;
+  return celdas;
 }
 
 /**

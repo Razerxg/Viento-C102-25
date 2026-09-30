@@ -16,11 +16,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   TXT, anchoTexto, anchoEnLienzo, ubicar, candidatosAlrededor, escalaComun, mkView,
-  escalaPorAncho, altoNecesario, ZOOMS,
+  escalaPorAncho, altoNecesario, ZOOM, useZoomCroquis,
 } from '../src/components/svg/kit.jsx';
 import { corto } from '../src/lib/formato.js';
 import { unidades, PERFILES } from '../src/lib/unidades.js';
-import { m, q, coef, EJE, cotaEje, pared } from '../src/components/svg/formatoCroquis.js';
+import { m, q, coef, EJE, cotaEje, cota, pared, ROTULOS,
+  ETIQUETA_ROTULOS } from '../src/components/svg/formatoCroquis.js';
 import { LAYOUT, rotulosDeRegion, zonaEn, zonasPresentes } from '../src/engine/cyrZonas.js';
 import { geometria } from '../src/lib/memoriaCapitulos.js';
 import { normalizarGeo } from '../src/engine/edificio.js';
@@ -85,9 +86,12 @@ describe('Las dimensiones de planta se llaman X e Y, nunca a ni b', () => {
     // en la misma figura: el proyectista leía «a = 7,50 m» al lado de «a = 1.000».
     expect(EJE.X).toBe("B_X");
     expect(EJE.Y).toBe("B_Y");
-    expect(cotaEje("X", 7.5)).toBe("B_X = 7,5");
-    expect(cotaEje("Y", 11)).toBe("B_Y = 11");
-    expect(cotaEje("X", 7.5)).not.toMatch(/^a /);
+    expect(cotaEje("X", 7.5, "ambos")).toBe("B_X = 7,5");
+    expect(cotaEje("Y", 11, "ambos")).toBe("B_Y = 11");
+    expect(cotaEje("X", 7.5, "ambos")).not.toMatch(/^a /);
+    // Y el defecto —símbolos— tampoco puede decir `a`.
+    expect(cotaEje("X", 7.5)).toBe("B_X");
+    expect(cotaEje("Y", 11)).toBe("B_Y");
   });
 
   it('una pared se nombra por la cara que mira', () => {
@@ -331,11 +335,62 @@ describe('escalaPorAncho — el dibujo llena la columna en vez de encogerse', ()
     expect(altoNecesario(v, conTope)).toBeLessThanOrEqual(900);
   });
 
-  it('los factores de zoom arrancan en 1 y llegan al 3', () => {
-    // El 1× tiene que ser el primero: es el que sale por defecto, y con la escala ya
-    // ajustada al ancho es el que la mayoría no va a necesitar cambiar.
-    expect(ZOOMS[0]).toBe(1);
-    expect(Math.max(...ZOOMS)).toBe(3);
-    expect([...ZOOMS].sort((a, b) => a - b)).toEqual(ZOOMS);
+  it('⚠ TODO CROQUIS SE DIBUJA A 1,5×, Y NO A 1', () => {
+    // Era un selector de cuatro pasos y quedó en un número: el 1× se ve chico y el 2× y el 3×
+    // obligan a desplazar el dibujo a lo ancho para leer una cota. Este test no está para
+    // custodiar el 1,5 —ese número se puede discutir— sino para que el factor no vuelva a 1
+    // por descuido: a 1× el croquis pierde un tercio de tamaño y nada lo avisa, porque sigue
+    // dibujándose bien.
+    expect(ZOOM).toBe(1.5);
+    expect(useZoomCroquis().zoom).toBe(ZOOM);
+  });
+
+  it('ya no hay nada que conmutar: el hook no devuelve un `setZoom`', () => {
+    // La barra del croquis esconde el control de escala cuando no le llega un `setZoom`, así
+    // que esto es lo que hace que los cuatro botones no aparezcan. Si algún día vuelve el
+    // selector, este test es el que hay que cambiar primero.
+    expect(useZoomCroquis().setZoom).toBeUndefined();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+describe('Simbología o medida: la misma cota, dos lecturas', () => {
+  // ⚠ ESTO CONMUTA LA REGLA 6, que pedía rotular las franjas con nombre Y largo en metros.
+  // Son dos usos legítimos del mismo croquis —comparar contra la figura de la norma, y pasar
+  // medidas al plano de correas— y por eso se elige en vez de reemplazar uno por el otro.
+  it('«simbolo» deja sólo la expresión del reglamento', () => {
+    expect(cota("2a", 1.5)).toBe("2a");
+    expect(cota("0,6h", 3.6, "simbolo")).toBe("0,6h");
+    expect(cota("h/2", 3, "simbolo")).toBe("h/2");
+  });
+
+  it('«medida» deja sólo el número, en metros y sin ceros sobrantes', () => {
+    expect(cota("2a", 1.5, "medida")).toBe("1,5");
+    expect(cota("B_X", 11, "medida")).toBe("11");
+  });
+
+  it('«ambos» escribe el símbolo, el igual y la medida', () => {
+    expect(cota("2a", 1.5, "ambos")).toBe("2a = 1,5");
+  });
+
+  it('⚠ SIN SÍMBOLO SE ESCRIBE LA MEDIDA, o la cota quedaría muda', () => {
+    // Pasa en las cotas que la norma no nombra: el largo de un tramo de q(z), el ancho de
+    // una franja de pared. En modo «símbolos» un `simbolo` vacío dejaría la cota en blanco y
+    // el croquis perdería una medida sin que nada lo avise.
+    expect(cota("", 2.5, "simbolo")).toBe("2,5");
+    expect(cota(null, 2.5, "simbolo")).toBe("2,5");
+  });
+
+  it('⚠ SIN MEDIDA SE ESCRIBE EL SÍMBOLO, incluso en modo «medida»', () => {
+    // Es el caso «—» de `cotasDeZona`: las zonas que son «el resto» no tienen un ancho que
+    // acotar. En modo «medida» devolver «—» sería peor que el símbolo.
+    expect(cota("—", null, "medida")).toBe("—");
+    expect(cota("2a", NaN, "ambos")).toBe("2a");
+  });
+
+  it('los tres modos están declarados y el defecto es el símbolo', () => {
+    expect(ROTULOS).toEqual(["simbolo", "medida", "ambos"]);
+    for (const modo of ROTULOS) expect(ETIQUETA_ROTULOS[modo]).toBeTruthy();
+    expect(cota("a", 1)).toBe(cota("a", 1, "simbolo"));
   });
 });

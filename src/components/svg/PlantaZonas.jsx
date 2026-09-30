@@ -12,7 +12,7 @@
 // tiempo de render.
 import { mkView, Dim, Rotulo, Lienzo, Flecha, LeyendaPresion, TXT } from './kit.jsx';
 import { colorPresion, tramosLeyenda } from '../../lib/escalaPresion.js';
-import { q as fq, m as fm, coef, cotaEje } from './formatoCroquis.js';
+import { q as fq, m as fm, coef, EJE } from './formatoCroquis.js';
 import { c as tok } from '../tokens.js';
 
 const ESP = 10;          // espesor de la banda coloreada, en px
@@ -118,13 +118,13 @@ export function PlantaZonas({ analisis, maxAbs, tema = "claro", ancho = 620, alt
       {/* ⚠ «B_X» Y «B_Y», NO «a» Y «b». En el capítulo 5 `a` es el ANCHO DE ZONA, que se
           acota en el croquis de al lado: dos magnitudes distintas bajo la misma letra en
           la misma pantalla. La Fig. 2.4-8 del reglamento las llama B_X y B_Y. */}
-      <Dim x1={v.x(0)} y1={Y(0)} x2={v.x(a)} y2={Y(0)} texto={cotaEje("X", a)}
+      <Dim x1={v.x(0)} y1={Y(0)} x2={v.x(a)} y2={Y(0)} simbolo={EJE.X} valor={a}
         desplaz={SEP + 74} color={ink} />
       {/* ⚠ LA COTA DE `b` VA MÁS AFUERA QUE EL RÓTULO DE LA CARA IZQUIERDA. Su etiqueta
           lleva fondo opaco y se dibuja DESPUÉS de los rótulos, así que con la separación
           anterior tapaba la primera letra de «Barlovento» —se leía «arlovento»—. El número
           tiene que salir del ancho que ocupa el rótulo más largo, no de un valor a ojo. */}
-      <Dim x1={v.x(0)} y1={Y(0)} x2={v.x(0)} y2={Y(b)} texto={cotaEje("Y", b)}
+      <Dim x1={v.x(0)} y1={Y(0)} x2={v.x(0)} y2={Y(b)} simbolo={EJE.Y} valor={b}
         desplaz={-(SEP + 150)} color={ink} />
 
       <LeyendaPresion x={ancho / 2 - 90} y={alto - 34} ancho={180}

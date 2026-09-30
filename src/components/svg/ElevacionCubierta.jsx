@@ -11,21 +11,8 @@
 import { mkView, Dim, CadenaDeCotas, Rotulo, Lienzo, LeyendaPresion, TXT } from './kit.jsx';
 import { colorPresion, tramosLeyenda } from '../../lib/escalaPresion.js';
 import { tipoDe } from '../../constants/cubiertas.js';
-import { q as fq, m as fm, coef } from './formatoCroquis.js';
+import { q as fq, m as fm, coef, nombreFranja } from './formatoCroquis.js';
 import { c as tok } from '../tokens.js';
-
-// ── CÓMO SE NOMBRA UNA FRANJA ───────────────────────────────────────────────────
-// ⚠ «0.50h» NO ES UN NOMBRE DE FRANJA, es el largo de un tramo escrito con punto decimal.
-// El reglamento zonifica la cubierta en «0 a h/2», «h/2 a h», «h a 2h» y «más de 2h»: ése
-// es el nombre, y el largo en metros va al lado, que es el número que se lleva al plano.
-const enH = (v) => {
-  if (Math.abs(v) < 1e-9) return "0";
-  if (Math.abs(v - 0.5) < 1e-9) return "h/2";
-  if (Math.abs(v - 1) < 1e-9) return "h";
-  return `${coef(v, 2)}h`;
-};
-const nombreFranja = (desde, hasta, tope) =>
-  (hasta >= tope - 1e-9 ? `más de ${enH(desde)}` : `${enH(desde)} a ${enH(hasta)}`);
 
 /**
  * Franjas CONSECUTIVAS con el mismo valor, en una sola.
@@ -167,8 +154,8 @@ export function ElevacionCubierta({ analisis, maxAbs, tema = "claro", ancho = 62
               alcanza para dos. */}
           <CadenaDeCotas eje="x" fijo={Y(0)} al={v.x} desplaz={22}
             cortes={[franjas[0]?.x0 ?? 0, ...franjas.map(f => f.x1)]}
-            textos={franjas.map(f =>
-              `${nombreFranja(f.desde, f.hasta, tope)} = ${fm(f.x1 - f.x0)}`)}
+            simbolos={franjas.map(f => ({
+              simbolo: nombreFranja(f.desde, f.hasta, tope), valor: f.x1 - f.x0 }))}
             color={ink} />
         </>;
       })()}
@@ -178,14 +165,14 @@ export function ElevacionCubierta({ analisis, maxAbs, tema = "claro", ancho = 62
           franja mide h/2 contra 100 m de luz: su rótulo cae pegado al borde izquierdo y
           con 24 px la cota del alero quedaba debajo. */}
       <Dim x1={v.x(0)} y1={Y(0)} x2={v.x(0)} y2={Y(geo.hAlero)}
-        texto={`alero ${fm(geo.hAlero)}`} desplaz={-44} color={ink} />
+        simbolo="h_alero" valor={geo.hAlero} desplaz={-44} color={ink} />
       {zTope > geo.hAlero + 1e-9 && (
         // La cota de cumbrera se va más afuera que el rótulo de presión del faldón de
         // sotavento: en cuatro aguas ese rótulo llega hasta el borde derecho del dibujo.
         <Dim x1={v.x(L * 1.06)} y1={Y(0)} x2={v.x(L * 1.06)} y2={Y(zTope)}
-          texto={`cumbrera ${fm(zTope)}`} desplaz={46} color={ink} />
+          simbolo="h_cumbrera" valor={zTope} desplaz={46} color={ink} />
       )}
-      <Dim x1={v.x(0)} y1={Y(0)} x2={v.x(L)} y2={Y(0)} texto={`L = ${fm(L)}`}
+      <Dim x1={v.x(0)} y1={Y(0)} x2={v.x(L)} y2={Y(0)} simbolo="L" valor={L}
         desplaz={modo === "franjas" ? 78 : 24} color={ink} />
       {/* ⚠ SE RECORTA AL LIENZO. El pie colgaba a 100 px de la base del edificio para
           dejar lugar a la cadena de cotas, y en una torre —donde el edificio es más alto

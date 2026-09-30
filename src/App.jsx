@@ -10,9 +10,10 @@
 // jerarquía y sin forma de volver a nada. Mirar un croquis y su tabla de cargas obligaba a
 // scrollear tres pantallas entre uno y otro.
 import { ProyectoProvider, useProyecto } from "./context/ProyectoContext.jsx";
-import { UiProvider } from "./context/UiContext.jsx";
+import { UiProvider, useUi } from "./context/UiContext.jsx";
 import { EstilosGlobales } from "./components/EstilosGlobales.jsx";
 import { ProveedorToast, Aviso, Boton } from "./components/ui.jsx";
+import { RotulosProvider } from "./components/svg/kit.jsx";
 import { BarraSuperior } from "./components/shell/BarraSuperior.jsx";
 import { Sidebar } from "./components/shell/Sidebar.jsx";
 import { FichaEstado } from "./components/shell/FichaEstado.jsx";
@@ -104,13 +105,26 @@ function Shell() {
   );
 }
 
+/**
+ * El modo de rotulación de los croquis, del contexto de interfaz al de dibujo.
+ *
+ * ⚠ ES UN PUENTE Y NO UN PROVIDER MÁS. `kit.jsx` no importa `UiContext` a propósito: es la
+ * capa de primitivas de dibujo y tiene que poder renderizarse sola en los tests. Acá se
+ * juntan las dos puntas, en un solo lugar, para que ningún croquis tenga que saber de dónde
+ * sale el modo.
+ */
+function ConRotulos({ children }) {
+  const { rotulos } = useUi();
+  return <RotulosProvider modo={rotulos}>{children}</RotulosProvider>;
+}
+
 export function App() {
   return (
     <UiProvider>
       <ProyectoProvider>
         <ProveedorToast>
           <EstilosGlobales />
-          <Shell />
+          <ConRotulos><Shell /></ConRotulos>
         </ProveedorToast>
       </ProyectoProvider>
     </UiProvider>

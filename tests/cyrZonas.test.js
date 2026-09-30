@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   LAYOUT, LAYOUT_DE_FIGURA, dimensionA, zonaEn, zonaEnPared, zonasPresentes,
-  regionesDe, franjasDePared, cotasDeZona, puntosDeRotulo,
+  regionesDe, franjasDePared, cotasDeZona, puntosDeRotulo, celdasDeZona,
 } from '../src/engine/cyrZonas.js';
 import { FIGURAS_LISTA } from '../src/constants/cyrCurvas.js';
 
@@ -676,5 +676,90 @@ describe('puntosDeRotulo — dónde va el número de cada zona', () => {
         expect(d, `${geo.layout}: zona ${z}`).toBeGreaterThan(franja / 3);
       }
     }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+describe('celdasDeZona — la planta partida para recortar caras en 3D', () => {
+  const geo = (over = {}) => ({ layout: LAYOUT.DOS_AGUAS_CUMBRERA, bx: 20, by: 30,
+    h: 7.5, a: 2, ejeCumbrera: "X", ...over });
+
+  const areaDe = (cs) => cs.reduce((s, c) => s + (c.x1 - c.x0) * (c.y1 - c.y0), 0);
+
+  it('⚠ LAS CELDAS SON UNA PARTICIÓN: cubren la planta y no se superponen', () => {
+    // Es la diferencia con `regionesDe`, que devuelve piezas EN ORDEN DE PINTADO —en cuatro
+    // aguas la zona 1 cubre toda la planta y después queda tapada—. Eso sirve para dibujar en
+    // 2D, donde lo último que se pinta gana, y NO para recortar caras en 3D: un pedazo de
+    // faldón que perteneciera a dos zonas se dibujaría dos veces con dos colores.
+    // ⚠ En cuatro aguas la cumbrera va sobre el LADO LARGO y `zonaEn` lo exige: con
+    // `ejeCumbrera: "X"` sobre una planta de 20 × 30 la cumbrera correría sobre el lado
+    // corto, que es una geometría que el capítulo 2 ya reorienta antes de llegar acá.
+    for (const g of [geo(), geo({ layout: LAYOUT.PLANA_H }),
+      geo({ layout: LAYOUT.CUATRO_AGUAS, ejeCumbrera: "Y" }),
+      geo({ layout: LAYOUT.DOS_AGUAS_ESQUINAS })]) {
+      const cs = celdasDeZona(g);
+      expect(areaDe(cs), g.layout).toBeCloseTo(g.bx * g.by, 6);
+      // Y ningún par se pisa.
+      for (let i = 0; i < cs.length; i++) {
+        for (let j = i + 1; j < cs.length; j++) {
+          const [p, q] = [cs[i], cs[j]];
+          const solapa = p.x0 < q.x1 && q.x0 < p.x1 && p.y0 < q.y1 && q.y0 < p.y1;
+          expect(solapa, `${g.layout}: celdas ${i} y ${j}`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('cada celda es de UNA zona: su centro y sus cuatro cuartos coinciden', () => {
+    // Si una celda cruzara una frontera, clasificar su centro pintaría media celda con la
+    // zona equivocada. Es el defecto que ya apareció una vez con la franja lateral de la
+    // Fig. 5.3-5B, que mide `a` y no 2a.
+    const g = geo({ layout: LAYOUT.UNA_AGUA, pendienteHacia: "+Y" });
+    for (const c of celdasDeZona(g)) {
+      const cx = (c.x0 + c.x1) / 2, cy = (c.y0 + c.y1) / 2;
+      const w = (c.x1 - c.x0) / 4, h2 = (c.y1 - c.y0) / 4;
+      for (const [dx, dy] of [[-w, -h2], [w, -h2], [-w, h2], [w, h2]]) {
+        expect(zonaEn(cx + dx, cy + dy, g), `celda en ${cx},${cy}`).toBe(c.zona);
+      }
+    }
+  });
+
+  it('las zonas que aparecen son las mismas que declara `zonasPresentes`', () => {
+    for (const layout of [LAYOUT.DOS_AGUAS_CUMBRERA, LAYOUT.PLANA_H, LAYOUT.CUATRO_AGUAS]) {
+      const g = geo({ layout, ...(layout === LAYOUT.CUATRO_AGUAS ? { ejeCumbrera: "Y" } : {}) });
+      const enCeldas = [...new Set(celdasDeZona(g).map(c => c.zona))].sort();
+      expect(enCeldas, layout).toEqual([...zonasPresentes(g)].sort());
+    }
+  });
+
+  it('⚠ EN CUATRO AGUAS EL PASO LO MANDA `a`, NO EL TAMAÑO DEL EDIFICIO', () => {
+    // Es la única zonificación que se muestrea, porque sus limatesas van a 45°. La banda de
+    // cumbrera mide 2a: con celdas más gruesas puede caer entera adentro de una celda cuyo
+    // centro quede afuera y DESAPARECER, que es justo la zona más succionada de la cubierta.
+    // El código tomaba el paso más GRUESO de los dos candidatos y este test lo encontró.
+    for (const [bx, by, a] of [[20, 30, 2], [12, 40, 1.2], [30, 30, 3]]) {
+      const g = geo({ layout: LAYOUT.CUATRO_AGUAS, ejeCumbrera: by >= bx ? "Y" : "X",
+        bx, by, a });
+      const cs = celdasDeZona(g);
+      expect(cs.some(c => c.zona === "2"), `banda ausente en ${bx}×${by}`).toBe(true);
+      for (const c of cs) {
+        expect(c.x1 - c.x0).toBeLessThanOrEqual(a / 2 + 1e-9);
+        expect(c.y1 - c.y0).toBeLessThanOrEqual(a / 2 + 1e-9);
+      }
+    }
+  });
+
+  it('una planta muy alargada degrada la grilla en vez de dar miles de celdas', () => {
+    // El freno para el caso patológico: sin tope, un `a` chico contra una planta larga da un
+    // paso finísimo y decenas de miles de celdas. Es preferible una aproximación más gruesa
+    // —y anotada— a colgar el dibujo.
+    const g = geo({ layout: LAYOUT.CUATRO_AGUAS, ejeCumbrera: "Y", bx: 8, by: 200, a: 0.8 });
+    const cs = celdasDeZona(g);
+    expect(cs.length).toBeLessThan(20000);
+    expect(areaDe(cs)).toBeCloseTo(8 * 200, 6);
+  });
+
+  it('una pared no se parte en celdas: se zonifica por su largo', () => {
+    expect(() => celdasDeZona(geo({ layout: LAYOUT.PARED }))).toThrow(/franjasDePared/);
   });
 });

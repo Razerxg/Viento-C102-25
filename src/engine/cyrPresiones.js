@@ -323,6 +323,52 @@ export function verificarElemento(ctx, elemento) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// LA PRESIÓN DE CADA ZONA PARA UN ÁREA DE REFERENCIA
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Todas las zonas de la envolvente, con su presión, para UN área efectiva de viento.
+ *
+ * ── POR QUÉ HACE FALTA UN ÁREA, Y POR QUÉ ESO NO ES UN DETALLE ─────────────────
+ * ⚠ NO EXISTE «LA PRESIÓN DE LA ZONA 3». El (GC_p) del capítulo 5 es función del ÁREA
+ * EFECTIVA DE VIENTO del elemento, y en la zona 3 de la Fig. 5.3-2A va de −3,2 a −1,4 entre
+ * 1 y 50 m²: más del doble. Cualquier dibujo que pinte «la presión de cada zona» está
+ * pintando la de un elemento concreto, y tiene que decir cuál.
+ *
+ * De ahí la forma de esta función: recibe el área y devuelve el mapa completo. Quien dibuja
+ * toma el área de un elemento de la lista y rotula con su nombre, así el color del croquis y
+ * el número de la tabla salen del mismo lugar. `tests/cyrPresiones.test.js` exige que
+ * coincidan con los del elemento, que es lo que impide que un día se separen.
+ *
+ * @param {Contexto} ctx
+ * @param {{A: number, volumenInterno?: boolean}} p
+ *   `volumenInterno: false` es la declaración del art. 5.7 para el voladizo: (GC_pi) = 0.
+ * @returns {{cubierta: Object<string, any>, pared: Object<string, any>,
+ *            voladizo: Object<string, any>}}
+ */
+export function presionesPorZona(ctx, { A, volumenInterno }) {
+  const salida = { cubierta: {}, pared: {}, voladizo: {} };
+  if (!(A > 0) || ctx.fuente?.tipo === "noImplementada") return salida;
+
+  for (const zona of FIGURAS["5.3-1"].zonas) {
+    const g = gcpDeZona(ctx, { superficie: "pared", zona, A });
+    salida.pared[zona] = { zona, ...presionDeZona(ctx, g), notas: g.notas };
+  }
+  for (const zona of zonasDe(ctx.fuente)) {
+    const gc = gcpDeZona(ctx, { superficie: "cubierta", zona, A, ubicacion: UBICACION.CUBIERTA });
+    salida.cubierta[zona] = { zona, ...presionDeZona(ctx, gc), notas: gc.notas };
+    // El voladizo del art. 5.7 se compone con las MISMAS zonas de cubierta: una zona de
+    // cubierta que existe, existe también sobre el vuelo que la prolonga.
+    const gv = gcpDeZona(ctx, { superficie: "cubierta", zona, A, ubicacion: UBICACION.VOLADIZO });
+    salida.voladizo[zona] = {
+      zona, ...presionDeZona(ctx, gv, { sinPresionInterna: volumenInterno === false }),
+      notas: gv.notas,
+    };
+  }
+  return salida;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // EL EDIFICIO ENTERO — arma el contexto y verifica la lista de elementos
 // ═══════════════════════════════════════════════════════════════════════════════
 

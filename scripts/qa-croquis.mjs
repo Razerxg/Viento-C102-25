@@ -33,7 +33,7 @@ import { readFile, writeFile, mkdir, rm, readdir } from "node:fs/promises";
 import { existsSync, statSync } from "node:fs";
 import { join, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { MATRIZ, PANTALLAS, DIRECCIONES, estadoDe } from "./qa-matriz.js";
+import { MATRIZ, PANTALLAS, DIRECCIONES, ROTULOS, VARIANTES, estadoDe } from "./qa-matriz.js";
 import { chequearEnPagina } from "./qa-chequeos.js";
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -88,14 +88,31 @@ function servir(dir) {
 // ── UNA PASADA ─────────────────────────────────────────────────────────────────
 const esperar = (p, ms) => p.waitForTimeout(ms);
 
-async function cargarCaso(page, url, caso, tema) {
+async function cargarCaso(page, url, caso, tema, rotulos) {
   await page.goto(url, { waitUntil: "domcontentloaded" });
-  await page.evaluate(([estado, tema]) => {
+  await page.evaluate(([estado, tema, rotulos]) => {
     window.localStorage.setItem("viento_proyecto_v1", JSON.stringify(estado));
-    window.localStorage.setItem("viento_ui_v1", JSON.stringify({ tema, nav: true }));
-  }, [estadoDe(caso), tema]);
+    window.localStorage.setItem("viento_ui_v1", JSON.stringify({ tema, nav: true, rotulos }));
+  }, [estadoDe(caso), tema, rotulos]);
   await page.goto(url, { waitUntil: "networkidle" });
   await esperar(page, 350);
+}
+
+/**
+ * Cambia el sub-modo de una pantalla —hoy, el reparto que muestra la vista 3D—.
+ *
+ * ⚠ SIN ESTO LA MITAD DEL 3D QUEDARÍA SIN CONTROLAR. El modo de componentes y revestimientos
+ * no es una pantalla: es un botón adentro del croquis, y ahí es donde se dibujan las zonas,
+ * el voladizo compuesto del art. 5.7 y el alero adosado. Un recorrido que sólo visita
+ * pantallas nunca lo abre.
+ */
+async function elegirVariante(page, variante) {
+  if (!variante?.boton) return true;
+  const b = page.getByRole("button", { name: variante.boton, exact: true }).first();
+  if (!await b.count()) return false;
+  await b.click();
+  await esperar(page, 400);
+  return true;
 }
 
 async function irA(page, pantalla) {
@@ -141,6 +158,7 @@ async function hojaDeContacto(browser, caso, bloques, destino) {
   const celdas = bloques.map(b => `
     <figure>
       <figcaption><b>${b.pantalla}</b>${b.dir ? ` · ${b.dir}` : ""} · ${b.tema}
+        ${b.rotulos ? ` · ${b.rotulos}` : ""}${b.variante ? ` · ${b.variante}` : ""}
         <span>${b.etiqueta}</span></figcaption>
       <img src="data:image/png;base64,${b.png}" />
     </figure>`).join("");
@@ -194,29 +212,49 @@ async function main() {
   for (const caso of casos) {
     const bloques = [];
     for (const tema of TEMAS) {
-      const page = await browser.newPage({ viewport: VISTA });
-      page.on("pageerror", e => erroresConsola.push(`${caso.id}/${tema}: ${e.message}`));
-      page.on("console", m => { if (m.type() === "error") erroresConsola.push(`${caso.id}/${tema}: ${m.text()}`); });
-      await cargarCaso(page, url, caso, tema);
+      // ── LOS DOS MODOS DE ROTULACIÓN, NO SÓLO EL DEFECTO ─────────────────────
+      // Al cambiar de símbolos a medidas cambia el LARGO de cada etiqueta, y el largo es lo
+      // que decide si una cota entra entre sus marcas o se va afuera. Los dos primeros
+      // defectos que encontró el control después de ese cambio fueron exactamente eso: cotas
+      // que con el texto largo se iban afuera y con el corto entraron centradas, encima de un
+      // número de zona y de un rótulo de alero. Controlar un solo modo deja la mitad afuera.
+      for (const rotulos of ROTULOS) {
+        const page = await browser.newPage({ viewport: VISTA });
+        const marca = `${caso.id}/${tema}/${rotulos}`;
+        page.on("pageerror", e => erroresConsola.push(`${marca}: ${e.message}`));
+        page.on("console", m => { if (m.type() === "error") erroresConsola.push(`${marca}: ${m.text()}`); });
+        await cargarCaso(page, url, caso, tema, rotulos);
 
-      for (const pant of PANTALLAS) {
-        if (!await irA(page, pant.nombre)) {
-          fallas.push({ caso: caso.id, tema, tipo: "pantalla-ausente",
-            donde: pant.nombre, detalle: "no encontré el botón de la pantalla" });
-          continue;
-        }
-        const dirs = pant.porDireccion ? DIRECCIONES : [null];
-        for (const dir of dirs) {
-          if (dir && !await elegirDireccion(page, dir)) continue;
-          const nuevas = await page.evaluate(chequearEnPagina, CFG);
-          for (const f of nuevas) fallas.push({ caso: caso.id, tema, dir, ...f });
-          for (const t of await capturar(page)) {
-            bloques.push({ pantalla: pant.nombre, dir, tema, ...t });
-            capturas++;
+        for (const pant of PANTALLAS) {
+          if (!await irA(page, pant.nombre)) {
+            fallas.push({ caso: caso.id, tema, rotulos, tipo: "pantalla-ausente",
+              donde: pant.nombre, detalle: "no encontré el botón de la pantalla" });
+            continue;
+          }
+          const dirs = pant.porDireccion ? DIRECCIONES : [null];
+          for (const dir of dirs) {
+            if (dir && !await elegirDireccion(page, dir)) continue;
+            for (const variante of VARIANTES[pant.nombre] ?? [null]) {
+              // Una variante que no depende de la dirección se recorre una vez y no cuatro.
+              if (variante && variante.porDireccion === false && dir && dir !== dirs[0]) continue;
+              // Una variante que no aparece no es una falla: el modo C&R del 3D sólo se
+              // ofrece cuando hay elementos cargados y figura aplicable, y eso depende de la
+              // geometría. Lo que sí sería una falla es que apareciera y rompiera.
+              if (!await elegirVariante(page, variante)) continue;
+              const nuevas = await page.evaluate(chequearEnPagina, CFG);
+              for (const f of nuevas) {
+                fallas.push({ caso: caso.id, tema, dir, rotulos, variante: variante?.id, ...f });
+              }
+              for (const t of await capturar(page)) {
+                bloques.push({ pantalla: pant.nombre, dir, tema, rotulos,
+                  variante: variante?.id, ...t });
+                capturas++;
+              }
+            }
           }
         }
+        await page.close();
       }
-      await page.close();
     }
     const destino = join(SALIDA, `${caso.id}.png`);
     await hojaDeContacto(browser, caso, bloques, destino);
@@ -244,11 +282,13 @@ async function main() {
   ];
   for (const [tipo, lista] of Object.entries(porTipo).sort((a, b) => b[1].length - a[1].length)) {
     md.push(`### ${tipo} — ${lista.length}`, "");
-    md.push("| Caso | Tema | Dir. | Croquis | Detalle |", "|---|---|---|---|---|");
+    md.push("| Caso | Tema | Cotas | Modo | Dir. | Croquis | Detalle |",
+      "|---|---|---|---|---|---|---|");
     for (const f of lista.slice(0, 60)) {
-      md.push(`| ${f.caso} | ${f.tema} | ${f.dir ?? "—"} | ${f.donde} | ${f.detalle} |`);
+      md.push(`| ${f.caso} | ${f.tema} | ${f.rotulos ?? "—"} | ${f.variante ?? "—"} `
+        + `| ${f.dir ?? "—"} | ${f.donde} | ${f.detalle} |`);
     }
-    if (lista.length > 60) md.push(`| … | | | | y ${lista.length - 60} más |`);
+    if (lista.length > 60) md.push(`| … | | | | | | y ${lista.length - 60} más |`);
     md.push("");
   }
   if (erroresConsola.length) {

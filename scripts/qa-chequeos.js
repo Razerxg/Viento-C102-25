@@ -197,13 +197,24 @@ export function chequearEnPagina(cfg) {
       }
     }
 
-    // 4 · EL SVG MÁS ANCHO QUE SU CONTENEDOR ─────────────────────────────────
+    // 4 · EL SVG MÁS ANCHO DE LO QUE DECLARA ─────────────────────────────────
+    //
+    // ⚠ EL LÍMITE NO ES EL ANCHO DE LA TARJETA, ES EL ANCHO POR EL FACTOR DECLARADO. Los
+    // croquis se dibujan a `data-zoom` veces el ancho de su columna —hoy 1,5 para todos— y
+    // el envoltorio los desplaza a lo ancho en vez de recortarlos: ese desborde es
+    // intencional y está resuelto. Comparado contra el ancho pelado, el control marcaba los
+    // 144 croquis de cada geometría y dejaba de servir para lo que existe, que es encontrar
+    // el croquis que se sale POR OTRO MOTIVO —un viewBox mal calculado, una tarjeta más
+    // angosta de lo previsto—.
     const cont = svg.parentElement;
     if (cont) {
       const [a, b] = [svg.getBoundingClientRect(), cont.getBoundingClientRect()];
-      if (a.width > b.width + 1) {
+      const factor = Number(svg.dataset.zoom) || 1;
+      const tope = b.width * factor + 1;
+      if (a.width > tope) {
         F("desborda-el-contenedor", svg,
-          `${r2(a.width)} px de dibujo en ${r2(b.width)} px de tarjeta`);
+          `${r2(a.width)} px de dibujo contra ${r2(tope)} px permitidos `
+          + `(${r2(b.width)} px de tarjeta × ${factor})`);
       }
     }
 

@@ -161,7 +161,11 @@ prueba las reglas.
 | ✅ | **Croquis 2–3× más grandes**: la escala la fija el ancho y el alto sale del dibujo | `kit.jsx → escalaPorAncho` + `ZonasCyR.jsx` + `CroquisTab.jsx` |
 | ✅ | **Voladizo de cubierta** — capítulo 5 (art. 5.7 + nota 7) y capítulo 2 (art. 2.4.4) | `engine/voladizo.js` + `engine/cyrPresiones.js` + `engine/edificio.js` + `engine/resultantes.js`, con `tests/voladizo.test.js` (44 tests) |
 | ✅ | **Alero adosado a pared** (art. 5.9) — parte 3B | `constants/aleroAdosado.js` + `engine/aleroAdosado.js` + `components/svg/AleroAdosadoSVG.jsx` + `components/tabs/AleroAdosado.jsx`, con `tests/aleroAdosado.test.js` (51 tests) |
-| ✅ | **Matriz de 14 geometrías**: dos con voladizo y dos con alero adosado | `scripts/qa-matriz.js` · 564 croquis, 0 fallas |
+| ✅ | **Matriz de 14 geometrías**: dos con voladizo y dos con alero adosado | `scripts/qa-matriz.js` |
+| ✅ | **Simbología en las cotas**, conmutable a medidas o a las dos | `components/svg/formatoCroquis.js` + `kit.jsx` (`Cota`/`Dim` con `simbolo`/`valor`) + `UiContext` |
+| ✅ | **El 3D con dos repartos**: franjas de la Fig. 2.4-1 y zonas de C&R, con los aleros | `lib/subdividir3d.js` + `lib/volumen3d.js` + `components/svg/Vista3D.jsx`, con `tests/subdividir3d.test.js` |
+| ✅ | **Escala de croquis fija en 1,5×**, sin selector | `kit.jsx → ZOOM` |
+| ✅ | El control recorre además los **dos modos de rotulación** y el **sub-modo C&R del 3D** | `scripts/qa-croquis.mjs` + `qa-matriz.js` |
 | 📥 | El **alero adosado en las salidas CSV/JSON** — archivo propio, no mezclado con C&R | `lib/exportar.js` |
 
 **Antes: 7.536 fallas sobre 400 croquis.** 6.298 de letra por debajo de 11 px —el texto
@@ -245,6 +249,58 @@ geometrías ya normalizadas en más de un camino, y un voladizo normalizado trae
 ARREGLO: leído como objeto daba `undefined` en cada grupo, los cuatro vuelos se iban a cero
 y el voladizo desaparecía en silencio. Hay test que normaliza dos veces y compara campo por
 campo.
+
+### Los croquis, después del pedido del proyectista ✅
+
+**Simbología en vez de medidas.** ⚠ Conmuta la regla 6, que pedía nombre Y largo en metros.
+Una cota responde a dos preguntas —«¿qué dice el reglamento acá?» y «¿cuánto mido en la
+obra?»— y no caben en el mismo texto; con el dibujo lleno de números la figura dejó de leerse
+como la de la norma. Tres modos (`simbolo` · `medida` · `ambos`), defecto `simbolo`, control
+en la barra superior porque el modo es uno para todas las láminas. Las medidas completas
+siguen estando siempre en la tabla de anchos de zona y en la memoria.
+
+`Cota` y `Dim` resuelven el modo ellas mismas: se CREAN en el componente que dibuja —que puede
+estar fuera del `Lienzo`— pero se RENDERIZAN como hijas del `Lienzo`, así que su propio hook
+ve el provider. Ningún croquis sabe que el modo existe.
+
+⚠ **Acortar las cotas destapó dos defectos viejos.** Una cota que no entra entre sus marcas se
+va AFUERA; al acortarse, cotas que se iban afuera empezaron a entrar centradas y aterrizaron
+sobre un número de zona y sobre «alero bajo». `Cota` tiene ahora `evitar`. **Entrar no es sólo
+caber.**
+
+**El 3D pasó a tener dos repartos sobre el mismo volumen:** el del capítulo 2 —con las FRANJAS
+de la Fig. 2.4-1 sobre la cubierta, que antes se pintaba de un solo color con el valor de la
+franja más exigida— y el del capítulo 5 —las zonas 1'/1/2/3 y 4/5, el voladizo compuesto del
+art. 5.7 y el alero adosado—.
+
+⚠ **El modo C&R pinta la presión de UN ELEMENTO.** No existe «la presión de la zona 3»: en la
+Fig. 5.3-2A va de −3,2 a −1,4 entre 1 y 50 m². Se elige el elemento, el título dice cuál y con
+qué área, y hay test que cruza esos números contra las zonas del propio elemento.
+
+⚠ **Las franjas y las zonas se RECORTAN**, con Sutherland–Hodgman sobre semiplanos verticales
+(`lib/subdividir3d.js`). Pintar rectángulos de planta encima no funciona en 3D: se corren
+tanto más cuanto mayor es la pendiente. El recorte es exacto porque el punto de corte se
+interpola en las tres coordenadas sobre una cara plana, y hay test de que las piezas cubren la
+cara sin perder ni duplicar superficie.
+
+**La cubierta se arma por planta y plano** (`faldones`), que es lo que permite prolongar el
+faldón con su pendiente más allá de la línea de pared. ⚠ Y se PARTE en esa línea: el faldón
+sobre el recinto y el que vuela están en el mismo plano pero no son la misma superficie —el
+elemento del vuelo lleva el (GC_p) compuesto del art. 5.7—, y la cara inferior existe sólo
+sobre el vuelo, porque adentro hay cielorraso. Los aleros llevan tipo propio y su
+espesor es de dibujo, no un dato. La losa del alero adosado va centrada sobre su pared, que es
+una convención declarada: el art. 5.9 pide el ancho pero no dónde empieza.
+
+**Escala fija en 1,5×.** El selector de cuatro pasos se sacó. El mecanismo queda entero: el
+SVG se renderiza a `ZOOM · 100 %` del ancho de la columna con el mismo `viewBox`, así que el
+dibujo crece y la letra sigue a 11 px.
+
+⚠ **A 1,5× todo croquis excede su tarjeta y se desplaza a lo ancho.** No hay forma de
+evitarlo: `escalaPorAncho` ya ajusta el dibujo al ancho disponible, así que agrandarlo un 50 %
+sólo puede salirse. Se gana que los rótulos ocupen proporcionalmente menos; se paga el
+desplazamiento horizontal. Y obligó a corregir el control, que comparaba contra el ancho
+pelado y marcaba los 144 croquis de cada geometría: ahora `Lienzo` publica el factor en
+`data-zoom` y el chequeo compara contra el ancho por ese factor.
 
 ### Aleros adosados a paredes — art. 5.9 ✅
 

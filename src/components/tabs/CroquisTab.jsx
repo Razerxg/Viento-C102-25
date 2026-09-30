@@ -19,7 +19,11 @@ import { Encabezado, Card, Nota } from '../ui.jsx';
 import { SP } from '../tokens.js';
 
 export function CroquisTab() {
-  const { act, maxAbs } = useProyecto();
+  // ⚠ EL 3D RECIBE TAMBIÉN `cyr` Y `alero`, y no es que se le pasen «por si sirven»: son lo
+  // que le permite mostrar el segundo reparto. El croquis del capítulo 2 y el del 5 son el
+  // MISMO volumen con dos zonificaciones encima, y verlos en dos pantallas distintas obliga a
+  // reconstruir mentalmente cuál pedazo de faldón es cuál.
+  const { act, maxAbs, cyr, alero, d } = useProyecto();
   const { tema } = useUi();
 
   // ── PLANTA Y ELEVACIÓN COMPARTEN ESCALA ─────────────────────────────────────
@@ -80,9 +84,12 @@ export function CroquisTab() {
       "Corte por el plano del viento. Muestra el reparto entre faldón a barlovento y faldón "
       + "a sotavento, o las franjas, según cómo trate la cubierta esta dirección."],
     ["Vista 3D coloreada por presión",
-      <Vista3D key="d" {...props} escala={undefined} alto={540} {...z3D} />,
-      "El volumen completo. Se arrastra para girar. Sirve para confirmar que la cubierta "
-      + "está orientada como uno cree: un error de cumbrera se ve acá y en ningún otro lado."],
+      <Vista3D key="d" {...props} escala={undefined} alto={540} cyr={cyr}
+        alero={d.aleroAdosado?.hay ? alero : null} {...z3D} />,
+      "El volumen completo, con sus aleros. Se arrastra para girar. Sirve para confirmar que "
+      + "la cubierta está orientada como uno cree —un error de cumbrera se ve acá y en ningún "
+      + "otro lado— y conmuta entre el reparto del capítulo 2, con las franjas de la "
+      + "Fig. 2.4-1 sobre la cubierta, y las zonas de componentes y revestimientos."],
   ];
 
   return (

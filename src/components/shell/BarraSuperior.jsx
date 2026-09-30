@@ -7,10 +7,11 @@
 // guardado del que informar.
 import { useProyecto } from '../../context/ProyectoContext.jsx';
 import { useUi } from '../../context/UiContext.jsx';
-import { c, t, SP, R, TRANS } from '../tokens.js';
+import { c, t, SP, R, TRANS, MONO } from '../tokens.js';
 import { Badge, Boton, Tip, useToast } from '../ui.jsx';
 import { hora } from '../../lib/formato.js';
 import { rotuloConteo } from '../../lib/avisos.js';
+import { ETIQUETA_ROTULOS, AYUDA_ROTULOS } from '../svg/formatoCroquis.js';
 
 // HAMBURGUESA — abre y cierra la navegación.
 //
@@ -57,6 +58,36 @@ function Tema() {
           background: c.canvas, border: `1px solid ${c.border}`, color: c.txt2,
           fontSize: 14, lineHeight: 1, transition: `background ${TRANS}, color ${TRANS}`,
         }}>{oscuro ? "☀" : "☾"}</button>
+    </Tip>
+  );
+}
+
+// Conmutador de ROTULACIÓN DE LOS CROQUIS. Tres estados, así que es un ciclo y no un
+// interruptor: el botón muestra en cuál se está —«2a», «1,5», «2a=»— porque con tres
+// opciones «a cuál se va a cambiar» ya no se deduce de un solo rótulo.
+//
+// ⚠ VA EN LA BARRA SUPERIOR Y NO EN LA BARRA DE CADA CROQUIS, y es una decisión, no una
+// comodidad: el modo es UNO para todas las láminas. Puesto en cada croquis, cambiarlo en la
+// planta cambiaría también la elevación y la pared de al lado, y el control diría que es
+// local cuando no lo es. Acá, al lado del tema, dice lo que es: una preferencia de vista
+// que vale para toda la app.
+function Rotulacion() {
+  const { rotulos, setRotulos } = useUi();
+  const siguiente = { simbolo: "medida", medida: "ambos", ambos: "simbolo" };
+  const cara = { simbolo: "2a", medida: "1,5", ambos: "2a=" };
+  return (
+    <Tip texto={`Cotas de los croquis: ${ETIQUETA_ROTULOS[rotulos].toLowerCase()}. `
+      + `Tocá para pasar a ${ETIQUETA_ROTULOS[siguiente[rotulos]].toLowerCase()}. `
+      + AYUDA_ROTULOS}>
+      <button onClick={() => setRotulos(siguiente[rotulos])}
+        aria-label={`Cotas de los croquis: ${ETIQUETA_ROTULOS[rotulos]}`}
+        style={{
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          minWidth: 38, height: 30, padding: "0 6px", borderRadius: R.md, cursor: "pointer",
+          background: c.canvas, border: `1px solid ${c.border}`, color: c.txt2,
+          fontFamily: MONO, fontSize: 12, lineHeight: 1,
+          transition: `background ${TRANS}, color ${TRANS}`,
+        }}>{cara[rotulos]}</button>
     </Tip>
   );
 }
@@ -120,6 +151,7 @@ export function BarraSuperior() {
         style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}>
         <Badge tono={estado.tono} punto tip={tip}>{estado.txt}</Badge>
       </button>
+      <Rotulacion />
       <Tema />
 
       <div style={{ display: "flex", gap: SP.sm }}>

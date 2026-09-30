@@ -134,7 +134,7 @@ export function PerfilQ({ analisis, ancho = 620, alto = 380, escala,
       <rect x={v.x(-0.75)} y={v.y(geo.h)} width={v.l(0.72)} height={v.l(geo.h)}
         fill={c.hover} stroke={c.txt2} strokeWidth="1.5" />
       <Dim x1={v.x(-0.79)} y1={v.y(0)} x2={v.x(-0.79)} y2={v.y(geo.h)}
-        texto={`h = ${fm(geo.h)}`} desplaz={-20} color={c.txt2} />
+        simbolo="h" valor={geo.h} desplaz={-20} color={c.txt2} />
 
       {/* el escalonado de q(z): un rectángulo por tramo del reglamento… */}
       {perfil.map((t, i) => (

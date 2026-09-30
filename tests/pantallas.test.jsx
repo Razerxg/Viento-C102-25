@@ -157,10 +157,84 @@ describe('el alero adosado en pantalla — art. 5.9', () => {
     const svg = [...document.querySelectorAll("svg")]
       .find(x => x.getAttribute("data-edificio") === "alero-adosado");
     expect(svg, "no se encontró el croquis del alero adosado").toBeTruthy();
+    // ⚠ LAS COTAS SALEN EN SIMBOLOGÍA, que es el modo por defecto: «h_c», no «h_c = 3,50».
+    // Las medidas están en la tabla de parámetros de la tarjeta de al lado y en la memoria.
     const texto = svg.textContent;
-    expect(texto).toMatch(/h = /);
-    expect(texto).toMatch(/h_e = /);
-    expect(texto).toMatch(/h_c = /);
+    expect(texto).toMatch(/\bh\b/);
+    expect(texto).toMatch(/h_e/);
+    expect(texto).toMatch(/h_c/);
+    expect(texto).toMatch(/vuelo/);
     expect(errores, errores.join("\n")).toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+describe('la vista 3D y sus dos repartos', () => {
+  // El modo de componentes y revestimientos NO es una pantalla: es un botón adentro del
+  // croquis. Sin este test, la mitad del 3D —las zonas, el voladizo compuesto y el alero
+  // adosado— no se renderiza nunca en la suite.
+  const abrirCroquis = () => {
+    render(<App />);
+    return abrir("Croquis");
+  };
+
+  it('el 3D arranca en el reparto del capítulo 2', () => {
+    const main = abrirCroquis();
+    expect(main).toContain("Vista 3D");
+    expect(errores, errores.join("\n")).toEqual([]);
+  });
+
+  /** El SVG del 3D, que se busca por su `<title>` y no por posición en la lámina. */
+  const svg3D = () => [...document.querySelectorAll("svg")]
+    .find(x => (x.querySelector("title")?.textContent ?? "").startsWith("Vista 3D"));
+
+  it('con el viento normal a la cumbrera reparte por faldón', () => {
+    // El caso de ejemplo tiene la cumbrera según Y y θ = 22°, así que la dirección por
+    // defecto —según X— la cruza: la Fig. 2.4-1 da un valor por faldón y no franjas.
+    abrirCroquis();
+    expect(svg3D().textContent).toMatch(/Cubierta barlovento/);
+    expect(svg3D().textContent).toMatch(/Cubierta sotavento/);
+    expect(errores, errores.join("\n")).toEqual([]);
+  });
+
+  it('⚠ CON VIENTO PARALELO A LA CUMBRERA LA CUBIERTA SALE EN FRANJAS', () => {
+    // Antes el 3D pintaba toda la cubierta de un solo color con el valor de la franja más
+    // exigida: decía que toda la cubierta tiene la succión del borde de barlovento, que es
+    // cuatro veces la del fondo en una nave larga.
+    abrirCroquis();
+    const dirY = [...document.querySelectorAll("button")]
+      .find(b => b.textContent === "Wy+");
+    expect(dirY, "no se encontró el selector de dirección").toBeTruthy();
+    fireEvent.click(dirY);
+    const t = svg3D().textContent;
+    // Los nombres de franja son los de la figura: «0 a h/2» y «más de 2h».
+    expect(t).toMatch(/h\/2|más de/);
+    // ⚠ Y NO «0.5h», que es la referencia interna del motor, con punto decimal. Ese texto se
+    // estaba usando tal cual y el croquis mostraba punto al lado de cotas con coma.
+    expect(t).not.toMatch(/0\.5h/);
+    expect(errores, errores.join("\n")).toEqual([]);
+  });
+
+  it('el botón de C&R cambia el reparto a las zonas del capítulo 5', () => {
+    abrirCroquis();
+    const boton = [...document.querySelectorAll("button")]
+      .find(b => b.textContent === "C&R — cap. 5");
+    expect(boton, "no se ofreció el modo de componentes y revestimientos").toBeTruthy();
+    fireEvent.click(boton);
+    expect(svg3D().textContent).toMatch(/Zona/);
+    // ⚠ Y DICE CON QUÉ ELEMENTO ESTÁ PINTANDO. No existe «la presión de la zona 3»: el
+    // (GC_p) es función del área efectiva de viento. Un croquis que no lo diga está pintando
+    // la presión de un elemento concreto sin declarar cuál.
+    expect(svg3D().textContent).toMatch(/A = /);
+    expect(errores, errores.join("\n")).toEqual([]);
+  });
+
+  it('⚠ NO QUEDA NINGÚN SELECTOR DE ESCALA EN LOS CROQUIS', () => {
+    // Eran cuatro botones por croquis —1×, 1,5×, 2×, 3×— para un valor que nadie movía. El
+    // factor quedó fijo en 1,5. Si vuelven a aparecer, este test es el que hay que cambiar.
+    abrirCroquis();
+    const escalas = [...document.querySelectorAll("button")]
+      .filter(b => /^\d(,\d)?×$/.test(b.textContent ?? ""));
+    expect(escalas).toHaveLength(0);
   });
 });

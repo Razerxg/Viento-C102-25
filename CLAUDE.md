@@ -263,6 +263,9 @@ corrige un defecto que estaba medido.
    como once y como uno.
 6. **LAS DIMENSIONES DE PLANTA SON `B_X` Y `B_Y`, NUNCA `a` NI `b`** —en croquis, tablas y
    memoria—. En el capítulo 5 `a` es el ANCHO DE ZONA y se acota en el mismo dibujo.
+   ⚠ **La parte de esta regla que pedía el largo en metros al lado del nombre está
+   CONMUTADA**: hoy el croquis rotula con el símbolo del reglamento y la medida es un modo.
+   Ver «Croquis — la rotulación y el 3D», más abajo.
 7. **LAS VISTAS DEL MISMO EDIFICIO COMPARTEN ESCALA** (`escalaComun` + `escalaFija`), y el
    `Lienzo` la declara en `data-escala`. La pared de C&R se dibujaba a 10:1 contra una
    planta a 1:100.
@@ -273,11 +276,12 @@ corrige un defecto que estaba medido.
    larga, o dos paredes de anchos distintos—: a porcentaje fijo, la columna que sobra
    baja la escala COMÚN de todas. Topes de alto para que una planta alargada no pida una
    lámina de varias pantallas, y para que una pared alta y angosta no la desborde.
-9. **EL ZOOM AGRANDA EL DIBUJO Y NO EL TEXTO.** El SVG se renderiza a `zoom` veces el
-   ancho de la columna con el MISMO `viewBox`: cada unidad mide más píxeles y el dibujo
-   crece, y como `Lienzo` mide el render y publica `k`, el cuerpo de letra en unidades de
-   viewBox se achica en la misma proporción y el texto sigue a 11 px. Es la regla 1
-   trabajando al revés, y por eso ningún croquis necesita saber que el zoom existe.
+9. **EL DIBUJO SE AGRANDA Y EL TEXTO NO.** El SVG se renderiza a `ZOOM` veces el ancho de
+   la columna con el MISMO `viewBox`: cada unidad mide más píxeles y el dibujo crece, y como
+   `Lienzo` mide el render y publica `k`, el cuerpo de letra en unidades de viewBox se achica
+   en la misma proporción y el texto sigue a 11 px. Es la regla 1 trabajando al revés, y por
+   eso ningún croquis necesita saber que existe. ⚠ **El factor ya no se elige: es 1,5 fijo.**
+   Era un selector de cuatro pasos que nadie movía.
 10. **NI UN COLOR LITERAL EN UN CROQUIS.** La tinta sale de los tokens del tema, que son
    variables CSS y se invierten solas. Las escalas de DATOS —presión, paleta categórica,
    rampa de regiones, velo de sombreado— viven en `lib/escalaPresion.js` y
@@ -286,10 +290,18 @@ corrige un defecto que estaba medido.
 
 **El control automático es `scripts/qa-croquis.mjs`** (`npm run qa:croquis`). Abre el build
 en Chromium, carga las geometrías de `scripts/qa-matriz.js` por `localStorage`, recorre las
-pantallas con croquis en los dos temas y en las cuatro direcciones, y mide sobre el
-resultado RENDERIZADO: solapes, texto tachado por una línea que no es su guía, dibujo fuera
-del `viewBox`, escalas distintas, letra chica, contraste bajo y regiones sin rótulo. Deja
-una hoja de contacto por geometría en `docs/croquis-qa/`.
+pantallas con croquis en los dos temas, en los DOS MODOS DE ROTULACIÓN, en las cuatro
+direcciones y en los sub-modos de cada pantalla, y mide sobre el resultado RENDERIZADO:
+solapes, texto tachado por una línea que no es su guía, dibujo fuera del `viewBox`, escalas
+distintas, letra chica, contraste bajo y regiones sin rótulo. Deja una hoja de contacto por
+geometría en `docs/croquis-qa/`.
+
+⚠ **LOS DOS MODOS DE ROTULACIÓN Y LOS SUB-MODOS NO SON COBERTURA DE LUJO.** Al cambiar de
+símbolos a medidas cambia el LARGO de cada etiqueta, y el largo es lo que decide si una cota
+entra entre sus marcas o se va afuera: los dos primeros defectos que encontró el control
+después de ese cambio fueron exactamente eso. Y el modo C&R del 3D no es una pantalla —es un
+botón adentro del croquis—, así que un recorrido que sólo visita pantallas nunca dibuja las
+zonas, el voladizo compuesto ni el alero adosado.
 
 ⚠ **Se mide en el navegador y no sobre el SVG como texto.** Un `<text>` no tiene ancho hasta
 que un motor de texto lo mide con una fuente concreta, y todos estos defectos son del
@@ -388,6 +400,122 @@ de alcance: el motor la informa como error y no la corrige.
 
 La hoja de control contra el papel —las cuatro tablas renglón por renglón y qué mirar en orden
 de riesgo— está en **`docs/verificar-alero-5.9.md`**.
+
+## Croquis — la rotulación y el 3D
+
+### Simbología o medida, y por qué es un conmutador
+
+Una cota de croquis responde a dos preguntas que no caben en el mismo texto: «¿qué dice el
+reglamento acá?» —el SÍMBOLO: `2a`, `0,6h`, `h/2`, `B_X`— y «¿cuánto mido en la obra?» —la
+MEDIDA—. ⚠ **Esto conmuta la regla 6**, que pedía rotular las franjas con nombre Y largo en
+metros («0 a h/2 = 1,5», no «0.50h») justamente para poder pasar medidas al plano. Con el
+dibujo lleno de números la figura dejó de leerse como la de la norma. Son dos usos legítimos
+del mismo croquis, así que se elige: **el defecto es `simbolo`** y las medidas completas están
+siempre en la tabla de anchos de zona y en la memoria, en los tres modos.
+
+El conmutador vive en `UiContext` —es preferencia de vista, como el tema, y no un dato del
+proyecto— y el control está en la BARRA SUPERIOR y no en cada croquis: el modo es uno para
+todas las láminas, y un control por croquis diría que es local cuando no lo es.
+
+⚠ **`Cota` y `Dim` resuelven el modo ELLAS MISMAS**, con `simbolo` y `valor` en vez de
+`texto`. Es lo que hace que funcione: la cota se CREA en el componente que dibuja el croquis
+—que puede estar fuera del `Lienzo` y leería el modo por defecto— pero se RENDERIZA como hijo
+del `Lienzo`, así que el hook de adentro sí ve el provider. Ningún croquis necesita saber que
+el modo existe. `CadenaDeCotas` es la excepción y toma `simbolos`: mide los textos para
+repartirlos en filas, y un símbolo mide la mitad que la medida.
+
+⚠ **Acortar las cotas rompió dos ubicaciones, y las dos eran defectos viejos.** Una cota que
+no entra entre sus marcas se va AFUERA; al acortarse, cotas que se iban afuera empezaron a
+entrar centradas y aterrizaron sobre un número de zona y sobre el rótulo «alero bajo».
+`Cota` tiene ahora `evitar` —cajas ya ocupadas— y `CotasDePlanta` le pasa los círculos de
+zona y los rótulos de alero. La regla general: **entrar no es sólo caber**.
+
+### El 3D tiene DOS repartos sobre el mismo volumen
+
+  · **SPRFV (cap. 2):** una presión por cara, y sobre la cubierta las FRANJAS de la Fig. 2.4-1
+    cuando la dirección se resuelve así. Antes la cubierta se pintaba de un solo color con el
+    valor de la franja más exigida: el croquis decía que toda la cubierta tiene la succión del
+    borde de barlovento, que es cuatro veces la del fondo en una nave larga.
+  · **C&R (cap. 5):** las ZONAS. 1'/1/2/3 sobre la cubierta, 4/5 sobre las paredes, el
+    voladizo con su composición del art. 5.7 y el alero adosado con sus figuras 5.9.
+
+⚠ **EL MODO C&R PINTA LA PRESIÓN DE UN ELEMENTO, NO «LA DE LA ZONA».** No existe «la presión
+de la zona 3»: el (GC_p) es función del ÁREA EFECTIVA DE VIENTO, y en la zona 3 de la
+Fig. 5.3-2A va de −3,2 a −1,4 entre 1 y 50 m². El croquis colorea con el área de UN elemento
+de la lista, se elige cuál, y el título lo dice. `presionesPorZona` (engine) es lo que se lo
+da, y hay test que exige que coincida con las zonas del propio elemento: es lo único que
+impide que el color del volumen y el número de la tabla se separen.
+
+⚠ **LAS FRANJAS Y LAS ZONAS SE RECORTAN, NO SE PINTAN ENCIMA** (`lib/subdividir3d.js`).
+Dibujar la cara entera y superponerle rectángulos de planta no funciona en 3D: un rectángulo
+proyectado no coincide con el pedazo de faldón que tapa y se corre tanto más cuanto mayor es
+la pendiente. Recortado por semiplanos verticales, cada pedazo ES parte de la cara —comparte
+vértices, normal y sombreado— y el corte cae exactamente sobre el plano porque se interpola
+en las tres coordenadas. Hay test de que las piezas cubren la cara sin perder ni duplicar
+superficie: un pedazo que se cae deja un agujero blanco, como si esa chapa no tuviera carga.
+
+⚠ **LA CUBIERTA SE ARMA POR PLANTA Y PLANO, NO POR VÉRTICES** (`volumen3d.js → faldones`).
+Es lo que permite prolongar el faldón más allá de la línea de pared manteniendo su pendiente.
+Con vértices a mano, cada tipo de cubierta necesitaba su propio cálculo de la cota del vuelo,
+que es justo donde se cuela un alero dibujado horizontal.
+
+⚠ **LOS VÉRTICES SE COMPARTEN.** Con la cubierta armada por planta, cada faldón pedía sus
+puntos y los del alero salían dos veces. Con vértices repetidos el sólido deja de estar
+cerrado y se pierde la única comprobación que tiene la malla de que es un volumen y no un
+montón de polígonos sueltos.
+
+⚠ **LA CUBIERTA SE PARTE EN LA LÍNEA DE PARED.** El faldón sobre el recinto y el que vuela
+están en el mismo plano y se ven como una sola chapa, pero no son la misma superficie: en el
+cap. 5 el elemento del vuelo lleva el (GC_p) compuesto del art. 5.7, mayor en los dos
+sentidos. Como una cara sola, el croquis pintaría todo el faldón con el coeficiente del
+interior y el vuelo saldría menos exigido de lo que es. Y ⚠ **la cara inferior existe sólo
+sobre el vuelo**: estaba armada con la planta entera, así que desde abajo se veía una «cara
+inferior del vuelo» cubriendo todo el edificio. Adentro de la línea de pared no hay cara
+inferior, hay cielorraso.
+
+**Los aleros llevan tipo propio** —`voladizo_superior`, `voladizo_inferior`,
+`voladizo_canto`, `alero`, `alero_inferior`—, no `cubierta`: el cap. 2 le da un C_p propio a
+la cara inferior a barlovento y el cap. 5 los manda a otras figuras. En el cap. 2 la cara
+superior del vuelo recibe lo mismo que el faldón —es la misma chapa y la Fig. 2.4-1 no
+distingue—; recién en C&R se separan.
+
+⚠ **CADA TIRA DEL VUELO SABE DE QUÉ BORDE SALE**, y no es rotulado: el art. 2.4.4 da la
+presión positiva de la cara inferior SÓLO al voladizo a barlovento, y cuál es depende de la
+dirección que se mire. Sin el borde, el croquis le pinta ese `C_p = +0,8` a los cuatro vuelos
+y muestra una presión que tres de ellos no reciben. El **espesor del alero es de dibujo**
+(`ESPESOR_ALERO`, fracción de `h`) y no es un dato del cálculo: se dibuja para que el canto se
+vea desde arriba, que es de donde se mira un croquis isométrico. Y la **losa del alero adosado
+va centrada sobre su pared**, que es una convención: el art. 5.9 pide el ancho pero no dónde
+empieza, y centrarlo es lo único que no inventa una excentricidad.
+
+⚠ **UN RÓTULO POR VALOR, Y LOS RÓTULOS SE MIRAN ENTRE SÍ.** Dos piezas que dicen lo mismo se
+rotulan una vez —con franjas, los dos faldones dicen lo mismo; en C&R, la zona 3 está en las
+cuatro esquinas—. Y no alcanza con que cada rótulo entre en su cara: eso era todo lo que se
+comprobaba y el control contó doscientos solapes, porque el valor de una tira caía sobre el
+nombre de la de al lado. Ahora se reparten de la pieza más grande a la más chica, cada una
+reserva su caja, y la que no encuentra lugar se queda sin rótulo.
+
+### La escala de los croquis es 1,5× fija
+
+Era un selector de cuatro pasos (1× · 1,5× · 2× · 3×). En uso, la única escala que se usaba
+era 1,5×: el 1× se ve chico y el 2× y el 3× obligan a desplazar el dibujo a lo ancho para leer
+una cota. ⚠ **El mecanismo se conserva entero** y no es lo mismo que fijar el ancho en el CSS:
+el SVG se sigue renderizando a `ZOOM · 100 %` del ancho de la columna con el MISMO `viewBox`,
+y `Lienzo` sigue midiendo el render para publicar `k = viewBox/px`. Es lo que hace que el
+dibujo crezca un 50 % y la letra siga saliendo a 11 px. Devolver el selector es cambiar
+`kit.jsx` y nada más: los nueve croquis ya reciben `zoom` por prop.
+
+⚠ **A 1,5× TODO CROQUIS EXCEDE SU TARJETA Y SE DESPLAZA A LO ANCHO**, y no hay forma de
+evitarlo: `escalaPorAncho` ya ajusta el dibujo al ancho disponible, así que agrandarlo un 50 %
+sólo puede salirse. Lo que se gana es que el dibujo crece y la letra no, o sea que los rótulos
+ocupan proporcionalmente menos y la geometría se lee mejor; lo que se paga es el desplazamiento
+horizontal. El envoltorio lo desplaza en vez de recortarlo.
+
+⚠ **Y POR ESO EL CONTROL COMPARA CONTRA EL ANCHO POR EL FACTOR DECLARADO**, no contra el ancho
+pelado. `Lienzo` publica el factor en `data-zoom` y `qa-chequeos.js` lo lee. Con la
+comparación anterior, el chequeo «el SVG es más ancho que su contenedor» marcaba los 144
+croquis de cada geometría —1.617 px contra 1.078— y dejaba de servir para lo que existe, que
+es encontrar el croquis que se sale POR OTRO MOTIVO.
 
 ## Estructura
 

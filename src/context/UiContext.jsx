@@ -7,6 +7,7 @@
 // autoguardado del cálculo.
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { TEMA_DEF } from '../components/tokens.js';
+import { ROTULOS } from '../components/svg/formatoCroquis.js';
 
 const KEY = "viento_ui_v1";
 const UiContext = createContext(null);
@@ -68,6 +69,17 @@ export function UiProvider({ children }) {
     return TEMA_DEF;
   });
 
+  // ROTULACIÓN DE LOS CROQUIS: símbolos del reglamento, medidas en metros, o las dos cosas.
+  // Va acá y no en el proyecto porque es una preferencia de VISTA —como el tema— y no un
+  // dato del cálculo: que alguien mire el croquis en símbolos no cambia ninguna presión, y
+  // guardarlo en el proyecto haría que cambiarlo dispare el autoguardado.
+  //
+  // El defecto es `simbolo`: es la lectura que el proyectista pidió, y deja el croquis
+  // leyéndose como la figura de la norma. Las medidas no se pierden —están siempre en la
+  // tabla de anchos de zona y en la memoria—.
+  const [rotulos, setRotulos] = useState(() =>
+    ROTULOS.includes(inicial.rotulos) ? inicial.rotulos : "simbolo");
+
   // El tema se aplica poniendo un ATRIBUTO en el elemento raíz: las variables tienen que
   // alcanzar también al <body>, que queda fuera del árbol de React. Puesto en un div
   // interior, el fondo de la página seguiría siendo el del tema por defecto.
@@ -77,8 +89,8 @@ export function UiProvider({ children }) {
   }, [tema]);
 
   useEffect(() => {
-    try { window.localStorage.setItem(KEY, JSON.stringify({ tema, nav })); } catch {}
-  }, [tema, nav]);
+    try { window.localStorage.setItem(KEY, JSON.stringify({ tema, nav, rotulos })); } catch {}
+  }, [tema, nav, rotulos]);
 
   return (
     <UiContext.Provider value={{
@@ -88,6 +100,7 @@ export function UiProvider({ children }) {
       cerrarNavSiCajon: () => { if (angosto) setNav(false); },
       tema, setTema, oscuro: tema === "oscuro",
       alternarTema: () => setTema(t => t === "oscuro" ? "claro" : "oscuro"),
+      rotulos, setRotulos,
     }}>{children}</UiContext.Provider>
   );
 }

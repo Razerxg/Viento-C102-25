@@ -122,16 +122,16 @@ export function AleroAdosadoSVG({ geo, alero, ancho = 700, alto = 420, escala,
           lado del vuelo, porque es la del alero. */}
       <Dim x1={X(xEdif + frente * (s > 0 ? 0.12 : 0.88))} y1={Y(0)}
         x2={X(xEdif + frente * (s > 0 ? 0.12 : 0.88))} y2={Y(h)}
-        texto={`h = ${m(h)}`} desplaz={s > 0 ? -22 : 22} color={c.azul} />
+        simbolo="h" valor={h} desplaz={s > 0 ? -22 : 22} color={c.azul} />
       <Dim x1={X(xEdif + frente * (s > 0 ? 0.62 : 0.38))} y1={Y(0)}
         x2={X(xEdif + frente * (s > 0 ? 0.62 : 0.38))} y2={Y(hAlero)}
-        texto={`h_e = ${m(he)}`} desplaz={s > 0 ? 22 : -22} color={c.txt2} />
+        simbolo="h_e" valor={he} desplaz={s > 0 ? 22 : -22} color={c.txt2} />
       <Dim x1={X(xVuelo)} y1={Y(0)} x2={X(xVuelo)} y2={Y(hc)}
-        texto={`h_c = ${m(hc)}`} desplaz={s > 0 ? 26 : -26} color={c.txt} />
+        simbolo="h_c" valor={hc} desplaz={s > 0 ? 26 : -26} color={c.txt} />
 
       {/* EL VUELO, acotado sobre el alero. */}
       <Dim x1={X(0)} y1={Y(hc) + canto + 34} x2={X(xVuelo)} y2={Y(hc) + canto + 34}
-        texto={`vuelo = ${m(vuelo)}`} color={c.txt} />
+        simbolo="vuelo" valor={vuelo} color={c.txt} />
 
       {/* ⚠ h_e ES LA COTA DE LA FIGURA Y h_Alero LA DEL MODELO, y cuando el proyectista
           carga h_e a mano pueden no coincidir. Si difieren se dice, en vez de dibujar una

@@ -31,11 +31,11 @@
 //   · PLANTA, ELEVACIÓN Y PAREDES COMPARTEN ESCALA, y el croquis la declara en
 //     `data-escala` para que el control automático pueda exigirlo.
 import { mkView, altoNecesario, Cota, CadenaDeCotas, Zona, Rotulo, Texto,
-  Lienzo, Flecha, ubicar, candidatosAlrededor, anchoEnLienzo, useEscalaTexto, useZoomCroquis,
-  TXT } from './kit.jsx';
+  Lienzo, Flecha, ubicar, candidatosAlrededor, anchoEnLienzo, useEscalaTexto, useRotulos,
+  useZoomCroquis, TXT } from './kit.jsx';
 import { regionesDe, franjasDePared, rotulosDeRegion, LAYOUT } from '../../engine/cyrZonas.js';
 import { fachada } from '../../engine/fachadas.js';
-import { m, coef, pared as nombrePared } from './formatoCroquis.js';
+import { m, coef, cota, EJE, pared as nombrePared } from './formatoCroquis.js';
 import { c } from '../tokens.js';
 
 /** El gris de relleno de cada zona, cuando el sombreado está activo. */
@@ -325,8 +325,12 @@ export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 980 }) {
         cumbreraX={cumbreraX} conBanda={conBanda} esc={esc} yNota={yTop + hFila + 31}
         xNota={X(bx / 2)} />
 
-      <CotasDePlanta X={X} Y={Y} bx={bx} by={by} a={a} h={h} layout={layout}
-        unaAguaLayout={unaAguaLayout} ejePendY={ejePendY} alFinal={alFinal} />
+      <CotasDePlanta geo={cyr.geoZonas} X={X} Y={Y} bx={bx} by={by} a={a} h={h} layout={layout}
+        unaAguaLayout={unaAguaLayout} ejePendY={ejePendY} alFinal={alFinal}
+        evitarTextos={unaAgua
+          ? [{ x: aleroAlto.x, y: aleroAlto.y, texto: "alero alto" },
+             { x: aleroBajo.x, y: aleroBajo.y, texto: "alero bajo" }]
+          : []} />
 
       <Rotulo x={X(bx / 2)} y={yTop + hFila + 14} texto="PLANTA" color={c.txt2}
         tam={TXT.titulo} peso={600} />
@@ -354,7 +358,7 @@ export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 980 }) {
           texto={`θ = ${coef(geo.theta, 1)}°`} color={c.txt2} tam={TXT.min} />
       </>}
       <Cota x1={XE(luz)} y1={YE(0)} x2={XE(luz)} y2={YE(cyr.altura.valor)} desplaz={26}
-        texto={`h = ${m(cyr.altura.valor)}`} color={c.txt2} />
+        simbolo="h" valor={cyr.altura.valor} color={c.txt2} />
       <Rotulo x={XE(luz / 2)} y={yTop + hFila + 14} texto="ELEVACIÓN" color={c.txt2}
         tam={TXT.titulo} peso={600} />
       <Rotulo x={XE(luz / 2)} y={yTop + hFila + 32}
@@ -383,10 +387,21 @@ export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 980 }) {
 // Acá sólo queda ubicar los círculos sin que se pisen, probando posiciones alrededor del
 // punto ideal. El marcador `data-zona` existe para que el control automático pueda exigir
 // que toda región tenga su número.
-function RotulosDePlanta({ geo, X, Y, bx, by, a, cumbreraX, conBanda, esc, xNota, yNota }) {
-  const k = useEscalaTexto();
-
-  // 1 · los números, uno por región, corridos hasta encontrar lugar
+/**
+ * Dónde queda cada número de zona de la planta, ya corrido para no pisarse.
+ *
+ * ── SE CALCULA EN DOS LUGARES A PROPÓSITO ──────────────────────────────────────
+ * Lo usan `RotulosDePlanta` —que dibuja los números— y `CotasDePlanta` —que necesita saber
+ * qué lugar está tomado para no acotar encima—. Los dos son hijos del `Lienzo` y hermanos
+ * entre sí, así que no hay dónde compartir el resultado sin subirlo fuera del contexto que
+ * los dos necesitan.
+ *
+ * ⚠ ES SEGURO PORQUE ES UNA FUNCIÓN PURA DE SUS ENTRADAS: mismas regiones, misma escala,
+ * mismo `k`, mismas posiciones. Si algún día esto dependiera del orden de renderizado o de
+ * un estado, las dos capas empezarían a ver plantas distintas y el arbitraje dejaría de
+ * valer. `ubicar` prueba candidatos en un orden fijo, sin aleatoriedad.
+ */
+function circulosDeZona(geo, X, Y, bx, by, k) {
   const ocupados = [];
   const puestos = [];
   for (const r of rotulosDeRegion(geo)) {
@@ -399,12 +414,25 @@ function RotulosDePlanta({ geo, X, Y, bx, by, a, cumbreraX, conBanda, esc, xNota
     ocupados.push(sitio);
     puestos.push({ ...r, texto, cx: sitio.x, cy: sitio.y, radio: d });
   }
+  return { puestos, ocupados };
+}
+
+/** De un sitio de `ubicar` a una caja, que es lo que compara `Cota` con su `evitar`. */
+const aCaja = (o) => ({ x1: o.x - o.w / 2, x2: o.x + o.w / 2,
+  y1: o.y - o.h / 2, y2: o.y + o.h / 2 });
+
+function RotulosDePlanta({ geo, X, Y, bx, by, a, cumbreraX, conBanda, esc, xNota, yNota }) {
+  const rot = useRotulos();
+  const k = useEscalaTexto();
+
+  // 1 · los números, uno por región, corridos hasta encontrar lugar
+  const { puestos, ocupados } = circulosDeZona(geo, X, Y, bx, by, k);
 
   // 2 · la cota de la franja de cumbrera, en el hueco que quedó DESPUÉS de correrlos
   //
   // ⚠ SE MIDE CONTRA LAS POSICIONES FINALES. Calcularla contra los puntos ideales daba un
   // hueco que ya no existía: los rótulos se habían corrido justamente para no pisarse.
-  const textoBanda = `2a = ${m(2 * a)}`;
+  const textoBanda = cota("2a", 2 * a, rot);
   const anchoCota = anchoEnLienzo(textoBanda, TXT.cota, k) + 10 * k;
   let banda = null;
   if (conBanda) {
@@ -422,6 +450,25 @@ function RotulosDePlanta({ geo, X, Y, bx, by, a, cumbreraX, conBanda, esc, xNota
       if (d > ancho) { ancho = d; centro = (marcas[i] + marcas[i - 1]) / 2; }
     }
     banda = ancho >= anchoCota ? centro : null;
+
+    // ⚠ Y DESPUÉS SE VERIFICA CONTRA TODOS LOS CÍRCULOS, NO SÓLO LOS CERCANOS. La búsqueda
+    // del hueco sólo mira los rótulos a menos de 1,6a de la cumbrera, que es una optimización
+    // razonable para encontrar el hueco más ancho; pero la CAJA del texto es más alta que esa
+    // franja y puede tocar un círculo que quedó afuera del filtro. Con las cotas largas nunca
+    // se notó —ningún hueco calificaba y la cota caía en «ver tabla»—, y al acortarlas a «2a»
+    // un hueco marginal empezó a calificar y la cota salió montada sobre un número.
+    if (banda !== null) {
+      const altoCota = TXT.cota * 1.45 * k;
+      const cx = cumbreraX ? banda : X(bx / 2);
+      const cy = cumbreraX ? Y(by / 2) : banda;
+      const b = { x1: cx - anchoCota / 2, x2: cx + anchoCota / 2,
+        y1: cy - altoCota / 2, y2: cy + altoCota / 2 };
+      const choca = ocupados.some(o => {
+        const q = aCaja(o);
+        return b.x1 < q.x2 && q.x1 < b.x2 && b.y1 < q.y2 && q.y1 < b.y2;
+      });
+      if (choca) banda = null;
+    }
   }
 
   return (
@@ -452,7 +499,23 @@ function RotulosDePlanta({ geo, X, Y, bx, by, a, cumbreraX, conBanda, esc, xNota
 // Encadenadas desde el borde y apiladas en filas cuando no entran: es la cadena
 // «0,2h / 0,6h / 0,6h» de la cubierta plana, que antes se escalonaba alternando el
 // desplazamiento de a una —que alcanza para dos— y se montaba sobre sí misma en la tercera.
-function CotasDePlanta({ X, Y, bx, by, a, h, layout, unaAguaLayout, ejePendY, alFinal }) {
+function CotasDePlanta({ geo, X, Y, bx, by, a, h, layout, unaAguaLayout, ejePendY, alFinal,
+  evitarTextos = [] }) {
+  const k = useEscalaTexto();
+  // ⚠ LO QUE HAY QUE EVITAR SON LOS NÚMEROS DE ZONA Y LOS RÓTULOS DE ALERO. Las cotas de
+  // franja van con un desplazamiento chico y, según de qué borde cuelguen, ese desplazamiento
+  // cae ADENTRO de la planta: la del borde lateral de una vertiente única se dibuja 20
+  // unidades hacia adentro, que es exactamente donde vive el número de la zona de esquina.
+  // Con las cotas largas nunca se vio, porque no entraban entre las marcas y se iban afuera;
+  // al acortarlas a «2a» empezaron a entrar centradas y salieron encima del círculo.
+  const evitar = [
+    ...(geo ? circulosDeZona(geo, X, Y, bx, by, k).ocupados.map(aCaja) : []),
+    ...evitarTextos.map(t => {
+      const w = anchoEnLienzo(t.texto, TXT.min, k) + 4 * k;
+      const alto = TXT.min * 1.45 * k;
+      return { x1: t.x - w / 2, x2: t.x + w / 2, y1: t.y - alto / 2, y2: t.y + alto / 2 };
+    }),
+  ];
   const anchoLat = layout === LAYOUT.UNA_AGUA_PRIMADA ? 2 * a : a;
   const franjaEnCero = (ejeEsPendiente) => {
     if (!ejeEsPendiente) return { ancho: anchoLat, s: anchoLat === a ? "a" : "2a" };
@@ -461,10 +524,10 @@ function CotasDePlanta({ X, Y, bx, by, a, h, layout, unaAguaLayout, ejePendY, al
   const enX = franjaEnCero(!ejePendY), enY = franjaEnCero(ejePendY);
 
   const generales = <>
-    <Cota x1={X(0)} y1={Y(by)} x2={X(bx)} y2={Y(by)} desplaz={-22} texto={m(bx)}
-      color={c.txt2} />
-    <Cota x1={X(bx)} y1={Y(by)} x2={X(bx)} y2={Y(0)} desplaz={-24} texto={m(by)}
-      color={c.txt2} />
+    <Cota x1={X(0)} y1={Y(by)} x2={X(bx)} y2={Y(by)} desplaz={-22}
+      simbolo={EJE.X} valor={bx} color={c.txt2} evitar={evitar} />
+    <Cota x1={X(bx)} y1={Y(by)} x2={X(bx)} y2={Y(0)} desplaz={-24}
+      simbolo={EJE.Y} valor={by} color={c.txt2} evitar={evitar} />
   </>;
 
   // La cubierta plana es la única que zonifica con múltiplos de `h` y no de `a`, y la
@@ -476,7 +539,7 @@ function CotasDePlanta({ X, Y, bx, by, a, h, layout, unaAguaLayout, ejePendY, al
       <g>
         {generales}
         <CadenaDeCotas cortes={d} eje="x" fijo={Y(0)} al={X} desplaz={20}
-          textos={d.slice(1).map((x, i) => `${nombres[i]} = ${m(x - d[i])}`)} />
+          simbolos={d.slice(1).map((x, i) => ({ simbolo: nombres[i], valor: x - d[i] }))} />
       </g>
     );
   }
@@ -486,11 +549,11 @@ function CotasDePlanta({ X, Y, bx, by, a, h, layout, unaAguaLayout, ejePendY, al
       {generales}
       {enX.ancho <= bx / 2 + 1e-9 && (
         <Cota x1={X(0)} y1={Y(0)} x2={X(enX.ancho)} y2={Y(0)} desplaz={20}
-          texto={`${enX.s} = ${m(enX.ancho)}`} color={c.txt2} />
+          simbolo={enX.s} valor={enX.ancho} color={c.txt2} evitar={evitar} />
       )}
       {unaAguaLayout && enY.ancho <= by / 2 + 1e-9 && (
         <Cota x1={X(bx)} y1={Y(0)} x2={X(bx)} y2={Y(enY.ancho)} desplaz={-20}
-          texto={`${enY.s} = ${m(enY.ancho)}`} color={c.txt2} />
+          simbolo={enY.s} valor={enY.ancho} color={c.txt2} evitar={evitar} />
       )}
     </g>
   );
@@ -603,9 +666,9 @@ function ParedEnElevacion({ f, a, esc, sombrear, x0, y0, caja }) {
           sobre el ④. El signo del desplazamiento es relativo a la dirección de la línea,
           y en una cota de izquierda a derecha el positivo es hacia abajo. */}
       <Cota x1={px(0)} y1={py(0)} x2={px(Math.min(a, f.W))} y2={py(0)} desplaz={18}
-        texto={`a = ${m(a)}`} color={c.txt2} />
-      <Cota x1={px(0)} y1={py(0)} x2={px(f.W)} y2={py(0)} desplaz={38} texto={m(f.W)}
-        color={c.txt2} />
+        simbolo="a" valor={a} color={c.txt2} />
+      <Cota x1={px(0)} y1={py(0)} x2={px(f.W)} y2={py(0)} desplaz={38}
+        simbolo={f.eje === "X" ? EJE.Y : EJE.X} valor={f.W} color={c.txt2} />
       {/* El nombre va ARRIBA de la pared: abajo están las dos cotas encadenadas —el
           ancho de la zona 5 y el ancho total— y el rótulo se montaba sobre la segunda. */}
       {/* El nombre va en el tope de la fila, por encima de los números de zona: ellos se

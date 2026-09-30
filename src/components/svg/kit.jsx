@@ -30,6 +30,7 @@
 //     del mismo galpón se dibujan a tamaños distintos y no se pueden comparar mirando.
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { c, TAM, FUENTE } from '../tokens.js';
+import { cota as textoDeCota } from './formatoCroquis.js';
 
 // ── TAMAÑOS, EN PÍXELES DE PANTALLA ─────────────────────────────────────────────
 // No en unidades de `viewBox`: ver la regla 1. `min` es el piso que exige el control.
@@ -83,6 +84,24 @@ export const useEscalaTexto = () => useContext(CtxK);
 export const anchoEnLienzo = (texto, tam, k, peso = 400) =>
   anchoTexto(texto, Math.max(TXT.min, tam), peso) * k;
 
+// ── SIMBOLOGÍA O MEDIDA ─────────────────────────────────────────────────────────
+//
+// El modo de rotulación viaja por contexto y no por prop, por el mismo motivo que `k`: lo
+// leen las cotas, que están seis niveles adentro de cada croquis, y enhebrarlo a mano
+// obligaría a agregar la prop en las nueve láminas y en cada componente intermedio —y el
+// que se olvide de pasarla dibuja en otro modo sin que nada avise—.
+//
+// El provider se monta UNA vez, en `App.jsx`, alimentado por `UiContext`: el modo es una
+// preferencia de vista como el tema y no un dato del proyecto. `kit.jsx` no importa el
+// contexto de la app a propósito —es la capa de primitivas de dibujo y tiene que poder
+// renderizarse sola en los tests—, así que acá vive el contexto y allá la conexión.
+const CtxRot = createContext("simbolo");
+/** El modo de rotulación vigente: «simbolo» · «medida» · «ambos». */
+export const useRotulos = () => useContext(CtxRot);
+export const RotulosProvider = ({ modo, children }) => (
+  <CtxRot.Provider value={modo ?? "simbolo"}>{children}</CtxRot.Provider>
+);
+
 // ── VISTA: DEL MODELO A LA PANTALLA ─────────────────────────────────────────────
 //
 // ⚠ INVIERTE EL EJE Y. En el modelo +y es HACIA ARRIBA —es una altura— y en SVG +y va
@@ -135,8 +154,24 @@ export function escalaPorAncho(vistas, { altoMaximo = Infinity } = {}) {
 /** El alto que necesita una caja para contener su dibujo a esa escala. */
 export const altoNecesario = (v, esc) => Math.ceil(v.h * esc + 2 * (v.margen ?? 40));
 
-/** Los factores de zoom que ofrece la barra del croquis. */
-export const ZOOMS = [1, 1.5, 2, 3];
+/**
+ * El factor con el que se dibuja TODO croquis.
+ *
+ * ── ERA UN SELECTOR DE CUATRO PASOS Y AHORA ES UN NÚMERO ───────────────────────
+ * Se había puesto 1× / 1,5× / 2× / 3× para poder mirar de cerca tanto un shelter de 2,4 m
+ * como un galpón de 30. En uso resultó que la única escala que se usaba era la de 1,5×: el
+ * 1× se ve chico y el 2× y el 3× obligan a desplazar el dibujo a lo ancho para leer una cota,
+ * que es peor que agrandarlo. Cuatro botones por croquis, nueve croquis, para un valor que
+ * nadie movía.
+ *
+ * ⚠ EL MECANISMO SE CONSERVA ENTERO, y no es lo mismo que fijar el ancho en el CSS: el SVG
+ * se sigue renderizando a `ZOOM · 100 %` del ancho de la columna con el MISMO `viewBox`, y
+ * `Lienzo` sigue midiendo el render para publicar `k = viewBox/px`. Es lo que hace que el
+ * dibujo crezca un 50 % y la letra siga saliendo a 11 px. Quien quiera volver a ofrecer la
+ * elección sólo tiene que devolverle el arreglo a la barra: `Lienzo` ya toma el factor por
+ * prop y ningún croquis sabe que existe.
+ */
+export const ZOOM = 1.5;
 
 // ── TEXTO ───────────────────────────────────────────────────────────────────────
 /**
@@ -207,9 +242,16 @@ export const candidatosAlrededor = (x, y, dx, dy) => [
 // interrumpe detrás de él. Si no entra, sale por el extremo con una línea guía. Y con
 // `omitirSiNoEntra`, cuando afuera tampoco hay lugar no se dibuja: el croquis avisa «ver
 // tabla» y el dato sigue estando, en la tabla de al lado.
-export function Cota({ x1, y1, x2, y2, texto, desplaz = 0, color = c.txt2,
-  tam = TXT.cota, marca = 5, omitirSiNoEntra = false, onOmitida }) {
+export function Cota({ x1, y1, x2, y2, texto, simbolo, valor, desplaz = 0, color = c.txt2,
+  tam = TXT.cota, marca = 5, omitirSiNoEntra = false, onOmitida, evitar }) {
   const k = useEscalaTexto();
+  // ⚠ EL MODO DE ROTULACIÓN SE RESUELVE ACÁ ADENTRO, Y NO EN QUIEN ARMA LA COTA. Es lo que
+  // hace que funcione: `<Cota>` se CREA en el componente que dibuja el croquis —que puede
+  // estar fuera del `Lienzo` y leería el modo por defecto— pero se RENDERIZA como hijo del
+  // `Lienzo`, así que el hook de acá sí ve el provider. Con `simbolo` y `valor` en vez de
+  // `texto`, ningún croquis necesita saber que el modo existe.
+  const rot = useRotulos();
+  if (texto == null) texto = textoDeCota(simbolo, valor ?? null, rot);
   const dx = x2 - x1, dy = y2 - y1;
   const n = Math.hypot(dx, dy) || 1;
   const [ux, uy] = [dx / n, dy / n];
@@ -218,7 +260,24 @@ export function Cota({ x1, y1, x2, y2, texto, desplaz = 0, color = c.txt2,
   const [mx, my] = [(ax + bx) / 2, (ay + by) / 2];
 
   const w = anchoEnLienzo(texto, tam, k) + 6 * k;
-  const entra = w + 2 * marca <= n;
+  // ── ENTRAR NO ES SÓLO CABER ENTRE LAS MARCAS ──────────────────────────────────
+  // ⚠ `evitar` SON CAJAS QUE YA ESTÁN OCUPADAS, y sin ellas la cota puede caber holgada y
+  // caer justo encima de otro rótulo. Apareció al pasar los croquis a simbología: «B_Y» mide
+  // la mitad que «B_Y = 11,00», así que cotas que antes se iban afuera —porque no entraban—
+  // ahora entran centradas, y ahí estaba el rótulo «alero bajo». La cota no sabía de él.
+  //
+  // Cuando el lugar centrado está tomado, la cota usa el camino que ya tenía para cuando no
+  // entra: se va AFUERA del segundo extremo, con su línea guía. No se achica la letra.
+  const alto = tam * 1.45 * k;
+  const cajaEn = (cx, cy) => ({ x1: cx - w / 2, x2: cx + w / 2,
+    y1: cy - alto / 2, y2: cy + alto / 2 });
+  const tomado = (cx, cy) => {
+    if (!evitar?.length) return false;
+    const b = cajaEn(cx, cy);
+    return evitar.some(o => b.x1 < o.x2 && o.x1 < b.x2 && b.y1 < o.y2 && o.y1 < b.y2);
+  };
+
+  const entra = w + 2 * marca <= n && !tomado(mx, my);
   if (!entra && omitirSiNoEntra) { onOmitida?.(texto); return null; }
 
   // Afuera: más allá del segundo extremo, corrido medio texto más la marca.
@@ -263,8 +322,12 @@ export function Cota({ x1, y1, x2, y2, texto, desplaz = 0, color = c.txt2,
  * marcas a 45°. Existe separada de `Cota` porque no compiten —una acota presiones y la
  * otra se transcribe a un plano— pero comparte el texto, la medición y la interrupción.
  */
-export function Dim({ x1, y1, x2, y2, texto, desplaz = 0, color = c.txt2, tam = TXT.cota }) {
+export function Dim({ x1, y1, x2, y2, texto, simbolo, valor, desplaz = 0, color = c.txt2,
+  tam = TXT.cota }) {
   const k = useEscalaTexto();
+  // Mismo mecanismo que `Cota`: ver la advertencia de allá.
+  const rot = useRotulos();
+  if (texto == null) texto = textoDeCota(simbolo, valor ?? null, rot);
   const dx = x2 - x1, dy = y2 - y1;
   const n = Math.hypot(dx, dy) || 1;
   const [ux, uy] = [dx / n, dy / n];
@@ -305,13 +368,22 @@ export function Dim({ x1, y1, x2, y2, texto, desplaz = 0, color = c.txt2, tam = 
  * `cortes` son las posiciones en el modelo, `al` las lleva al lienzo y `fijo` es la
  * coordenada constante de la recta, ya en el lienzo.
  */
-export function CadenaDeCotas({ cortes, eje, fijo, al, textos, desplaz = 18, paso = 17,
-  color = c.txt2, tam = TXT.cota }) {
+export function CadenaDeCotas({ cortes, eje, fijo, al, textos, simbolos, desplaz = 18,
+  paso = 17, color = c.txt2, tam = TXT.cota }) {
   const k = useEscalaTexto();
+  // Con `simbolos` en vez de `textos`, la cadena compone cada etiqueta según el modo de
+  // rotulación vigente. Hace falta acá y no en cada `Cota`: la cadena MIDE los textos para
+  // decidir en qué fila va cada uno, y un símbolo mide la mitad que «0 a h/2 = 1,50», así
+  // que el reparto en filas cambia con el modo. Con los textos ya compuestos afuera, quien
+  // los arma está fuera del `Lienzo` y leería el modo por defecto.
+  const rot = useRotulos();
+  const etiqueta = (i) => (simbolos
+    ? (simbolos[i] == null ? null : textoDeCota(simbolos[i].simbolo, simbolos[i].valor, rot))
+    : textos?.[i]);
   const filas = [];       // filas[i] = intervalos ya ocupados en esa fila
   const piezas = [];
   for (let i = 1; i < cortes.length; i++) {
-    const texto = textos[i - 1];
+    const texto = etiqueta(i - 1);
     if (texto == null) continue;
     const [p, q] = [al(cortes[i - 1]), al(cortes[i])];
     const w = anchoEnLienzo(texto, tam, k) + 8 * k;
@@ -408,16 +480,18 @@ function factorDeTexto(el, ancho, alto) {
 }
 
 /**
- * El zoom de un croquis. Vive en el componente que dibuja —no adentro de `Lienzo`— porque
- * el croquis necesita el factor ANTES de armar la vista, y `Lienzo` es su hijo.
+ * El factor de dibujo de un croquis.
+ *
+ * Sigue siendo un hook y no una constante importada en cada lámina para que devolver el
+ * selector sea cambiar este archivo y nada más: los nueve croquis ya reciben `zoom` por prop
+ * y ninguno sabe de dónde sale.
  */
-export function useZoomCroquis(inicial = 1) {
-  const [zoom, setZoom] = useState(inicial);
-  return { zoom, setZoom };
+export function useZoomCroquis() {
+  return { zoom: ZOOM, setZoom: undefined };
 }
 
 export function Lienzo({ ancho, alto, children, titulo, escala, edificio, zonificado,
-  herramientas = true, unidades = "Cotas en m", zoom = 1, setZoom }) {
+  herramientas = true, unidades = "Cotas en m", zoom = ZOOM, setZoom }) {
   const ref = useRef(null);
   const [k, setK] = useState(1);
   const [grande, setGrande] = useState(false);
@@ -432,22 +506,22 @@ export function Lienzo({ ancho, alto, children, titulo, escala, edificio, zonifi
     return () => ro.disconnect();
   }, [ancho, alto, zoom]);
 
-  // ── EL ZOOM AGRANDA EL DIBUJO Y NO EL TEXTO, SIN TOCAR UNA SOLA LÍNEA DEL CROQUIS ──
+  // ── EL DIBUJO SE AGRANDA Y EL TEXTO NO, SIN TOCAR UNA SOLA LÍNEA DE NINGÚN CROQUIS ──
   //
   // El SVG se renderiza a `zoom` veces el ancho de la columna, con el MISMO `viewBox`.
   // Cada unidad de viewBox pasa a medir más píxeles, así que el dibujo crece; y como
   // `Lienzo` mide el render y publica `k = viewBox/px`, el tamaño de letra en unidades de
   // viewBox se achica en la misma proporción y el texto sigue saliendo a 11 px.
   //
-  // Es exactamente para lo que se construyó la regla 1, y por eso el zoom no necesita que
-  // ningún croquis sepa que existe: las cotas mantienen su cuerpo mientras el shelter de
-  // 2,4 m o el galpón de 30 se agrandan.
+  // Es exactamente para lo que se construyó la regla 1. Que hoy el factor sea siempre 1,5 no
+  // cambia nada de esto: el mecanismo es el que permite que el shelter de 2,4 m y el galpón
+  // de 30 se dibujen medio grande más sin que la letra crezca con ellos.
   const svg = (
     <svg ref={ref} viewBox={`0 0 ${ancho} ${alto}`} width={`${zoom * 100}%`}
       style={{ display: "block", maxHeight: alto * zoom }}
       role="img" aria-label={titulo}
       data-escala={escala ?? undefined} data-edificio={edificio ?? undefined}
-      data-zonificado={zonificado ? "si" : undefined}>
+      data-zonificado={zonificado ? "si" : undefined} data-zoom={zoom}>
       {titulo ? <title>{titulo}</title> : null}
       <CtxK.Provider value={k}>{children}</CtxK.Provider>
     </svg>
@@ -458,8 +532,8 @@ export function Lienzo({ ancho, alto, children, titulo, escala, edificio, zonifi
     <div style={{ position: "relative" }}>
       {/* Con zoom el dibujo es más ancho que la tarjeta: se desplaza, no se recorta. */}
       <div style={{ overflowX: zoom > 1 ? "auto" : "visible" }}>{svg}</div>
-      <BarraCroquis svgRef={ref} titulo={titulo} unidades={unidades} zoom={zoom}
-        setZoom={setZoom} onAmpliar={() => setGrande(true)} />
+      <BarraCroquis svgRef={ref} titulo={titulo} unidades={unidades}
+        onAmpliar={() => setGrande(true)} />
       {grande && (
         <Ampliado titulo={titulo} onCerrar={() => setGrande(false)} ancho={ancho}
           alto={alto} escala={escala} edificio={edificio} zonificado={zonificado}>
@@ -474,7 +548,7 @@ export function Lienzo({ ancho, alto, children, titulo, escala, edificio, zonifi
  * La unidad declarada UNA sola vez —y no repetida en cada cota, que es lo que llenaba de
  * «m» un dibujo que tiene veinte— más los dos botones. Se ocultan al imprimir.
  */
-function BarraCroquis({ svgRef, titulo, unidades, onAmpliar, zoom = 1, setZoom }) {
+function BarraCroquis({ svgRef, titulo, unidades, onAmpliar }) {
   const descargar = () => {
     const el = svgRef.current;
     if (!el) return;
@@ -505,20 +579,6 @@ function BarraCroquis({ svgRef, titulo, unidades, onAmpliar, zoom = 1, setZoom }
       marginTop: 2,
     }}>
       <span style={{ fontSize: TAM.base, color: c.txt2, marginRight: "auto" }}>{unidades}</span>
-      {setZoom && (
-        <span style={{ display: "inline-flex", gap: 2, alignItems: "center" }}>
-          <span style={{ fontSize: TAM.base, color: c.txt2, marginRight: 4 }}>Escala</span>
-          {ZOOMS.map(z => (
-            <button key={z} type="button" aria-pressed={z === zoom}
-              onClick={() => setZoom(z)}
-              style={{ ...boton, fontWeight: z === zoom ? 600 : 400,
-                background: z === zoom ? c.hover : c.raised,
-                color: z === zoom ? c.txt : c.txt2 }}>
-              {String(z).replace(".", ",")}×
-            </button>
-          ))}
-        </span>
-      )}
       <button type="button" style={boton} onClick={onAmpliar}>Ampliar</button>
       <button type="button" style={boton} onClick={descargar}>Descargar SVG</button>
     </div>

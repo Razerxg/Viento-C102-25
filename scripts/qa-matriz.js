@@ -17,6 +17,32 @@ export const DIRECCIONES = ["Wx+", "Wx-", "Wy+", "Wy-"];
  * Recorrer las cuatro direcciones en una pantalla que no depende de ellas cuadriplica el
  * tiempo del control para sacar cuatro capturas idénticas.
  */
+/**
+ * Los dos modos de rotulación de cotas. Se recorren los dos y no sólo el defecto: al cambiar
+ * de modo cambia el LARGO de cada etiqueta, y el largo es lo que decide si una cota entra
+ * entre sus marcas o se va afuera. Los dos primeros defectos que encontró el control después
+ * del cambio fueron exactamente eso: cotas que con el texto largo se iban afuera y con el
+ * corto entraron centradas, encima de un número de zona y de un rótulo de alero.
+ */
+export const ROTULOS = ["simbolo", "medida"];
+
+/**
+ * Los sub-modos de la vista 3D. El de C&R no es una pantalla aparte —es un botón adentro del
+ * croquis— así que sin esto la mitad del 3D quedaría sin controlar: las zonas, el voladizo
+ * compuesto y el alero adosado se dibujan sólo en ese modo.
+ */
+export const VARIANTES = {
+  Croquis: [
+    { id: "sprfv", boton: null, porDireccion: true },
+    // ⚠ EL MODO C&R NO DEPENDE DE LA DIRECCIÓN, y por eso se recorre una sola vez. Los
+    // (GC_p) del capítulo 5 YA son la envolvente de las cuatro direcciones —por eso cada
+    // elemento tiene un valor positivo y uno negativo—: recorrerlas daría cuatro capturas
+    // idénticas por geometría y por tema, y una hoja de contacto con cuatro paneles iguales
+    // es más difícil de mirar que una con uno.
+    { id: "cyr", boton: "C&R — cap. 5", porDireccion: false },
+  ],
+};
+
 export const PANTALLAS = [
   { nombre: "Edificio", porDireccion: false },
   { nombre: "Cerramiento", porDireccion: false },
