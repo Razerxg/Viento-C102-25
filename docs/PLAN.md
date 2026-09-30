@@ -158,7 +158,7 @@ prueba las reglas.
 | ✅ | **Tinta por tokens del tema en los nueve croquis**; las escalas de datos, aparte | `lib/paletaDatos.js` + `lib/escalaPresion.js`, con test que recorre `components/svg/` |
 | ✅ | **Contraste**: `txt3` subido a 4,65:1 en oscuro y 5,23:1 en claro | `components/tokens.js` |
 | ✅ | **Ampliar y Descargar SVG** en cada croquis | `kit.jsx → BarraCroquis` |
-| ⏳ | **Voladizo de cubierta** (art. 2.4.4 y art. 5.7) — parte 3A | |
+| 🔄 | **Voladizo de cubierta** — capítulo 5 completo (art. 5.7 + nota 7); capítulo 2 📥 | `engine/voladizo.js` + `engine/cyrPresiones.js`, con `tests/voladizo.test.js` (29 tests) |
 | ⏳ | **Alero adosado a pared** (art. 5.9) — parte 3B | |
 | 📥 | La geometría **«shelter con voladizo»** de la matriz se agrega con la parte 3A | `scripts/qa-matriz.js` |
 
@@ -175,6 +175,57 @@ Dos hallazgos que costaron una vuelta cada uno:
 - **`useEscalaTexto` sólo vale DENTRO de `Lienzo`.** Quien renderiza el `Lienzo` está fuera
   de su contexto y lee el valor por defecto, 1. Por eso los rótulos del perfil de q(z) se
   eligen en un componente hijo y no en el que arma el dibujo.
+
+### Voladizos de cubierta — lo que está y lo que falta
+
+**Modelo: CUATRO BORDES, no un vuelo.** El art. 2.4.4 trata distinto el voladizo a
+BARLOVENTO, y cuál es depende de la dirección de viento que se analice: con un solo número
+«vuelo» esa pregunta no se puede responder. La pantalla los agrupa como se piensa el vuelo
+al proyectar —aleros y hastiales, perimetral, alero alto / bajo / laterales— pero eso es
+presentación.
+
+**Lo que NO cambia, y es donde está la trampa:** `h`, `a`, `b` y el área de pared. La
+altura media se mide sobre la línea de pared. Sumar el vuelo a `b` cambiaría el remonte,
+la altura media, el área de las paredes y la relación h/L de las cuatro direcciones.
+
+**Capítulo 5 — completo.** Leído del PDF:
+
+- **art. 5.7**: `p = q_h[(GC_p) − (GC_pi)]`, con `q_h` a la altura MEDIA de cubierta, y
+  `(GC_p)` como «la suma de las contribuciones» de la cara superior —la figura de la zona
+  de cubierta donde está el voladizo— y la inferior —«tomado igual a la zona de pared
+  adyacente según la Figura 5.3-1 y ajustado al área efectiva de viento»—.
+  ⚠ **«Suma» no es la suma aritmética de los dos números tal como salen de sus figuras.**
+  El comentario C 5.3.2.1 fija la convención de una superficie INFERIOR —positivo = carga
+  hacia arriba— que es la opuesta a la de la cara superior. Llevado todo a la convención
+  de arriba: levantamiento = (GC_p)⁻cubierta − (GC_p)⁺pared. Las dos contribuciones suman
+  en magnitud, que es lo único físicamente razonable: el viento que empuja contra la pared
+  entra por debajo del voladizo y lo levanta.
+- **art. 5.7, (GC_pi) = 0** «cuando la separación de las superficies superior e inferior
+  del voladizo no configure un volumen interno». Es una DECLARACIÓN del proyectista, por
+  elemento, y el defecto es que sí lo configura, que es lo conservador.
+- **nota 6 de la Fig. 5.3-2A**: con θ ≤ 7° la figura trae curva de ALERO propia y sus
+  valores «incluyen las contribuciones de presión de las superficies superior e inferior».
+  Ahí no se compone nada: componer sería contarlas dos veces.
+- **nota 7 de la Fig. 5.3-2A**: «la dimensión horizontal menor del edificio no incluirá
+  ninguna dimensión de voladizo, pero la distancia al borde, a, se medirá desde el borde
+  exterior del voladizo». Son DOS cosas en dos lugares: `a` se calcula con la planta del
+  edificio y se aplica sobre la planta de la CUBIERTA.
+
+**Capítulo 2 — 📥 FRENADO, esperando tres definiciones.** El art. 2.4.4 completo dice:
+
+> La presión externa positiva en la superficie inferior de voladizos de cubierta a
+> barlovento se debe calcular usando **C_p = +0,8** y combinada con las presiones en la
+> superficie superior calculadas usando la **Figura 2.4-1**.
+
+Eso es todo: no tiene comentario (C 2.4.4 no existe) y las siete notas de la Fig. 2.4-1
+no mencionan voladizos. Queda sin escribir:
+
+1. **con qué presión dinámica** se evalúa la cara inferior. La columna «Usar con» de la
+   Fig. 2.4-1 da `q_z` para la pared a barlovento y `q_h` para todo lo demás, y la cara
+   inferior del voladizo no está en esa tabla;
+2. **la zonificación**: el artículo habla del voladizo «a barlovento», sin decir si los
+   laterales entran en algo;
+3. **si el factor de ráfaga G multiplica** a ese `C_p = +0,8`.
 
 ## Fase 4 — Capítulo 5, componentes y revestimientos 🔄
 

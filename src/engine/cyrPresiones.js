@@ -57,6 +57,81 @@ export const FIGURAS_CON_NOTA_PARAPETO = ["5.3-2A"];
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
+ * La ZONA DE PARED ADYACENTE a una zona de cubierta, para la cara inferior del voladizo.
+ *
+ * El art. 5.7 pide «el (GC_p) para la superficie inferior, tomado igual a la zona de pared
+ * adyacente según la Figura 5.3-1». La Fig. 5.3-1 tiene dos zonas: la 5, que es la franja
+ * de ancho `a` contra cada esquina vertical, y la 4, que es el resto.
+ *
+ * ⚠ LA CORRESPONDENCIA ES POR POSICIÓN EN PLANTA, y por eso la zona de ESQUINA de la
+ * cubierta —la 3, y su primada— va con la zona 5 de pared: son el mismo lugar del
+ * edificio visto desde arriba y desde el costado. Las demás van con la 4.
+ *
+ * Queda una aproximación conocida: la zona 2 de cubierta es una FRANJA de borde que pasa
+ * por delante de las dos zonas 5 de pared en sus puntas. Tomarla entera como zona 4 es lo
+ * que dibuja la figura —la 5 vive en la esquina— y es lo que se adopta.
+ */
+const ZONA_PARED_ADYACENTE = (zona) => (zona.startsWith("3") ? "5" : "4");
+
+/**
+ * (GC_p) de un elemento de VOLADIZO por el art. 5.7, componiendo las dos caras.
+ *
+ * ── LA COMPOSICIÓN, Y POR QUÉ LOS SIGNOS VAN ASÍ ────────────────────────────────
+ * El artículo dice que el (GC_p) se calcula «como la suma de las contribuciones del
+ * (GC_p) para la superficie superior del voladizo, obtenido de la Figura correspondiente
+ * a la zona de cubierta donde se ubica el voladizo […] y el (GC_p) para la superficie
+ * inferior, tomado igual a la zona de pared adyacente según la Figura 5.3-1 y ajustado al
+ * área efectiva de viento».
+ *
+ * ⚠ «SUMA» NO ES UNA SUMA ARITMÉTICA DE LOS DOS NÚMEROS TAL COMO SALEN DE SUS FIGURAS,
+ * porque las dos caras no usan la misma convención de signo. El comentario C 5.3.2.1 la
+ * fija para una superficie INFERIOR: «la carga hacia abajo en la superficie inferior con
+ * coeficientes de presión negativos y cargas hacia arriba con coeficientes de presión
+ * positivos» —al revés que en la cara superior, donde el positivo empuja hacia abajo—.
+ *
+ * Entonces, llevado todo a la convención de la cara superior:
+ *   · levantamiento máximo = succión arriba MÁS presión abajo
+ *                          = (GC_p)⁻cubierta − (GC_p)⁺pared
+ *   · carga hacia abajo máxima = presión arriba MÁS succión abajo
+ *                          = (GC_p)⁺cubierta − (GC_p)⁻pared
+ * Las dos contribuciones se suman en MAGNITUD, que es lo que el artículo pide y lo único
+ * físicamente razonable: el viento que empuja contra la pared entra por debajo del
+ * voladizo y lo levanta, no lo sujeta.
+ *
+ * La reducción del 10 % de la nota 5 de la Fig. 5.3-1 NO se aplica: esa nota habla de «los
+ * valores de (GC_p) para paredes», y acá el elemento es de cubierta. Es además la lectura
+ * conservadora, y es el mismo criterio con el que ya se resuelve la nota de parapeto.
+ *
+ * @param {Contexto} ctx
+ * @param {{zona: string, A: number}} p
+ */
+function composicion57(ctx, { zona, A }) {
+  const zonaPared = ZONA_PARED_ADYACENTE(zona);
+  const techo = (signo) => gcpDeFuente(ctx.fuente,
+    { zona, signo, A, ubicacion: UBICACION.CUBIERTA }).valor;
+  const pared = (signo) => gcpDeFuente(figuraPared(),
+    { zona: zonaPared, signo, A, ubicacion: UBICACION.PARED }).valor;
+
+  const sup = { pos: techo("pos"), neg: techo("neg") };
+  const inf = { pos: pared("pos"), neg: pared("neg") };
+  return {
+    pos: sup.pos - inf.neg,
+    neg: sup.neg - inf.pos,
+    notas: [{
+      nivel: "info", ref: "art. 5.7",
+      texto: `Voladizo: (GC_p) compuesto. Cara superior, zona ${zona} de la cubierta `
+        + `(${sup.neg.toFixed(2)} / +${sup.pos.toFixed(2)}); cara inferior, zona `
+        + `${zonaPared} de pared de la Fig. 5.3-1 (${inf.neg.toFixed(2)} / `
+        + `+${inf.pos.toFixed(2)}), leída con la misma área efectiva. Las dos `
+        + "contribuciones se suman en magnitud: el viento que empuja contra la pared entra "
+        + "por debajo del voladizo y lo levanta.",
+    }],
+    reduccionPared: 1,
+    composicion: { zonaPared, sup, inf },
+  };
+}
+
+/**
  * (GC_p) positivo y negativo de una zona, ya con la nota 5 de la Fig. 5.3-1 —reducción del
  * 10 % en paredes— o la nota 5 de la Fig. 5.3-2A —parapeto— aplicadas según corresponda.
  *
@@ -80,10 +155,22 @@ export function gcpDeZona(ctx, { superficie, zona, A, ubicacion }) {
   }
 
   const ubic = ubicacion ?? UBICACION.CUBIERTA;
+
+  // ── VOLADIZO: O LA CURVA PROPIA DE LA FIGURA, O LA COMPOSICIÓN DEL ART. 5.7 ────
+  // La Fig. 5.3-2A —θ ≤ 7°— trae una curva de ALERO aparte, y su nota 6 dice que «los
+  // valores de (GC_p) para los voladizos de cubierta incluyen las contribuciones de
+  // presión de las superficies superior e inferior»: ahí no hay nada que componer.
+  //
+  // Las demás figuras de cubierta no tienen curva de alero, y su nota remite al art. 5.7.
+  const figuraActual = ctx.fuente.tipo === "interpolacion" ? ctx.fuente.desde : ctx.fuente.figura;
+  if (ubic === UBICACION.VOLADIZO && !FIGURAS[figuraActual]?.ubicaciones?.includes(UBICACION.VOLADIZO)) {
+    return composicion57(ctx, { zona, A });
+  }
+
   const crudo = (z, signo) => gcpDeFuente(ctx.fuente, { zona: z, signo, A, ubicacion: ubic }).valor;
   let pos = crudo(zona, "pos"), neg = crudo(zona, "neg");
 
-  const figura = ctx.fuente.tipo === "interpolacion" ? ctx.fuente.desde : ctx.fuente.figura;
+  const figura = figuraActual;
   if (ctx.parapeto && FIGURAS_CON_NOTA_PARAPETO.includes(figura)) {
     // «Los valores negativos de (GC_p) en la Zona 3 deben igualar a los de la Zona 2, y los
     // valores positivos en las Zonas 2 y 3 se deben igualar a los de las Zonas de pared 4
@@ -127,9 +214,13 @@ export function gcpDeZona(ctx, { superficie, zona, A, ubicacion }) {
  * @param {Contexto} ctx
  * @param {{pos: number, neg: number}} gcp
  */
-export function presionDeZona(ctx, gcp) {
+export function presionDeZona(ctx, gcp, opciones = {}) {
   const { qh, gcpi } = ctx;
-  const g = Math.abs(gcpi);
+  // ⚠ UN VOLADIZO PUEDE TENER (GC_pi) = 0, Y NO ES UNA SIMPLIFICACIÓN. El art. 5.7 lo dice
+  // explícito: «Cuando la separación de las superficies superior e inferior del voladizo
+  // no configure un volumen interno, se tomará (GC_pi) = 0». Un voladizo de chapa sobre
+  // correas, sin cielorraso, no encierra nada: no hay presión interna que sumar.
+  const g = opciones.sinPresionInterna ? 0 : Math.abs(gcpi);
 
   // El sentido desfavorable de cada signo: el (GC_pi) que suma. Con (GC_p) positivo, la
   // presión interna que agrava es la de succión interna, y al revés.
@@ -168,7 +259,10 @@ export function presionDeZona(ctx, gcp) {
  *
  * @param {Contexto} ctx
  * @param {{tipo: string, superficie: "pared"|"cubierta", L?: number, s?: number,
- *          area?: number, ubicacion?: string, nombre?: string}} elemento
+ *          area?: number, ubicacion?: string, nombre?: string,
+ *          volumenInterno?: boolean}} elemento
+ *   `volumenInterno: false` es la declaración del art. 5.7 —las dos caras del voladizo no
+ *   encierran un volumen— y lleva (GC_pi) a 0.
  */
 export function verificarElemento(ctx, elemento) {
   const area = areaEfectiva(elemento);
@@ -186,9 +280,14 @@ export function verificarElemento(ctx, elemento) {
   }
 
   const etiquetas = superficie === "pared" ? FIGURAS["5.3-1"].zonas : zonasDe(fuente);
+  // El (GC_pi) = 0 del art. 5.7 es una DECLARACIÓN del proyectista sobre ese voladizo —si
+  // sus dos caras encierran un volumen o no—, no algo que el motor pueda deducir de la
+  // geometría. Por defecto se supone que SÍ lo encierra, que es lo conservador.
+  const sinPresionInterna = elemento.ubicacion === UBICACION.VOLADIZO
+    && elemento.volumenInterno === false;
   const zonas = etiquetas.map((zona) => {
     const g = gcpDeZona(ctx, { superficie, zona, A: area.A, ubicacion: elemento.ubicacion });
-    return { zona, ...presionDeZona(ctx, g), notas: g.notas };
+    return { zona, ...presionDeZona(ctx, g, { sinPresionInterna }), notas: g.notas };
   });
 
   // La zona gobernante se decide POR SENTIDO. La de mayor succión no tiene por qué ser la
@@ -206,8 +305,13 @@ export function verificarElemento(ctx, elemento) {
   };
 
   return {
-    elemento, area, superficie, fuente, zonas, gobierna,
+    elemento, area, superficie, fuente, zonas, gobierna, sinPresionInterna,
     avisos: [
+      ...(sinPresionInterna ? [{ nivel: "info", ref: "art. 5.7",
+        texto: "Voladizo declarado SIN volumen interno entre sus dos caras: se toma "
+          + "(GC_pi) = 0. Si el voladizo tiene cielorraso, el volumen existe y hay que "
+          + "destildar la declaración.",
+      }] : []),
       ...area.avisos,
       ...avisoSPRFV(area.tributaria),
       ...fuente.avisos,
@@ -238,7 +342,8 @@ export const H_PARTE_1 = 20;
  *
  * @param {object} e
  * @param {{a:number,b:number,h:number,hAlero:number,theta:number,tipo:string,cumbrera:string,
- *           pendienteHacia?:string}} e.geo
+ *           pendienteHacia?:string,
+ *           voladizo?:{hay:boolean, porBorde:Record<string,number>}}} e.geo
  *                                 geometría normalizada (`normalizarGeo`). `pendienteHacia`
  *                                 —«+X», «−X», «+Y», «−Y»— lo usan sólo las figuras de
  *                                 vertiente única, para saber cuál de los dos aleros es el
@@ -254,7 +359,8 @@ export const H_PARTE_1 = 20;
  * @param {number} e.gcpi              magnitud de (GC_pi), con el R_i ya aplicado
  * @param {boolean} [e.parapeto]
  * @param {{tipo: string, superficie: "pared"|"cubierta", L?: number, s?: number,
- *           area?: number, ubicacion?: string, nombre?: string}[]} [e.elementos]
+ *           area?: number, ubicacion?: string, nombre?: string,
+ *           volumenInterno?: boolean}[]} [e.elementos]
  */
 export function analizarCyR({ geo, V, exposicion, altitud = 0, kd, kztDe = () => [1],
   gcpi, parapeto = false, elementos = [] }) {
@@ -276,14 +382,34 @@ export function analizarCyR({ geo, V, exposicion, altitud = 0, kd, kztDe = () =>
         + "Fig. 5.4-1, que todavía no está implementada." });
   }
 
+  // ── NOTA 7: EL VOLADIZO NO AGRANDA `a`, PERO SÍ CORRE EL BORDE ────────────────
+  // «Si existen voladizos, la dimensión horizontal menor del edificio no incluirá ninguna
+  // dimensión de voladizo, pero la distancia al borde, a, se medirá desde el borde
+  // exterior del voladizo.»
+  //
+  // ⚠ SON DOS COSAS DISTINTAS Y SE APLICAN EN DOS LUGARES DISTINTOS. `a` se calcula con la
+  // planta del EDIFICIO —sin vuelos— y después se mide sobre la planta de la CUBIERTA, que
+  // sí los incluye. Tomar la planta con vuelos para las dos cosas agranda `a` y corre las
+  // zonas hacia adentro: la zona 3 de esquina se achica justo donde más succiona.
+  const vol = geo.voladizo ?? { hay: false, porBorde: { "+X": 0, "-X": 0, "+Y": 0, "-Y": 0 } };
   const menor = Math.min(geo.a, geo.b);
   const dimA = dimensionA({ menor, h: hFigura, theta: geo.theta });
   const Kzt = Math.max(...kztDe(hFigura));
   const qh = q({ z: hFigura, V, exposicion, kd, Kzt, altitud });
 
+  if (vol.hay) {
+    avisos.push({ nivel: "info", ref: "Fig. 5.3-2A, nota 7",
+      texto: `Hay voladizo. La dimensión menor que define a = ${dimA.a.toFixed(2)} m es la `
+        + `del edificio (${menor.toFixed(2)} m), sin los vuelos; la distancia al borde se `
+        + "mide desde el borde exterior del voladizo." });
+  }
+
   const geoZonas = {
     layout: figura ? LAYOUT_DE_FIGURA[figura] : null,
-    bx: geo.a, by: geo.b, h: hFigura, a: dimA.a,
+    // La planta que se zonifica es la de la CUBIERTA: incluye los vuelos.
+    bx: geo.a + vol.porBorde["-X"] + vol.porBorde["+X"],
+    by: geo.b + vol.porBorde["-Y"] + vol.porBorde["+Y"],
+    h: hFigura, a: dimA.a,
     ejeCumbrera: /** @type {"X"|"Y"} */ (geo.cumbrera === "Y" ? "Y" : "X"),
     // En vertiente única los dos aleros NO son intercambiables: el ALTO lleva las zonas
     // más succionadas. `pendienteHacia` dice hacia dónde DESCIENDE la cubierta, y es el
@@ -303,6 +429,13 @@ export function analizarCyR({ geo, V, exposicion, altitud = 0, kd, kztDe = () =>
     fuente, figura, avisos: [...avisos, ...fuente.avisos],
     altura: { ...alt, valor: hFigura, media: geo.h, alero: geo.hAlero },
     a: dimA, Kzt, qh,
+    // La línea de PARED dentro de la planta de cubierta, para dibujarla en trazos: el
+    // croquis tiene que mostrar dónde termina el edificio y dónde sigue el voladizo,
+    // porque es lo que explica que la distancia al borde se mida más afuera.
+    voladizo: vol.hay
+      ? { ...vol, pared: { x: vol.porBorde["-X"], y: vol.porBorde["-Y"],
+          ancho: geo.a, largo: geo.b } }
+      : { hay: false },
     geoZonas,
     zonasCubierta: geoZonas.layout ? zonasPresentes(geoZonas) : [],
     zonasPared: zonasPresentes({ ...geoZonas, layout: LAYOUT.PARED }),

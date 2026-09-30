@@ -20,6 +20,7 @@ import { interp, cpSotavento, presion } from './presiones.js';
 import { gcpiDe } from '../constants/presionInterna.js';
 import { fachadasDe, areaHasta, momentoHasta } from './fachadas.js';
 import { tipoDe } from '../constants/cubiertas.js';
+import { normalizarVoladizo } from './voladizo.js';
 // El parseo de los campos es uno solo: `lib/parseo.js`. Antes había tres `num()` en el
 // motor y dos usaban `parseFloat` pelado, que con la coma habilitada en los campos lee
 // «12,5» como 12 y descarta el resto sin avisar.
@@ -121,7 +122,13 @@ export function normalizarGeo(g) {
   const cumbreraReorientada = tipo === "cuatro_aguas" && declarada !== cumbrera && a !== b;
   const pendienteHacia = g?.pendienteHacia ?? (cumbrera === "X" ? "+Y" : "+X");
   const h = alturaMedia({ hAlero, theta, a, b, cumbrera, tipo });
-  return { a, b, hAlero, theta, cumbrera, tipo, pendienteHacia, h,
+  // ⚠ EL VOLADIZO NO ENTRA EN `a`, `b` NI `h`. `a` y `b` son la planta del EDIFICIO —la
+  // línea de pared— y `h` se mide sobre esa línea: un vuelo no levanta el edificio ni
+  // agranda sus paredes. Lo que sí cambia va aparte, en `voladizo`, y cada consumidor
+  // decide si le corresponde: la planta de cubierta del capítulo 5 sí lo incluye, la
+  // dimensión menor que define la zona `a` no.
+  const voladizo = normalizarVoladizo(g?.voladizo, { tipo, cumbrera, pendienteHacia });
+  return { a, b, hAlero, theta, cumbrera, tipo, pendienteHacia, h, voladizo,
     cumbreraDeclarada: declarada, cumbreraReorientada,
     // Pirámide: cuatro faldones iguales sin cumbrera. Las cuatro direcciones ven lo mismo.
     piramide: tipo === "cuatro_aguas" && a === b,

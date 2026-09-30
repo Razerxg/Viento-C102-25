@@ -130,10 +130,28 @@ export const geometria = ({ geoN, act, nFig }) => {
     ["Ángulo de cubierta", "θ", num(geoN.theta, 1), "°"],
     ["Tipo de cubierta", "—", geoN.tipo.replace(/_/g, " "), "—"],
     ["Dirección de la cumbrera", "—", geoN.theta > 0 ? geoN.cumbrera : "no aplica", "—"],
+    // El voladizo va en la MISMA tabla que las dimensiones, y no en un párrafo aparte:
+    // quien lee la memoria tiene que ver la planta de cubierta al lado de la del edificio.
+    ...(geoN.voladizo?.hay ? [
+      ...geoN.voladizo.grupos.filter(g => g.vuelo > 0).map(g => [
+        g.label, "—", num(U.val.longitud(g.vuelo), 0), U.u.longitud]),
+      ["Planta de cubierta con el voladizo", "—",
+        `${num(U.val.longitud(geoN.a + geoN.voladizo.porBorde["-X"] + geoN.voladizo.porBorde["+X"]), 0)}`
+        + ` × ${num(U.val.longitud(geoN.b + geoN.voladizo.porBorde["-Y"] + geoN.voladizo.porBorde["+Y"]), 0)}`,
+        U.u.longitud],
+    ] : []),
   ];
   return `## 6. Características geométricas
 
-${tablaCSVU(f)}
+${tablaCSVU(f)}${geoN.voladizo?.hay ? `
+
+El **voladizo de cubierta** es la prolongación del faldón más allá de la línea de pared,
+con la misma pendiente; no es un alero adosado a una pared, que el art. 5.9 trata aparte.
+**No modifica la altura media de cubierta h ni el área de las paredes**: la altura se mide
+sobre la línea de pared. Sí agrega área de cubierta al levantamiento, con su resultante
+por fuera de esa línea, y corre la distancia al borde de las zonas del capítulo 5 —la
+dimensión que define \`a\` sigue siendo la del edificio, sin los vuelos (nota 7 de la
+Fig. 5.3-2A)—.` : ""}
 
 ${figura(nFig, "planta y cortes del edificio, con las cuatro direcciones de viento")}
 

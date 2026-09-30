@@ -63,7 +63,13 @@ export const INICIAL = {
     todasLasDirecciones: true, direcciones: ["Wx+"],
   },
   geo: { a: "20", b: "30", hAlero: "6", theta: "0", cumbrera: "X",
-    tipo: "plana", pendienteHacia: "+Y" },
+    tipo: "plana", pendienteHacia: "+Y",
+    // ── VOLADIZO DE CUBIERTA ────────────────────────────────────────────────
+    // Sin vuelo por defecto, que es el caso más común y el que traen todos los proyectos
+    // guardados antes de que esto existiera. `grupos` lleva un número por grupo de bordes
+    // —cómo se piensa el vuelo al proyectar— y `porBorde` los cuatro por separado, para
+    // cuando el edificio no es simétrico. El modo dice cuál de los dos manda.
+    voladizo: { modo: "simetrico", grupos: {}, porBorde: {} } },
   n1: "",
   beta: "0.02",
   modoG: "defecto",

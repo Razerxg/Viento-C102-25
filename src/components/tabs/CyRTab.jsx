@@ -24,7 +24,16 @@ import { reduccionPared } from '../../engine/cyrFiguras.js';
 
 // `Sel` toma pares [valor, texto]: no un objeto {id, label}. Pasarle el objeto renderiza
 // «[object Object]» en el mejor caso y revienta en React en el peor, que es lo que hizo.
-const SUPERFICIES = [["cubierta", "Cubierta"], ["pared", "Pared"]];
+// ⚠ «VOLADIZO» ES UNA UBICACIÓN, NO UNA SUPERFICIE. Adentro sigue siendo un elemento de
+// CUBIERTA —usa la figura de la cubierta— pero con `ubicacion: "voladizo"`, que es lo que
+// dispara la curva de alero de la Fig. 5.3-2A o, si la figura no la tiene, la composición
+// de las dos caras del art. 5.7. En el desplegable van juntos porque para quien carga un
+// elemento son tres lugares del edificio, y esa es la pregunta que se está haciendo.
+const SUPERFICIES = [["cubierta", "Cubierta"], ["voladizo", "Voladizo de cubierta"],
+  ["pared", "Pared"]];
+
+/** Lo que el desplegable muestra para un elemento ya cargado. */
+const superficieDe = (el) => (el.ubicacion === "voladizo" ? "voladizo" : el.superficie);
 
 /** Los tipos que piden luz y separación; el resto pide un área. */
 const PIDE_LS = new Set([TIPO_ELEMENTO.CHAPA, TIPO_ELEMENTO.CORREA,
@@ -43,6 +52,10 @@ const AYUDA = {
     + "larguero y montante van con A = L · máx(s; L/3); la fijación toma el área "
     + "tributaria de UNA fijación, sin la regla del tercio; una puerta o ventana apoyada "
     + "en tres o más lados toma el área del elemento.",
+  volumenInterno: "Art. 5.7: «Cuando la separación de las superficies superior e inferior "
+    + "del voladizo no configure un volumen interno, se tomará (GC_pi) = 0». Un voladizo "
+    + "de chapa sobre correas, sin cielorraso, no encierra nada. Por defecto se supone que "
+    + "SÍ lo encierra, que es lo conservador.",
   superficie: "Decide de qué figura sale el (GC_p): la 5.3-1 para paredes y la figura de "
     + "cubierta que corresponda a la forma y a θ. También decide qué zonas se verifican: "
     + "4 y 5 en pared, 1 a 3 —y las primadas— en cubierta.",
@@ -151,15 +164,21 @@ function EncabezadoLista() {
   );
 }
 
-function FilaElemento({ el, res, set, quitar }) {
+function FilaElemento({ el, res, set, setVarios, quitar }) {
   const pideLS = PIDE_LS.has(el.tipo);
+  const esVoladizo = el.ubicacion === "voladizo";
+  // Cambiar de superficie toca DOS campos a la vez: uno solo dejaría un elemento de pared
+  // con `ubicacion: "voladizo"` colgada, que es una combinación que no existe.
+  const setSuperficie = (v) => setVarios(v === "voladizo"
+    ? { superficie: "cubierta", ubicacion: "voladizo" }
+    : { superficie: v, ubicacion: undefined });
   return (
     <div style={{ padding: "6px 4px", borderTop: `1px solid ${c.borde}` }}>
       <div style={{ display: "grid", gridTemplateColumns: COLS, gap: t.sm, alignItems: "center" }}>
         <Entrada v={el.nombre} set={set("nombre")} />
         <Sel v={el.tipo} set={set("tipo")} w="100%"
           opciones={TIPOS_LISTA.map(id => [id, ETIQUETA_TIPO[id]])} />
-        <Sel v={el.superficie} set={set("superficie")} w="100%" opciones={SUPERFICIES} />
+        <Sel v={superficieDe(el)} set={setSuperficie} w="100%" opciones={SUPERFICIES} />
         {pideLS
           ? <><Entrada v={el.L} set={set("L")} /><Entrada v={el.s} set={set("s")} /></>
           : <><Entrada v={el.area} set={set("area")} /><span style={{ fontSize: 12,
@@ -168,8 +187,20 @@ function FilaElemento({ el, res, set, quitar }) {
             borde de la tarjeta. El título lo dice para quien use lector de pantalla. */}
         <Boton variante="fantasma" onClick={quitar} title="Quitar este elemento">×</Boton>
       </div>
-      <div style={{ fontSize: 12, color: c.tenue, fontFamily: MONO, paddingTop: 4 }}>
-        {res?.area?.cuenta ?? "—"}
+      <div style={{ display: "flex", gap: t.md, alignItems: "center", paddingTop: 4,
+        flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, color: c.tenue, fontFamily: MONO }}>
+          {res?.area?.cuenta ?? "—"}
+        </span>
+        {esVoladizo && (
+          <label style={{ display: "flex", gap: t.xs, alignItems: "center", fontSize: 12,
+            color: c.tenue }}>
+            <input type="checkbox" checked={el.volumenInterno === false}
+              onChange={(e) => set("volumenInterno")(e.target.checked ? false : undefined)} />
+            Sin volumen interno entre sus caras → (GC_pi) = 0
+            <Ayuda>{AYUDA.volumenInterno}</Ayuda>
+          </label>
+        )}
       </div>
     </div>
   );
@@ -180,6 +211,9 @@ export function CyRTab() {
 
   const setEl = (i) => (k) => (v) => setElementosCyR(xs =>
     xs.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+  /** Varios campos de un elemento a la vez, para los cambios que tocan dos. */
+  const setVarios = (i) => (campos) => setElementosCyR(xs =>
+    xs.map((x, j) => (j === i ? { ...x, ...campos } : x)));
   const quitar = (i) => () => setElementosCyR(xs => xs.filter((_, j) => j !== i));
   const agregar = () => setElementosCyR(xs => [...xs, {
     id: nuevoId(), nombre: `Elemento ${xs.length + 1}`, tipo: TIPO_ELEMENTO.CORREA,
@@ -342,7 +376,7 @@ export function CyRTab() {
                 <EncabezadoLista />
                 {elementosCyR.map((el, i) => (
                   <FilaElemento key={el.id ?? i} el={el} res={cyr.elementos[i]}
-                    set={setEl(i)} quitar={quitar(i)} />
+                    set={setEl(i)} setVarios={setVarios(i)} quitar={quitar(i)} />
                 ))}
               </div>
             </div>}

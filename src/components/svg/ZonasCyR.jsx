@@ -66,7 +66,14 @@ export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 980, alto = 660 }
   // ⚠ LA ESCALA ES COMÚN Y SE CALCULA ANTES DE DIBUJAR NADA. Con cada vista eligiendo la
   // suya, la pared de 11 × 3 m salía a diez veces la escala de la planta de 11 × 7,5: dos
   // dibujos del mismo edificio, uno al lado del otro, que no se pueden comparar mirando.
-  const luz = layout === LAYOUT.PLANA_H || cumbreraX ? by : bx;
+  // ⚠ LA LUZ DE LA ELEVACIÓN ES LA DEL EDIFICIO, NO LA DE LA PLANTA DE CUBIERTA. `bx` y
+  // `by` vienen de `geoZonas` y con voladizo YA INCLUYEN los vuelos, porque es la planta
+  // que se zonifica (nota 7). La elevación dibuja paredes, y las paredes no tienen vuelo:
+  // usarlas con `bx` las dibujaría tan anchas como la cubierta.
+  const ejeElev = (layout === LAYOUT.PLANA_H || cumbreraX) ? "Y" : "X";
+  const luz = ejeElev === "Y" ? geo.b : geo.a;
+  const vueloElevIni = cyr.voladizo?.hay ? cyr.voladizo.porBorde[`-${ejeElev}`] : 0;
+  const vueloElevFin = cyr.voladizo?.hay ? cyr.voladizo.porBorde[`+${ejeElev}`] : 0;
   const hTot = Math.max(geo.hCumbre ?? geo.hAlero, geo.hAlero);
   // Las dos paredes DISTINTAS que tiene un edificio rectangular: una por eje.
   const paredes = [
@@ -85,7 +92,7 @@ export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 980, alto = 660 }
   const cajaPared = { ancho: Math.round(ancho / 2) - 36, alto: hFila2, margen: 40 };
   const esc = escalaComun([
     { ...cajaPlanta, w: bx, h: by },
-    { ...cajaElev, w: luz, h: hTot * 1.1 },
+    { ...cajaElev, w: luz + vueloElevIni + vueloElevFin, h: hTot * 1.1 },
     { ...cajaPared, w: wPared, h: hPared * 1.2 },
   ]);
 
@@ -94,8 +101,8 @@ export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 980, alto = 660 }
   const Y = (u) => v.y(u) + yTop;
 
   const xE = cajaPlanta.ancho + 26;
-  const ve = mkView({ ...cajaElev, xMin: 0, xMax: luz, yMin: 0, yMax: hTot * 1.1,
-    escalaFija: esc });
+  const ve = mkView({ ...cajaElev, xMin: -(vueloElevIni), xMax: luz + vueloElevFin,
+    yMin: 0, yMax: hTot * 1.1, escalaFija: esc });
   const XE = (u) => ve.x(u) + xE;
   const YE = (u) => ve.y(u) + yTop;
 
@@ -182,6 +189,25 @@ export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 980, alto = 660 }
       ? [[0, geo.hAlero], [luz / 2, cumbre], [luz, geo.hAlero]]
       : [[0, geo.hAlero], [luz, geo.hAlero]];
 
+  const vueloEnElevacion = (() => {
+    // Se prolonga el faldón en sus dos extremos con la pendiente que YA TIENE, que es lo
+    // que hace un voladizo. Un alero adosado es plano y tiene su propio artículo.
+    if (vueloElevIni <= 1e-9 && vueloElevFin <= 1e-9) return null;
+    const pend = (p, q) => (q[1] - p[1]) / (q[0] - p[0] || 1);
+    const segs = [];
+    if (vueloElevIni > 1e-9) {
+      const m0 = pend(techo[0], techo[1]);
+      segs.push([-vueloElevIni, techo[0][1] - m0 * vueloElevIni, techo[0][0], techo[0][1]]);
+    }
+    if (vueloElevFin > 1e-9) {
+      const n = techo.length;
+      const m1 = pend(techo[n - 2], techo[n - 1]);
+      const fin = techo[n - 1];
+      segs.push([fin[0], fin[1], fin[0] + vueloElevFin, fin[1] + m1 * vueloElevFin]);
+    }
+    return segs;
+  })();
+
   return (
     <Lienzo ancho={ancho} alto={alto} titulo="Zonas de componentes y revestimientos"
       escala={esc} edificio="cyr" zonificado>
@@ -212,6 +238,22 @@ export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 980, alto = 660 }
       </g>
       <rect x={X(0)} y={Y(by)} width={v.l(bx)} height={v.l(by)} fill="none"
         stroke={c.txt} strokeWidth="1.6" />
+
+      {/* ── LA LÍNEA DE PARED, CUANDO HAY VOLADIZO ──────────────────────────────
+          El contorno continuo es el de la CUBIERTA y la línea de trazo y punto es dónde
+          terminan las paredes. Sin ella el croquis no explica por qué la distancia al
+          borde se mide más afuera que la dimensión que define `a` —nota 7 de la
+          Fig. 5.3-2A—, que es el punto que más se presta a confusión del voladizo. */}
+      {cyr.voladizo?.hay && (() => {
+        const pl = cyr.voladizo.pared;
+        return <>
+          <rect x={X(pl.x)} y={Y(pl.y + pl.largo)} width={v.l(pl.ancho)}
+            height={v.l(pl.largo)} fill="none" stroke={c.txt2} strokeWidth="1.1"
+            strokeDasharray="9 4 2 4" />
+          <Rotulo x={X(pl.x + pl.ancho / 2)} y={Y(pl.y + pl.largo) + 14}
+            texto="línea de pared" color={c.txt2} tam={TXT.min} />
+        </>;
+      })()}
 
       {unaAgua && (() => {
         const cx = X(bx / 2), cy = Y(by / 2);
@@ -246,6 +288,18 @@ export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 980, alto = 660 }
       <polyline points={[[0, 0], [0, techo[0][1]], ...techo.map(p => [p[0], p[1]]),
         [luz, 0], [0, 0]].map(([x, y]) => `${XE(x)},${YE(y)}`).join(" ")}
         fill="none" stroke={c.txt} strokeWidth="1.6" />
+      {/* El vuelo, prolongando el faldón con su MISMA pendiente —es lo que distingue un
+          voladizo de un alero adosado, que es plano y tiene su propio artículo—. */}
+      {vueloEnElevacion && <>
+        {vueloEnElevacion.map((seg, i) => (
+          <line key={i} x1={XE(seg[0])} y1={YE(seg[1])} x2={XE(seg[2])} y2={YE(seg[3])}
+            stroke={c.txt} strokeWidth="1.6" />
+        ))}
+        {/* El rótulo va en la PUNTA del vuelo y por debajo del faldón: arriba está la
+            marca del ángulo θ, que arranca en el mismo alero. */}
+        <Rotulo x={XE(vueloEnElevacion[0][0])} y={YE(vueloEnElevacion[0][1]) + 16}
+          texto="voladizo" color={c.txt2} tam={TXT.min} />
+      </>}
       {geo.theta > 0 && <>
         <line x1={XE(0)} y1={YE(techo[0][1])} x2={XE(luz * 0.34)} y2={YE(techo[0][1])}
           stroke={c.txt3} strokeWidth="0.8" strokeDasharray="4 3" />
@@ -395,6 +449,59 @@ function CotasDePlanta({ X, Y, bx, by, a, h, layout, unaAguaLayout, ejePendY, al
   );
 }
 
+/**
+ * Los números de zona de una pared, ubicados probando posiciones.
+ *
+ * Dentro de la franja si entra; si no, arriba de la pared con guía, subiendo de fila
+ * mientras choque con uno ya puesto. Componente aparte porque mide el texto, y medirlo
+ * necesita `k`, que sólo existe dentro de `Lienzo`.
+ */
+function RotulosDePared({ franjas, f, esc, px, py, alturaEn, y0, techo }) {
+  const k = useEscalaTexto();
+  const ocupados = [];
+  const puestos = [];
+  for (const [i, fr] of franjas.entries()) {
+    const medio = (fr.desde + fr.hasta) / 2;
+    const xm = px(medio);
+    const r = Math.max(10, anchoEnLienzo(fr.zona, TXT.zona, k) * 0.62 + 3);
+    const dentro = { x: xm, y: py(alturaEn(medio) / 2) };
+    const entraDentro = (fr.hasta - fr.desde) * esc > 2 * r + 6;
+    // ⚠ HACIA ARRIBA SÓLO HASTA EL NOMBRE DE LA PARED. En una torre —3,5 m de frente y
+    // 10 de alto— el tope de la pared queda pegado al borde de la fila, y las tres
+    // franjas angostas se apilaban encima del nombre y del título de la sección. Cuando
+    // arriba no queda lugar, el número sale al COSTADO, que en una pared alta y angosta
+    // es donde hay espacio.
+    const arriba = [0, 1, 2]
+      .map(n => ({ x: xm, y: py(f.zTope) - 22 - n * (2 * r + 5) }))
+      .filter(p => p.y >= techo + r);
+    const costados = [
+      { x: px(0) - r - 8, y: py(f.zTope * 0.5) },
+      { x: px(f.W) + r + 8, y: py(f.zTope * 0.5) },
+      { x: px(0) - r - 8, y: py(f.zTope * 0.5) + 2 * r + 5 },
+      { x: px(f.W) + r + 8, y: py(f.zTope * 0.5) + 2 * r + 5 },
+    ];
+    const sitio = ubicar(
+      [...(entraDentro ? [dentro] : []), ...arriba, ...costados], ocupados,
+      { w: 2 * r, h: 2 * r });
+    ocupados.push(sitio);
+    puestos.push({ fr, i, xm, r, sitio, fuera: sitio.y !== dentro.y });
+  }
+  return (
+    <g>
+      {puestos.map(({ fr, i, xm, r, sitio, fuera }) => (
+        <g key={`z${i}`} data-zona={`pared-${f.eje}-${fr.zona}#${i + 1}`}>
+          {fuera && (
+            <line x1={xm} y1={py(alturaEn((fr.desde + fr.hasta) / 2))} x2={xm}
+              y2={sitio.y + r} stroke={c.txt3} strokeWidth="0.6" opacity="0.8" />
+          )}
+          <Zona x={sitio.x} y={sitio.y} texto={fr.zona} r={r}
+            rotulo={`pared-${f.eje}-${fr.zona}#${i + 1}`} color={c.txt} />
+        </g>
+      ))}
+    </g>
+  );
+}
+
 // ── UNA PARED, CON SU FORMA REAL ───────────────────────────────────────────────
 //
 // ⚠ LA PARED NO ES SIEMPRE UN RECTÁNGULO, Y ANTES SE DIBUJABA COMO SI LO FUERA. El
@@ -436,13 +543,14 @@ function ParedEnElevacion({ f, a, esc, sombrear, x0, y0, caja }) {
           y2={py(alturaEn(fr.desde))} stroke={c.txt3} strokeWidth="1"
           strokeDasharray={TRAZOS} />
       ))}
-      {franjas.map((fr, i) => ((fr.hasta - fr.desde) * esc > 24
-        ? <g key={`z${i}`} data-zona={`pared-${f.eje}-${fr.zona}#${i + 1}`}>
-            <Zona x={px((fr.desde + fr.hasta) / 2)}
-              y={py(alturaEn((fr.desde + fr.hasta) / 2) / 2)} texto={fr.zona}
-              rotulo={`pared-${f.eje}-${fr.zona}#${i + 1}`} color={c.txt} r={10} />
-          </g>
-        : null))}
+      {/* ⚠ TODA FRANJA LLEVA SU NÚMERO, ANCHA O ANGOSTA. Antes se omitía el de las que
+          medían menos de 24 px, y en un galpón de 30 m dibujado chico eso dejaba las dos
+          zonas 5 —las esquinas, que son las más exigidas— sin rotular. La que no entra
+          adentro sale ARRIBA de la pared con línea guía, y si arriba tampoco hay lugar
+          —una torre de 3,5 m de frente tiene las tres franjas angostas— sube una fila
+          más. Es lo que hace un plano. */}
+      <RotulosDePared franjas={franjas} f={f} esc={esc} px={px} py={py}
+        alturaEn={alturaEn} y0={y0} techo={y0 + 26} />
       {/* ⚠ LAS DOS COTAS VAN DEBAJO DE LA PARED, NO ADENTRO. Con el desplazamiento hacia
           arriba el texto caía dentro del paño, encima del número de zona: «11» montado
           sobre el ④. El signo del desplazamiento es relativo a la dirección de la línea,
@@ -453,7 +561,9 @@ function ParedEnElevacion({ f, a, esc, sombrear, x0, y0, caja }) {
         color={c.txt2} />
       {/* El nombre va ARRIBA de la pared: abajo están las dos cotas encadenadas —el
           ancho de la zona 5 y el ancho total— y el rótulo se montaba sobre la segunda. */}
-      <Texto x={px(f.W / 2)} y={py(f.zTope) - 16} texto={nombrePared(f.eje, f.signo)}
+      {/* El nombre va en el tope de la fila, por encima de los números de zona: ellos se
+          apilan hacia arriba según cuántos no entren adentro de su franja. */}
+      <Texto x={px(f.W / 2)} y={y0 + 10} texto={nombrePared(f.eje, f.signo)}
         color={c.txt2} tam={TXT.min} peso={600} />
     </g>
   );

@@ -13,11 +13,22 @@ import { Encabezado, Card, Campo, Num, Sel, Salida, Nota, Aviso, Divisor } from 
 import { c, t, SP } from '../tokens.js';
 import { FIGURAS } from '../../constants/figuras.js';
 import { f, fmt } from '../../lib/formato.js';
+import { BORDES } from '../../engine/voladizo.js';
 
 export function EdificioTab() {
   const { d, setGeo, geoN, act, maxAbs } = useProyecto();
   const { tema } = useUi();
   const tipo = tipoDe(d.geo.tipo);
+
+  // Los tres setters del voladizo. `setGeo("voladizo")` reemplaza el objeto entero, así
+  // que cada uno reconstruye el sub-objeto conservando lo demás: el modo «por lado» no
+  // tiene por qué borrar lo que se había cargado en «simétrico», y al revés.
+  const vol = d.geo.voladizo ?? { modo: "simetrico", grupos: {}, porBorde: {} };
+  const setVol = (k) => (v) => setGeo("voladizo")({ ...vol, [k]: v });
+  const setVolGrupo = (id) => (v) =>
+    setGeo("voladizo")({ ...vol, grupos: { ...vol.grupos, [id]: v } });
+  const setVolBorde = (b) => (v) =>
+    setGeo("voladizo")({ ...vol, porBorde: { ...vol.porBorde, [b]: v } });
 
   return (
     <>
@@ -83,6 +94,44 @@ export function EdificioTab() {
               <Sel v={d.geo.pendienteHacia} set={setGeo("pendienteHacia")} w={200}
                 opciones={DIRECCIONES_PENDIENTE.map(x => [x.id, x.label])} />
             </Campo>
+          )}
+
+          {/* ── VOLADIZO DE CUBIERTA ─────────────────────────────────────────
+              Los campos se agrupan como se piensa el vuelo al proyectar —aleros y
+              hastiales en dos aguas, perimetral en plana y cuatro aguas, alero alto /
+              bajo / laterales en vertiente única—, pero el motor siempre ve los CUATRO
+              BORDES por separado: cuál es el voladizo a barlovento depende de la
+              dirección de viento, y con un solo número «vuelo» esa pregunta no se puede
+              responder. */}
+          <Divisor>Voladizo de cubierta</Divisor>
+          <Nota>
+            La prolongación del faldón más allá de la línea de pared, con la misma
+            pendiente. No es un alero adosado a una pared, que es otra tipología —art.
+            5.9— con sus propias figuras. El voladizo no cambia h ni el área de las
+            paredes; sí agrega área de cubierta al levantamiento y corre la distancia al
+            borde de las zonas del capítulo 5.
+          </Nota>
+          <Campo label="Cómo se declara"
+            ayuda="Simétrico: un vuelo por grupo de bordes. Por lado: los cuatro bordes por separado, para una planta donde el vuelo no es igual en todos.">
+            <Sel v={vol.modo ?? "simetrico"} set={setVol("modo")} w={200}
+              opciones={[["simetrico", "Simétrico"], ["porLado", "Por lado"]]} />
+          </Campo>
+          {(vol.modo ?? "simetrico") === "simetrico"
+            ? geoN.voladizo.grupos.map(g => (
+              <Campo key={g.id} label={g.label} unit="m">
+                <Num v={vol.grupos?.[g.id] ?? ""} set={setVolGrupo(g.id)} />
+              </Campo>
+            ))
+            : BORDES.map(b => (
+              <Campo key={b} label={`Vuelo en el borde ${b.replace("-", "−")}`} unit="m">
+                <Num v={vol.porBorde?.[b] ?? ""} set={setVolBorde(b)} />
+              </Campo>
+            ))}
+          {geoN.voladizo.hay && (
+            <Salida label="Planta de la cubierta con el vuelo"
+              v={`${fmt.m(geoN.a + geoN.voladizo.porBorde["-X"] + geoN.voladizo.porBorde["+X"])} × `
+                + `${fmt.m(geoN.b + geoN.voladizo.porBorde["-Y"] + geoN.voladizo.porBorde["+Y"])}`}
+              ayuda="Es la planta sobre la que se zonifica el capítulo 5. La dimensión menor que define a sigue siendo la del edificio, sin los vuelos (nota 7 de la Fig. 5.3-2A)." />
           )}
 
           <Divisor>Lo que sale de esto</Divisor>

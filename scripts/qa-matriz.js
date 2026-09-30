@@ -44,6 +44,27 @@ export const MATRIZ = [
       geo: { a: "2.4", b: "3.0", hAlero: "2.6", theta: "0", tipo: "plana", cumbrera: "X" } },
   },
   {
+    id: "shelter-voladizo",
+    nombre: "El mismo shelter, con voladizo perimetral de 0,6 m",
+    porque: "El voladizo dibuja DOS contornos —el de la cubierta y la línea de pared— y "
+      + "corre la distancia al borde hacia afuera sin agrandar `a`. En la planta más chica "
+      + "de la matriz el vuelo es un cuarto de la luz: si el croquis va a confundir los dos "
+      + "contornos, los confunde acá.",
+    datos: { proyecto: "Shelter con voladizo", exposicion: "C",
+      geo: { a: "2.4", b: "3.0", hAlero: "2.6", theta: "0", tipo: "plana", cumbrera: "X",
+        voladizo: { modo: "simetrico", grupos: { perimetral: "0.6" } } } },
+  },
+  {
+    id: "galpon-voladizo",
+    nombre: "Galpón 20 × 30 · dos aguas 15° · vuelo 1 m en aleros y 0,5 en hastiales",
+    porque: "El caso corriente de un tinglado, y el único de la matriz donde el vuelo NO "
+      + "es igual en los cuatro bordes: la elevación tiene que prolongar el faldón con su "
+      + "misma pendiente, y sólo sobre el eje que se está mirando.",
+    datos: { proyecto: "Galpón con voladizo", exposicion: "C",
+      geo: { a: "20", b: "30", hAlero: "6", theta: "15", tipo: "dos_aguas", cumbrera: "X",
+        voladizo: { modo: "simetrico", grupos: { aleros: "1", hastiales: "0.5" } } } },
+  },
+  {
     id: "referencia",
     nombre: "Proyecto de referencia 7,5 × 11 · h = 3 · dos aguas 9°",
     porque: "El caso con el que el proyectista midió los defectos: Neuquén categoría III, "

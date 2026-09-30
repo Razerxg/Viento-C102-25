@@ -9,6 +9,7 @@
 // aparezca acá es una segunda definición de algo que el motor ya resolvió, y el día que
 // las dos se separen la memoria informa un número que el cálculo nunca usó.
 import { paso, bloque, SIM, con, desdeTrazaVieja } from './traza.js';
+import { BORDES } from '../engine/voladizo.js';
 
 const fc = (n, d = 2) => Number(n).toFixed(d).replace(".", ",");
 const pct = (n) => `${fc(n, 1)} %`;
@@ -288,8 +289,31 @@ function bloqueCyR({ cyr, cerr, kdCyR, U }) {
         SIM.h],
       valor: U.val.longitud(cyr.a.a), unidad: U.u.longitud, dec: 2,
       nota: `Gobierna ${cyr.a.gobierna}.`
-        + (cyr.a.limitada ? " Se aplicó la excepción de θ ≤ 7° con menor dimensión > 90 m." : ""),
+        + (cyr.a.limitada ? " Se aplicó la excepción de θ ≤ 7° con menor dimensión > 90 m." : "")
+        + (cyr.voladizo?.hay
+          ? " Hay voladizo: la menor dimensión es la del EDIFICIO, sin los vuelos, y la "
+            + "distancia al borde se mide desde el borde exterior del voladizo "
+            + "(nota 7 de la Fig. 5.3-2A)."
+          : ""),
     }));
+
+  // ── EL VOLADIZO, SI LO HAY ──────────────────────────────────────────────────
+  // Va como paso propio y no como una nota al pie de otro: cambia la planta que se
+  // zonifica, y quien revise la memoria tiene que poder ver esa planta escrita.
+  if (cyr.voladizo?.hay) {
+    p.push(paso({
+      id: "cyr_voladizo", titulo: "Voladizo de cubierta", art: "art. 5.7",
+      valor: U.val.longitud(cyr.geoZonas.bx), unidad: U.u.longitud, dec: 2,
+      texto: `Planta de cubierta ${U.longitud(cyr.geoZonas.bx)} × ${U.longitud(cyr.geoZonas.by)}`,
+      donde: BORDES.filter(b => cyr.voladizo.porBorde[b] > 0).map(b => ({
+        sim: `vuelo ${b.replace("-", "−")}`, desc: "prolongación del faldón sobre ese borde",
+        valor: U.val.longitud(cyr.voladizo.porBorde[b]), unidad: U.u.longitud,
+      })),
+      nota: "El voladizo no cambia h ni el área de las paredes: la altura media se mide "
+        + "sobre la línea de pared. Sí agrega área de cubierta y corre la distancia al "
+        + "borde de las zonas.",
+    }));
+  }
 
   p.push(paso({
     id: "cyr_gcpi", titulo: "Coeficiente de presión interna", art: "Tabla 1.11-1, nota 3",
