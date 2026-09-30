@@ -21,19 +21,21 @@ describe('escala divergente de presión', () => {
   // todas saldrían del paso más intenso y el croquis no diría cuál gobierna.
   it('la intensidad es relativa al máximo del edificio, no al de cada cara', () => {
     const c = paleta("claro");
-    expect(colorPresion(-1000, 1000)).toBe(c.succion[2]);
-    // 1000 sobre 4000 da 0,25: bien adentro del primer tercio. Una versión anterior usaba
-    // 3000, que cae JUSTO en el corte de 1/3 y volvía el test una lotería de redondeo en
-    // vez de una afirmación sobre la escala.
-    expect(colorPresion(-1000, 4000)).toBe(c.succion[0]);
+    expect(colorPresion(-1000, 1000)).toBe(c.succion.at(-1));
+    // 1000 sobre 20000 da 0,05: bien adentro del primer paso, sin quedar pegado a un corte.
+    // Una versión anterior usaba un valor que caía JUSTO en el borde y volvía el test una
+    // lotería de redondeo en vez de una afirmación sobre la escala.
+    expect(colorPresion(-1000, 20000)).toBe(c.succion[0]);
   });
 
   // El borde entre tramos tiene que resolverse igual en la escala y en la leyenda, o un
   // valor limítrofe saldría de un color y la leyenda lo ubicaría en otro.
-  it('los cortes de tramo son consistentes entre la escala y la leyenda', () => {
+  it('un valor JUSTO en un corte cae en el paso de arriba', () => {
     const c = paleta("claro");
-    expect(colorPresion(-1000 / 3, 1000)).toBe(c.succion[1]);   // exactamente en −m/3
-    expect(colorPresion(-2000 / 3, 1000)).toBe(c.succion[2]);   // exactamente en −2m/3
+    const n = c.succion.length;
+    for (let i = 1; i < n; i++) {
+      expect(colorPresion(-1000 * i / n, 1000), `corte ${i}/${n}`).toBe(c.succion[i]);
+    }
   });
 
   it('es simétrica: dos presiones opuestas usan el mismo paso de su brazo', () => {
@@ -45,7 +47,7 @@ describe('escala divergente de presión', () => {
   });
 
   it('no se sale de la escala si la presión supera el máximo declarado', () => {
-    expect(colorPresion(5000, 1000)).toBe(paleta("claro").presion[2]);
+    expect(colorPresion(5000, 1000)).toBe(paleta("claro").presion.at(-1));
   });
 
   // El modo oscuro no es la paleta clara dada vuelta: son pasos elegidos contra la otra
@@ -53,12 +55,13 @@ describe('escala divergente de presión', () => {
   it('el modo oscuro tiene sus propios pasos', () => {
     expect(paleta("oscuro").succion).not.toEqual(paleta("claro").succion);
     expect(paleta("oscuro").neutro).not.toBe(paleta("claro").neutro);
-    expect(colorPresion(-1000, 1000, "oscuro")).toBe(paleta("oscuro").succion[2]);
+    expect(colorPresion(-1000, 1000, "oscuro")).toBe(paleta("oscuro").succion.at(-1));
   });
 
-  it('la leyenda cubre los siete tramos, ordenados y sin huecos', () => {
+  it('la leyenda cubre un tramo por paso de cada brazo más el neutro, sin huecos', () => {
+    const c = paleta("claro");
     const t = tramosLeyenda(1200);
-    expect(t).toHaveLength(7);
+    expect(t).toHaveLength(2 * c.succion.length + 1);
     for (let i = 1; i < t.length; i++) expect(t[i].desde).toBeCloseTo(t[i - 1].hasta, 9);
     expect(t.filter(x => x.nulo)).toHaveLength(1);
     expect(t[0].desde).toBe(-1200);
@@ -72,5 +75,45 @@ describe('escala divergente de presión', () => {
       const medio = (t.desde + t.hasta) / 2;
       expect(colorPresion(medio, 1200)).toBe(t.color);
     }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+describe('la rampa tiene la resolución que el croquis necesita', () => {
+  const c = paleta("claro");
+
+  it('⚠ CINCO PASOS POR BRAZO, Y NO TRES', () => {
+    // Con tres, un caso real se pintaba de dos colores: en el galpón con voladizo, la zona 1
+    // de cubierta, la zona 4 de pared y la zona 2 caían todas en el mismo paso. El color
+    // dejaba de decir algo. Este test no custodia el cinco —se puede discutir— sino que
+    // custodia que no vuelva a bajar sin que alguien lo mire.
+    expect(c.succion.length).toBeGreaterThanOrEqual(5);
+    expect(c.presion.length).toBe(c.succion.length);
+    expect(paleta("oscuro").succion.length).toBe(c.succion.length);
+    expect(paleta("oscuro").presion.length).toBe(c.succion.length);
+  });
+
+  it('el caso que motivó el cambio ya usa cuatro tonos', () => {
+    // Las presiones medidas sobre el galpón con voladizo en modo C&R, con su máximo.
+    const max = 4210;
+    const vals = [-1640, -1790, -2220, -3010, -3440];
+    const tonos = new Set(vals.map(v => colorPresion(v, max)));
+    expect(tonos.size).toBeGreaterThanOrEqual(4);
+  });
+
+  it('⚠ EL PASO MÁS DÉBIL NO ES EL NEUTRO: una succión chica se ve', () => {
+    // Antes el primer paso era `#b7d3f6`, a 1,54:1 contra la tarjeta blanca, y una succión
+    // chica se veía igual que «nada». Acá hay banda neutra aparte —|p| < NULO— así que el
+    // paso más claro significa «poca presión, pero la hay».
+    expect(colorPresion(-(NULO + 1), 100000)).toBe(c.succion[0]);
+    expect(c.succion[0]).not.toBe(c.neutro);
+  });
+
+  it('los dos brazos avanzan en el mismo orden: débil primero, fuerte último', () => {
+    // Si un brazo estuviera al revés, una succión fuerte se dibujaría pálida y el croquis
+    // diría lo contrario de lo que pasa.
+    const paso = (v, m) => c.succion.indexOf(colorPresion(-v, m));
+    expect(paso(100, 1000)).toBeLessThan(paso(500, 1000));
+    expect(paso(500, 1000)).toBeLessThan(paso(1000, 1000));
   });
 });

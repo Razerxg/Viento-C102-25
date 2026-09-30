@@ -335,13 +335,12 @@ describe('escalaPorAncho — el dibujo llena la columna en vez de encogerse', ()
     expect(altoNecesario(v, conTope)).toBeLessThanOrEqual(900);
   });
 
-  it('⚠ TODO CROQUIS SE DIBUJA A 1,5×, Y NO A 1', () => {
-    // Era un selector de cuatro pasos y quedó en un número: el 1× se ve chico y el 2× y el 3×
-    // obligan a desplazar el dibujo a lo ancho para leer una cota. Este test no está para
-    // custodiar el 1,5 —ese número se puede discutir— sino para que el factor no vuelva a 1
-    // por descuido: a 1× el croquis pierde un tercio de tamaño y nada lo avisa, porque sigue
-    // dibujándose bien.
-    expect(ZOOM).toBe(1.5);
+  it('⚠ EL CROQUIS ENTRA COMPLETO EN SU TARJETA: EL FACTOR ES 1', () => {
+    // Pasó por 1,5× y volvió. `escalaPorAncho` ya ajusta el dibujo al ancho disponible, así
+    // que cualquier factor mayor que 1 sólo puede SALIRSE: quedaba desplazamiento horizontal
+    // permanente y una cota cortada contra el borde de la tarjeta, que es lo que una lámina
+    // de cálculo no puede hacer —la cota que no se ve es la que no se transcribe—.
+    expect(ZOOM).toBe(1);
     expect(useZoomCroquis().zoom).toBe(ZOOM);
   });
 

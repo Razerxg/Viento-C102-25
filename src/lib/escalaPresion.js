@@ -13,30 +13,60 @@
 // «nada», y cualquier color saturado ahí inventa una categoría que no existe.
 //
 // ── VERIFICADO, NO ESTIMADO ──────────────────────────────────────────────────────
-// Los dos brazos se pasaron por el validador de paletas. Separación CVD del peor par
-// adyacente: ΔE 18,6 (protan) y 18,0 (tritan), contra un piso de 8 y un objetivo de 15.
-// Monotonía de luminosidad y unicidad de tono: ambas pasan por brazo.
+// Los cuatro brazos —dos tonos × dos temas— se pasaron por el validador de paletas como
+// RAMPA ORDINAL, que es el chequeo que corresponde: un solo tono, luminosidad monótona,
+// salto de luminosidad visible entre pasos adyacentes (ΔL ≥ 0,06) y un extremo claro que
+// todavía se despega de la superficie. Los cuatro pasan los cuatro chequeos.
 //
-// El extremo claro queda por debajo de 3:1 contra el fondo, que es lo correcto en una
-// escala continua —«cerca de cero» DEBE fundirse con la superficie— pero obliga a un
-// alivio: **cada cara lleva su valor escrito encima y existe la tabla de superficies**.
-// El color nunca es el único portador del dato. Por eso también toda cara va con trazo:
-// un relleno casi neutro sin borde perdería el contorno del edificio.
+// ⚠ CORRER EL VALIDADOR CATEGÓRICO SOBRE UNA RAMPA FALLA POR DISEÑO, y no hay que
+// «arreglarlo»: ese chequeo exige que dos colores sean distinguibles como IDENTIDADES
+// distintas —dos series de un gráfico— y una rampa está construida para lo contrario, para
+// que los pasos vecinos se parezcan y el orden se lea como orden.
+//
+// ── CINCO PASOS POR BRAZO, Y NO TRES ────────────────────────────────────────────
+// Con tres, un caso real se pintaba de dos colores. Medido sobre el galpón con voladizo en
+// modo C&R: zona 1 −1,79 · zona 4 de pared −1,64 · zona 2 −2,22 caían TODAS en el mismo
+// paso, y el voladizo —−3,01 y −3,44— en el mismo entre sí. Todo el edificio, dos tonos.
+// Con cinco pasos ese mismo caso usa cuatro, que es lo que hace que el color diga algo.
+//
+// El límite no es estético: con cinco pasos los saltos son la mitad de grandes, y el brazo
+// ROJO queda en la banda de piso del chequeo de daltonismo —ΔE 7,7 (protan) en claro y 6,9
+// en oscuro, contra un objetivo de 8—. Bajo protanopía el rojo pierde su canal de tono y
+// sólo queda la luminosidad, así que ensanchar más los pasos oscuros implicaría un rojo que
+// ya no se lee como rojo. Es legal con CODIFICACIÓN SECUNDARIA, y acá está de sobra: cada
+// cara lleva su valor escrito encima, hay leyenda, y existe la tabla de presiones. El azul
+// —que es el brazo que se usa casi siempre, porque el viento succiona más de lo que
+// empuja— pasa con ΔE 9,4 en los dos temas.
+//
+// ⚠ EL PASO MÁS DÉBIL YA NO SE FUNDE CON EL FONDO, y ése fue el otro cambio. Antes era
+// `#b7d3f6`, a 1,54:1 contra la tarjeta blanca: una succión chica se veía igual que «nada».
+// Eso está bien en una escala CONTINUA donde el extremo claro ES el cero, y acá no lo es:
+// hay una banda neutra aparte para |p| < NULO. El paso más claro significa «poca presión,
+// pero la hay», y tiene que verse. Ahora arranca en `#86b6ef`, 2,11:1, que es el piso que
+// el sistema de diseño fija para una rampa ordinal.
+//
+// El neutro sí se funde con la superficie, que es lo correcto: el medio tiene que leerse
+// como «nada». Por eso toda cara va además con trazo, o un relleno casi neutro sin borde
+// perdería el contorno del edificio.
 const CLARO = {
-  succion:  ["#b7d3f6", "#5598e7", "#1c5cab"],   // débil → fuerte
+  // débil → fuerte. Pasos 250 · 350 · 450 · 550 · 650 de la rampa azul del sistema.
+  succion:  ["#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#104281"],
   neutro:   "#f0efec",
-  presion:  ["#f7c9c8", "#e88a89", "#c02f2e"],
+  // Rojo generado sobre el mismo tono (H 23) con luminosidad de 0,780 a 0,388.
+  presion:  ["#f09e9a", "#e96d6b", "#d53b42", "#ab242e", "#7b1c21"],
   trazo:    "#52514e",
   texto:    "#0b0b0b",
 };
 // En modo oscuro «cerca de cero» tiene que recederse contra el fondo OSCURO, así que la
 // dirección de luminosidad se invierte: el paso débil es el más apagado y el fuerte el más
 // brillante. No es dar vuelta la paleta clara automáticamente; son pasos elegidos de la
-// misma rampa contra la otra superficie.
+// misma rampa contra la otra superficie, y validados contra ella.
 const OSCURO = {
-  succion:  ["#1c5cab", "#3987e5", "#86b6ef"],
+  // Pasos 600 · 500 · 400 · 300 · 200. El 600 es el más oscuro que todavía se despega de
+  // la tarjeta (#15181C) al 2,20:1.
+  succion:  ["#184f95", "#256abf", "#3987e5", "#6da7ec", "#9ec5f4"],
   neutro:   "#383835",
-  presion:  ["#8f2e2e", "#d33f3e", "#f09b9a"],
+  presion:  ["#98252b", "#c03038", "#e2494d", "#f07674", "#f2a39f"],
   trazo:    "#c3c2b7",
   texto:    "#ffffff",
 };
@@ -59,22 +89,31 @@ export function colorPresion(p, maxAbs, tema = "claro") {
   const m = Math.max(Math.abs(Number(maxAbs) || 0), NULO);
   const f = Math.min(1, Math.abs(v) / m);
   const arm = v < 0 ? c.succion : c.presion;
-  // tres pasos: el corte en tercios mantiene los saltos visibles (ΔL ≥ 0,06 verificado)
-  return arm[f < 1 / 3 ? 0 : f < 2 / 3 ? 1 : 2];
+  // ⚠ LOS CORTES SALEN DEL LARGO DEL BRAZO, NO DE UN NÚMERO ESCRITO A MANO. Estaban fijos en
+  // tercios; al pasar de tres pasos a cinco habría que haber tocado dos lugares —acá y la
+  // leyenda— y el que se olvidara dejaría la leyenda prometiendo un color que la escala no
+  // asigna. Hay test que cruza los dos.
+  return arm[Math.min(arm.length - 1, Math.floor(f * arm.length))];
 }
 
-// Leyenda de la escala: siete tramos, del más succionado al más comprimido. Se dibuja
-// SIEMPRE que haya una cara coloreada; sin leyenda, el color es un adorno.
+// Leyenda de la escala, del más succionado al más comprimido: un tramo por paso de cada
+// brazo más el neutro. Se dibuja SIEMPRE que haya una cara coloreada; sin leyenda, el color
+// es un adorno.
 export function tramosLeyenda(maxAbs, tema = "claro") {
   const c = paleta(tema);
   const m = Math.max(Math.abs(Number(maxAbs) || 0), NULO);
-  return [
-    { color: c.succion[2], desde: -m,       hasta: -2 * m / 3 },
-    { color: c.succion[1], desde: -2 * m / 3, hasta: -m / 3 },
-    { color: c.succion[0], desde: -m / 3,   hasta: -NULO },
-    { color: c.neutro,     desde: -NULO,    hasta: NULO, nulo: true },
-    { color: c.presion[0], desde: NULO,     hasta: m / 3 },
-    { color: c.presion[1], desde: m / 3,    hasta: 2 * m / 3 },
-    { color: c.presion[2], desde: 2 * m / 3, hasta: m },
-  ];
+  const n = c.succion.length;
+  // Los mismos cortes que `colorPresion`, derivados del mismo largo.
+  const borde = (i) => (m * i) / n;
+  const succion = c.succion.map((color, i) => ({
+    color, desde: -borde(i + 1), hasta: -borde(i),
+  })).reverse();
+  const presion = c.presion.map((color, i) => ({
+    color, desde: borde(i), hasta: borde(i + 1),
+  }));
+  // El tramo neutro se come el pedacito de cada brazo que cae por debajo del umbral: sin
+  // esto la leyenda tendría un hueco entre −NULO y el primer corte.
+  succion[succion.length - 1].hasta = -NULO;
+  presion[0].desde = NULO;
+  return [...succion, { color: c.neutro, desde: -NULO, hasta: NULO, nulo: true }, ...presion];
 }

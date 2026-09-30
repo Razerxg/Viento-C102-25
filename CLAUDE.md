@@ -495,27 +495,60 @@ comprobaba y el control contó doscientos solapes, porque el valor de una tira c
 nombre de la de al lado. Ahora se reparten de la pieza más grande a la más chica, cada una
 reserva su caja, y la que no encuentra lugar se queda sin rótulo.
 
-### La escala de los croquis es 1,5× fija
+### La escala de color de la presión: cinco pasos por brazo
 
-Era un selector de cuatro pasos (1× · 1,5× · 2× · 3×). En uso, la única escala que se usaba
-era 1,5×: el 1× se ve chico y el 2× y el 3× obligan a desplazar el dibujo a lo ancho para leer
-una cota. ⚠ **El mecanismo se conserva entero** y no es lo mismo que fijar el ancho en el CSS:
-el SVG se sigue renderizando a `ZOOM · 100 %` del ancho de la columna con el MISMO `viewBox`,
-y `Lienzo` sigue midiendo el render para publicar `k = viewBox/px`. Es lo que hace que el
-dibujo crezca un 50 % y la letra siga saliendo a 11 px. Devolver el selector es cambiar
-`kit.jsx` y nada más: los nueve croquis ya reciben `zoom` por prop.
+Es una escala DIVERGENTE —azul succión · gris cero · rojo presión— porque la presión tiene
+POLARIDAD y no sólo magnitud. Nunca un arcoíris y nunca un tono en el medio: el medio tiene
+que leerse como «nada».
 
-⚠ **A 1,5× TODO CROQUIS EXCEDE SU TARJETA Y SE DESPLAZA A LO ANCHO**, y no hay forma de
-evitarlo: `escalaPorAncho` ya ajusta el dibujo al ancho disponible, así que agrandarlo un 50 %
-sólo puede salirse. Lo que se gana es que el dibujo crece y la letra no, o sea que los rótulos
-ocupan proporcionalmente menos y la geometría se lee mejor; lo que se paga es el desplazamiento
-horizontal. El envoltorio lo desplaza en vez de recortarlo.
+⚠ **CON TRES PASOS POR BRAZO, UN CASO REAL SE PINTABA DE DOS COLORES.** Medido sobre el
+galpón con voladizo en modo C&R: zona 1 −1,79, zona 4 de pared −1,64 y zona 2 −2,22 caían
+TODAS en el mismo paso, y el voladizo —−3,01 y −3,44— en el mismo entre sí. Con cinco pasos
+ese caso usa cuatro.
 
-⚠ **Y POR ESO EL CONTROL COMPARA CONTRA EL ANCHO POR EL FACTOR DECLARADO**, no contra el ancho
-pelado. `Lienzo` publica el factor en `data-zoom` y `qa-chequeos.js` lo lee. Con la
-comparación anterior, el chequeo «el SVG es más ancho que su contenedor» marcaba los 144
-croquis de cada geometría —1.617 px contra 1.078— y dejaba de servir para lo que existe, que
-es encontrar el croquis que se sale POR OTRO MOTIVO.
+⚠ **EL PASO MÁS DÉBIL YA NO SE FUNDE CON EL FONDO.** Era `#b7d3f6`, a 1,54:1 contra la
+tarjeta blanca: una succión chica se veía igual que «nada». Eso es correcto en una escala
+CONTINUA donde el extremo claro ES el cero, y acá no lo es —hay banda neutra aparte para
+|p| < `NULO`—. Ahora arranca en `#86b6ef`, 2,11:1, que es el piso de una rampa ordinal.
+
+**Se valida con el script, no a ojo.** Los cuatro brazos —dos tonos × dos temas— pasan por
+`validate_palette.js --ordinal`: un solo tono, luminosidad monótona, ΔL ≥ 0,06 entre pasos
+adyacentes y extremo claro que se despega de la superficie. ⚠ **Correr el validador
+CATEGÓRICO sobre una rampa falla por diseño** y no hay que «arreglarlo»: ese chequeo exige
+que dos colores sean distinguibles como IDENTIDADES distintas, y una rampa está construida
+para lo contrario.
+
+**El costo de los cinco pasos, anotado:** el brazo ROJO queda en la banda de piso del chequeo
+de daltonismo —ΔE 7,7 (protan) en claro y 6,9 en oscuro, contra un objetivo de 8—. Bajo
+protanopía el rojo pierde su canal de tono y sólo queda la luminosidad, así que ensanchar más
+los pasos oscuros daría un rojo que ya no se lee como rojo. Es legal **con codificación
+secundaria**, y acá está de sobra: cada cara lleva su valor escrito encima, hay leyenda y
+existe la tabla de presiones. El azul —el brazo que se usa casi siempre, porque el viento
+succiona más de lo que empuja— pasa con ΔE 9,4 en los dos temas.
+
+⚠ **LOS CORTES SALEN DEL LARGO DEL BRAZO**, no de un número escrito a mano. Estaban fijos en
+tercios, y pasar de tres a cinco pasos habría exigido tocar dos lugares —la escala y la
+leyenda—; el que se olvidara dejaría la leyenda prometiendo un color que la escala no asigna.
+Hay test que cruza los dos.
+
+### La escala de los croquis es 1×
+
+Era un selector de cuatro pasos (1× · 1,5× · 2× · 3×) que nadie movía. Fijado en 1,5×
+apareció el motivo por el que no servía: ⚠ **`escalaPorAncho` YA AJUSTA EL DIBUJO AL ANCHO
+DISPONIBLE, así que agrandarlo un 50 % sólo puede SALIRSE de la tarjeta.** Quedaba
+desplazamiento horizontal permanente y una cota cortada contra el borde —«0 a h / −1,69» en la
+vista 3D del proyecto de referencia—, que es lo que una lámina de cálculo no puede hacer: la
+cota que no se ve es la que no se transcribe. Agrandar el dibujo y que entre completo son
+incompatibles a ancho de tarjeta fijo, y se elige que entre completo.
+
+⚠ **El mecanismo se conserva entero** y no es lo mismo que sacarlo: el SVG se renderiza a
+`ZOOM · 100 %` del ancho de la columna con el MISMO `viewBox`, y `Lienzo` mide el render para
+publicar `k = viewBox/px`. Con `ZOOM = 1` no hace nada, y es lo que permite volver a ofrecer
+la elección cambiando `kit.jsx` y nada más: los nueve croquis ya reciben `zoom` por prop.
+
+**El control compara contra el ancho POR EL FACTOR DECLARADO**, que `Lienzo` publica en
+`data-zoom`. Con `ZOOM = 1` es lo mismo que comparar contra el ancho pelado; queda así porque
+es lo que hace que el chequeo siga valiendo si el factor vuelve a moverse.
 
 ## Estructura
 

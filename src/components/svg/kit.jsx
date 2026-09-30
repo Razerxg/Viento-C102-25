@@ -157,21 +157,26 @@ export const altoNecesario = (v, esc) => Math.ceil(v.h * esc + 2 * (v.margen ?? 
 /**
  * El factor con el que se dibuja TODO croquis.
  *
- * ── ERA UN SELECTOR DE CUATRO PASOS Y AHORA ES UN NÚMERO ───────────────────────
- * Se había puesto 1× / 1,5× / 2× / 3× para poder mirar de cerca tanto un shelter de 2,4 m
- * como un galpón de 30. En uso resultó que la única escala que se usaba era la de 1,5×: el
- * 1× se ve chico y el 2× y el 3× obligan a desplazar el dibujo a lo ancho para leer una cota,
- * que es peor que agrandarlo. Cuatro botones por croquis, nueve croquis, para un valor que
- * nadie movía.
+ * ── ERA UN SELECTOR DE CUATRO PASOS, PASÓ A 1,5× FIJO Y VOLVIÓ A 1× ────────────
+ * El selector —1× / 1,5× / 2× / 3×— existía para poder mirar de cerca tanto un shelter de
+ * 2,4 m como un galpón de 30, y nadie lo movía. Fijado en 1,5× apareció el motivo por el que
+ * no servía: `escalaPorAncho` ya ajusta el dibujo al ancho disponible, así que agrandarlo un
+ * 50 % sólo puede SALIRSE de la tarjeta. El croquis quedaba con desplazamiento horizontal
+ * permanente y una cota cortada contra el borde —«0 a h / −1,69» en la vista 3D del proyecto
+ * de referencia—, que es exactamente lo que una lámina de cálculo no puede hacer: la cota
+ * que no se ve es la que no se transcribe.
  *
- * ⚠ EL MECANISMO SE CONSERVA ENTERO, y no es lo mismo que fijar el ancho en el CSS: el SVG
- * se sigue renderizando a `ZOOM · 100 %` del ancho de la columna con el MISMO `viewBox`, y
- * `Lienzo` sigue midiendo el render para publicar `k = viewBox/px`. Es lo que hace que el
- * dibujo crezca un 50 % y la letra siga saliendo a 11 px. Quien quiera volver a ofrecer la
- * elección sólo tiene que devolverle el arreglo a la barra: `Lienzo` ya toma el factor por
- * prop y ningún croquis sabe que existe.
+ * ⚠ AGRANDAR EL DIBUJO Y QUE ENTRE COMPLETO SON INCOMPATIBLES a ancho de tarjeta fijo. Lo
+ * que 1,5× compraba era que el dibujo creciera y la letra no; lo que costaba era el
+ * desplazamiento. Se elige que entre completo.
+ *
+ * El MECANISMO se conserva entero y no es lo mismo que sacarlo: el SVG se renderiza a
+ * `ZOOM · 100 %` del ancho de la columna con el MISMO `viewBox`, y `Lienzo` mide el render
+ * para publicar `k = viewBox/px`. Con `ZOOM = 1` no hace nada, y es lo que permite volver a
+ * ofrecer la elección cambiando este archivo y nada más: `Lienzo` ya toma el factor por prop
+ * y ningún croquis sabe que existe.
  */
-export const ZOOM = 1.5;
+export const ZOOM = 1;
 
 // ── TEXTO ───────────────────────────────────────────────────────────────────────
 /**

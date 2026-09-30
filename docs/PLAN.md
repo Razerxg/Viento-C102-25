@@ -291,16 +291,25 @@ sobre el vuelo, porque adentro hay cielorraso. Los aleros llevan tipo propio y s
 espesor es de dibujo, no un dato. La losa del alero adosado va centrada sobre su pared, que es
 una convención declarada: el art. 5.9 pide el ancho pero no dónde empieza.
 
-**Escala fija en 1,5×.** El selector de cuatro pasos se sacó. El mecanismo queda entero: el
-SVG se renderiza a `ZOOM · 100 %` del ancho de la columna con el mismo `viewBox`, así que el
-dibujo crece y la letra sigue a 11 px.
+**Escala de croquis: 1×, sin selector.** Pasó por 1,5× y volvió. ⚠ `escalaPorAncho` ya ajusta
+el dibujo al ancho disponible, así que cualquier factor mayor que 1 sólo puede SALIRSE:
+quedaba desplazamiento horizontal permanente y una cota cortada contra el borde de la tarjeta.
+La cota que no se ve es la que no se transcribe. El mecanismo queda entero —el SVG se
+renderiza a `ZOOM · 100 %` del ancho con el mismo `viewBox`— así que devolver la elección es
+cambiar `kit.jsx` y nada más.
 
-⚠ **A 1,5× todo croquis excede su tarjeta y se desplaza a lo ancho.** No hay forma de
-evitarlo: `escalaPorAncho` ya ajusta el dibujo al ancho disponible, así que agrandarlo un 50 %
-sólo puede salirse. Se gana que los rótulos ocupen proporcionalmente menos; se paga el
-desplazamiento horizontal. Y obligó a corregir el control, que comparaba contra el ancho
-pelado y marcaba los 144 croquis de cada geometría: ahora `Lienzo` publica el factor en
-`data-zoom` y el chequeo compara contra el ancho por ese factor.
+**Escala de color: cinco pasos por brazo, y no tres.** ⚠ Con tres, un caso real se pintaba de
+dos colores: en el galpón con voladizo en modo C&R, la zona 1 de cubierta, la zona 4 de pared
+y la zona 2 caían todas en el mismo paso. Con cinco usa cuatro. Y ⚠ el paso más débil ya no se
+funde con el fondo —era `#b7d3f6` a 1,54:1 contra la tarjeta blanca, así que una succión chica
+se veía igual que «nada»—; ahora arranca en `#86b6ef`, 2,11:1.
+
+Los cuatro brazos —dos tonos × dos temas— se validaron con `validate_palette.js --ordinal`:
+tono único, luminosidad monótona, ΔL ≥ 0,06 y extremo claro que se despega de la superficie.
+El costo, anotado: el brazo rojo queda en la banda de piso del chequeo de daltonismo (ΔE 7,7
+protan en claro, 6,9 en oscuro, objetivo 8), legal con codificación secundaria —que acá está
+de sobra: el valor va escrito en cada cara, hay leyenda y hay tabla—. El azul, que es el brazo
+que se usa casi siempre, pasa con 9,4.
 
 ### Aleros adosados a paredes — art. 5.9 ✅
 

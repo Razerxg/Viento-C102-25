@@ -538,8 +538,12 @@ export function Vista3D({ analisis, cyr, alero, maxAbs, tema = "claro", ancho = 
           ))}
           <RotulosDeCara piezas={piezas} px={px} color={txt} />
           {/* La leyenda usa la MISMA escala con la que se pintó: con la del capítulo 2 diría
-              un rango que ninguna cara de este croquis tiene. */}
-          <LeyendaPresion x={ancho / 2 - 90} y={alto - 34} ancho={180}
+              un rango que ninguna cara de este croquis tiene.
+              ⚠ Y VA MÁS ANCHA QUE EN LOS DEMÁS CROQUIS: son once tramos —cinco pasos por
+              brazo más el neutro— y a 180 unidades cada muestra quedaba de 14, demasiado
+              angosta para comparar un tono contra el de la cara que se está mirando. Acá hay
+              lugar: el 3D no tiene cotas compitiendo por el pie de la lámina. */}
+          <LeyendaPresion x={ancho / 2 - 130} y={alto - 34} ancho={260}
             tramos={tramosLeyenda(escalaColor, tema)} fmt={fq} color={ink} lienzo={ancho}
             lienzoAlto={alto} />
         </Lienzo>
