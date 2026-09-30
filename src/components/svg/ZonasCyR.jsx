@@ -30,8 +30,9 @@
 //     proporción de 10:1—, así que el hastial de un dos aguas no aparecía en ningún lado.
 //   · PLANTA, ELEVACIÓN Y PAREDES COMPARTEN ESCALA, y el croquis la declara en
 //     `data-escala` para que el control automático pueda exigirlo.
-import { mkView, escalaComun, Cota, CadenaDeCotas, Zona, Rotulo, Texto, Lienzo, Flecha,
-  ubicar, candidatosAlrededor, anchoEnLienzo, useEscalaTexto, TXT } from './kit.jsx';
+import { mkView, altoNecesario, Cota, CadenaDeCotas, Zona, Rotulo, Texto,
+  Lienzo, Flecha, ubicar, candidatosAlrededor, anchoEnLienzo, useEscalaTexto, useZoomCroquis,
+  TXT } from './kit.jsx';
 import { regionesDe, franjasDePared, rotulosDeRegion, LAYOUT } from '../../engine/cyrZonas.js';
 import { fachada } from '../../engine/fachadas.js';
 import { m, coef, pared as nombrePared } from './formatoCroquis.js';
@@ -50,7 +51,8 @@ const etiqueta = (z) => z.replace("'", "′");
 const TRAZOS = "7 5";
 const RZ = 11;
 
-export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 980, alto = 660 }) {
+export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 980 }) {
+  const { zoom, setZoom } = useZoomCroquis();
   if (!cyr?.geoZonas?.layout) return null;
   const { bx, by, a, h, layout, ejeCumbrera } = cyr.geoZonas;
   const piezas = regionesDe(cyr.geoZonas);
@@ -83,24 +85,69 @@ export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 980, alto = 660 }
   const hPared = Math.max(...paredes.map(p => p.zTope));
   const wPared = Math.max(...paredes.map(p => p.W));
 
+  // ── EL ALTO DEL LIENZO SALE DEL DIBUJO, NO AL REVÉS ─────────────────────────
+  // ⚠ ANTES LA LÁMINA MEDÍA 980 × 660 Y EL DIBUJO SE ENCOGÍA PARA ENTRAR. El galpón de
+  // 20 × 30 salía a 8,4 px/m cuando el ancho daba para 21,9: dos tercios de la lámina
+  // eran aire a los costados y el croquis salía dos veces y media más chico de lo que
+  // podía. Acá la escala la fija el ANCHO —que es lo que la columna de verdad limita— y
+  // cada fila pide el alto que su dibujo necesita.
+  // ── LA ESCALA SALE DEL ANCHO, Y EL REPARTO DE COLUMNAS SALE DEL DIBUJO ──────
+  // ⚠ NI EL ALTO NI EL ANCHO DE CADA COLUMNA PUEDEN SER FIJOS. Con la lámina de 980 × 660
+  // y la columna de la planta fija en el 56 %, el galpón de 20 × 30 se dibujaba a 8,4
+  // px/m cuando el ancho daba para 21,9. Y repartir el ancho a porcentaje fijo desperdicia
+  // de nuevo: una planta angosta al lado de una elevación larga deja media columna en
+  // blanco mientras la otra achica la escala común de las dos.
+  //
+  // Acá la escala es la mayor que deja entrar a las tres vistas, y cada columna se lleva
+  // el ancho que su dibujo necesita a esa escala.
+  // El margen de la elevación da para la cota de `h`, que va 26 px por fuera del edificio
+  // más su propio texto.
+  const M = { planta: 56, elev: 62, pared: 40 };
+  const wPlanta = bx, wElev = luz + vueloElevIni + vueloElevFin;
+  const anchoFila = ancho - 26;
+  const anchoParedes = ancho - 20 - 4 * M.pared;   // dos paredes, con sus cuatro márgenes
+  const sumaParedes = paredes.reduce((t, f) => t + f.W, 0);
+  const esc = Math.min(
+    // Las dos vistas de arriba comparten la fila: el ancho útil se reparte entre las dos.
+    (anchoFila - 2 * M.planta - 2 * M.elev) / Math.max(1e-9, wPlanta + wElev),
+    // ⚠ LAS DOS PAREDES TAMPOCO SE REPARTEN A MEDIAS. Una de 11 m al lado de una de 7,5
+    // en media lámina cada una dejaba la segunda con un tercio de su columna en blanco y
+    // hacía bajar la escala COMÚN de las cuatro vistas: la del galpón caía de 41 a 34.
+    anchoParedes / Math.max(1e-9, sumaParedes),
+    // Tope de alto: una planta muy alargada pediría una lámina de varias pantallas.
+    (Math.round(ancho * 0.95) - 2 * M.planta) / Math.max(1e-9, by),
+    // ⚠ Y LA FILA DE PAREDES TIENE SU PROPIO TOPE. En una torre de 3 × 3,5 con h = 10 el
+    // ancho deja una escala enorme —la planta es diminuta— y la pared, que mide 10 m de
+    // alto, pedía mil cien píxeles para tres metros de frente: la lámina pasaba de los dos
+    // mil y el croquis quedaba sin capturar.
+    (Math.round(ancho * 0.55) - 2 * M.pared) / Math.max(1e-9, hPared * 1.2),
+  );
+
   const yTop = 24;
-  const hFila = Math.round(alto * 0.55);
-  const yFila2 = yTop + hFila + 58;
-  const hFila2 = alto - yFila2 - 20;
-  const cajaPlanta = { ancho: Math.round(ancho * 0.56), alto: hFila, margen: 56 };
-  const cajaElev = { ancho: ancho - cajaPlanta.ancho - 26, alto: hFila, margen: 44 };
-  const cajaPared = { ancho: Math.round(ancho / 2) - 36, alto: hFila2, margen: 40 };
-  const esc = escalaComun([
-    { ...cajaPlanta, w: bx, h: by },
-    { ...cajaElev, w: luz + vueloElevIni + vueloElevFin, h: hTot * 1.1 },
-    { ...cajaPared, w: wPared, h: hPared * 1.2 },
-  ]);
+  const cajaPlanta = { ancho: Math.round(wPlanta * esc) + 2 * M.planta, margen: M.planta,
+    w: wPlanta, h: by };
+  const cajaElev = { ancho: anchoFila - cajaPlanta.ancho, margen: M.elev,
+    w: wElev, h: hTot * 1.1 };
+  // Cada pared se lleva el ancho de SU silueta; la primera arranca en el margen izquierdo
+  // y la segunda donde termina la primera.
+  const cajasPared = paredes.map(f => ({ ancho: Math.round(f.W * esc) + 2 * M.pared,
+    margen: M.pared, w: f.W, h: hPared * 1.2 }));
+  const xPared = cajasPared.reduce((xs, caja) => [...xs, xs[xs.length - 1] + caja.ancho],
+    [Math.round((ancho - cajasPared.reduce((t, c) => t + c.ancho, 0)) / 2)]);
+  const hFila = Math.max(altoNecesario(cajaPlanta, esc), altoNecesario(cajaElev, esc));
+  const hFila2 = Math.max(...cajasPared.map(c => altoNecesario(c, esc))) + 18;
+  // 58 dejaba el subtítulo de la elevación —«h = altura media de cubierta»— pegado al
+  // título de la fila de paredes.
+  const yFila2 = yTop + hFila + 78;
+  const alto = yFila2 + hFila2 + 20;
+  cajaPlanta.alto = hFila; cajaElev.alto = hFila;
+  for (const c of cajasPared) c.alto = hFila2;
 
   const v = mkView({ ...cajaPlanta, xMin: 0, xMax: bx, yMin: 0, yMax: by, escalaFija: esc });
   const X = (u) => v.x(u);
   const Y = (u) => v.y(u) + yTop;
 
-  const xE = cajaPlanta.ancho + 26;
+  const xE = cajaPlanta.ancho + 26;   // la elevación arranca donde termina la planta
   const ve = mkView({ ...cajaElev, xMin: -(vueloElevIni), xMax: luz + vueloElevFin,
     yMin: 0, yMax: hTot * 1.1, escalaFija: esc });
   const XE = (u) => ve.x(u) + xE;
@@ -210,7 +257,7 @@ export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 980, alto = 660 }
 
   return (
     <Lienzo ancho={ancho} alto={alto} titulo="Zonas de componentes y revestimientos"
-      escala={esc} edificio="cyr" zonificado>
+      escala={esc} edificio="cyr" zonificado zoom={zoom} setZoom={setZoom}>
       <clipPath id="cyr-planta">
         <rect x={X(0)} y={Y(by)} width={v.l(bx)} height={v.l(by)} />
       </clipPath>
@@ -319,7 +366,7 @@ export function ZonasCyR({ cyr, geo, sombrear = false, ancho = 980, alto = 660 }
         color={c.txt2} tam={TXT.titulo} peso={600} />
       {paredes.map((p, i) => (
         <ParedEnElevacion key={p.eje} f={p} a={a} esc={esc} sombrear={sombrear}
-          x0={i * Math.round(ancho / 2) + 20} y0={yFila2} caja={cajaPared} />
+          x0={xPared[i]} y0={yFila2} caja={cajasPared[i]} />
       ))}
     </Lienzo>
   );

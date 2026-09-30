@@ -157,7 +157,8 @@ prueba las reglas.
 | ✅ | **Reglas comunes de dibujo**: texto que no escala, halo, cota que se mide, cadenas apiladas, un rótulo por región conexa, unidades del croquis, escala compartida, `B_X`/`B_Y` | `components/svg/kit.jsx` + `formatoCroquis.js`, con `tests/croquisKit.test.js` |
 | ✅ | **Tinta por tokens del tema en los nueve croquis**; las escalas de datos, aparte | `lib/paletaDatos.js` + `lib/escalaPresion.js`, con test que recorre `components/svg/` |
 | ✅ | **Contraste**: `txt3` subido a 4,65:1 en oscuro y 5,23:1 en claro | `components/tokens.js` |
-| ✅ | **Ampliar y Descargar SVG** en cada croquis | `kit.jsx → BarraCroquis` |
+| ✅ | **Ampliar, Descargar SVG y control de escala** en cada croquis | `kit.jsx → BarraCroquis` |
+| ✅ | **Croquis 2–3× más grandes**: la escala la fija el ancho y el alto sale del dibujo | `kit.jsx → escalaPorAncho` + `ZonasCyR.jsx` + `CroquisTab.jsx` |
 | 🔄 | **Voladizo de cubierta** — capítulo 5 completo (art. 5.7 + nota 7); capítulo 2 📥 | `engine/voladizo.js` + `engine/cyrPresiones.js`, con `tests/voladizo.test.js` (29 tests) |
 | ⏳ | **Alero adosado a pared** (art. 5.9) — parte 3B | |
 | 📥 | La geometría **«shelter con voladizo»** de la matriz se agrega con la parte 3A | `scripts/qa-matriz.js` |

@@ -110,6 +110,34 @@ export const escalaComun = (vistas) => Math.min(...vistas.map(v =>
   Math.min((v.ancho - 2 * (v.margen ?? 40)) / Math.max(1e-9, v.w),
     (v.alto - 2 * (v.margen ?? 40)) / Math.max(1e-9, v.h))));
 
+// ── LA ESCALA SALE DEL ANCHO; EL ALTO SALE DEL DIBUJO ───────────────────────────
+//
+// ⚠ ANTES LA CAJA TENÍA ALTO FIJO Y EL DIBUJO SE ENCOGÍA PARA ENTRAR. Medido sobre la
+// matriz de control: el galpón de 20 × 30 se dibujaba a 8,4 px/m cuando el ancho
+// disponible daba para 21,9. Dos tercios del croquis eran aire a los costados y el dibujo
+// salía dos veces y media más chico de lo que podía. No es una cuestión de gusto: en un
+// shelter de 2,4 × 3,0 las franjas de zona miden centímetros, y comprimido no se ven.
+//
+// Acá la escala la fija el ANCHO —que es lo que la columna de verdad limita— y el alto de
+// la caja se deriva del dibujo. `altoMaximo` es la única concesión: una planta muy
+// alargada pediría una lámina de varias pantallas de alto, y ahí vuelve a gobernar el
+// alto, que es el comportamiento de antes.
+export function escalaPorAncho(vistas, { altoMaximo = Infinity } = {}) {
+  return Math.min(...vistas.map(v => {
+    const m = v.margen ?? 40;
+    const porAncho = (v.ancho - 2 * m) / Math.max(1e-9, v.w);
+    const tope = (Math.min(v.altoMaximo ?? altoMaximo, Infinity) - 2 * m)
+      / Math.max(1e-9, v.h);
+    return Math.min(porAncho, tope);
+  }));
+}
+
+/** El alto que necesita una caja para contener su dibujo a esa escala. */
+export const altoNecesario = (v, esc) => Math.ceil(v.h * esc + 2 * (v.margen ?? 40));
+
+/** Los factores de zoom que ofrece la barra del croquis. */
+export const ZOOMS = [1, 1.5, 2, 3];
+
 // ── TEXTO ───────────────────────────────────────────────────────────────────────
 /**
  * El único `<text>` del repositorio. Todo rótulo, cota y número de zona pasa por acá, así
@@ -287,8 +315,15 @@ export function CadenaDeCotas({ cortes, eje, fijo, al, textos, desplaz = 18, pas
     if (texto == null) continue;
     const [p, q] = [al(cortes[i - 1]), al(cortes[i])];
     const w = anchoEnLienzo(texto, tam, k) + 8 * k;
+    // ⚠ SE RESERVA EL LUGAR DONDE LA COTA VA A PONER EL TEXTO, NO EL CENTRO DEL TRAMO.
+    // Cuando el texto no entra entre las marcas, `Cota` lo saca AFUERA, más allá del
+    // segundo extremo. Reservando el centro, ese texto caía sobre el tramo siguiente y
+    // las dos etiquetas se montaban aunque cada una tuviera su fila asignada.
+    const entra = w + 10 <= Math.abs(q - p);
     const medio = (p + q) / 2;
-    const [a, b] = [medio - w / 2, medio + w / 2];
+    const [a, b] = entra
+      ? [medio - w / 2, medio + w / 2]
+      : [Math.max(p, q) + 8, Math.max(p, q) + 8 + w];
     let fila = 0;
     while (filas[fila]?.some(([u, v]) => a < v && u < b)) fila++;
     (filas[fila] ??= []).push([a, b]);
@@ -372,8 +407,17 @@ function factorDeTexto(el, ancho, alto) {
   return esc > 0 ? 1 / esc : 1;
 }
 
+/**
+ * El zoom de un croquis. Vive en el componente que dibuja —no adentro de `Lienzo`— porque
+ * el croquis necesita el factor ANTES de armar la vista, y `Lienzo` es su hijo.
+ */
+export function useZoomCroquis(inicial = 1) {
+  const [zoom, setZoom] = useState(inicial);
+  return { zoom, setZoom };
+}
+
 export function Lienzo({ ancho, alto, children, titulo, escala, edificio, zonificado,
-  herramientas = true, unidades = "Cotas en m" }) {
+  herramientas = true, unidades = "Cotas en m", zoom = 1, setZoom }) {
   const ref = useRef(null);
   const [k, setK] = useState(1);
   const [grande, setGrande] = useState(false);
@@ -386,11 +430,21 @@ export function Lienzo({ ancho, alto, children, titulo, escala, edificio, zonifi
     const ro = new ResizeObserver(medir);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [ancho, alto]);
+  }, [ancho, alto, zoom]);
 
+  // ── EL ZOOM AGRANDA EL DIBUJO Y NO EL TEXTO, SIN TOCAR UNA SOLA LÍNEA DEL CROQUIS ──
+  //
+  // El SVG se renderiza a `zoom` veces el ancho de la columna, con el MISMO `viewBox`.
+  // Cada unidad de viewBox pasa a medir más píxeles, así que el dibujo crece; y como
+  // `Lienzo` mide el render y publica `k = viewBox/px`, el tamaño de letra en unidades de
+  // viewBox se achica en la misma proporción y el texto sigue saliendo a 11 px.
+  //
+  // Es exactamente para lo que se construyó la regla 1, y por eso el zoom no necesita que
+  // ningún croquis sepa que existe: las cotas mantienen su cuerpo mientras el shelter de
+  // 2,4 m o el galpón de 30 se agrandan.
   const svg = (
-    <svg ref={ref} viewBox={`0 0 ${ancho} ${alto}`} width="100%"
-      style={{ display: "block", maxHeight: alto }}
+    <svg ref={ref} viewBox={`0 0 ${ancho} ${alto}`} width={`${zoom * 100}%`}
+      style={{ display: "block", maxHeight: alto * zoom }}
       role="img" aria-label={titulo}
       data-escala={escala ?? undefined} data-edificio={edificio ?? undefined}
       data-zonificado={zonificado ? "si" : undefined}>
@@ -402,9 +456,10 @@ export function Lienzo({ ancho, alto, children, titulo, escala, edificio, zonifi
   if (!herramientas) return svg;
   return (
     <div style={{ position: "relative" }}>
-      {svg}
-      <BarraCroquis svgRef={ref} titulo={titulo} unidades={unidades}
-        onAmpliar={() => setGrande(true)} />
+      {/* Con zoom el dibujo es más ancho que la tarjeta: se desplaza, no se recorta. */}
+      <div style={{ overflowX: zoom > 1 ? "auto" : "visible" }}>{svg}</div>
+      <BarraCroquis svgRef={ref} titulo={titulo} unidades={unidades} zoom={zoom}
+        setZoom={setZoom} onAmpliar={() => setGrande(true)} />
       {grande && (
         <Ampliado titulo={titulo} onCerrar={() => setGrande(false)} ancho={ancho}
           alto={alto} escala={escala} edificio={edificio} zonificado={zonificado}>
@@ -419,7 +474,7 @@ export function Lienzo({ ancho, alto, children, titulo, escala, edificio, zonifi
  * La unidad declarada UNA sola vez —y no repetida en cada cota, que es lo que llenaba de
  * «m» un dibujo que tiene veinte— más los dos botones. Se ocultan al imprimir.
  */
-function BarraCroquis({ svgRef, titulo, unidades, onAmpliar }) {
+function BarraCroquis({ svgRef, titulo, unidades, onAmpliar, zoom = 1, setZoom }) {
   const descargar = () => {
     const el = svgRef.current;
     if (!el) return;
@@ -450,6 +505,20 @@ function BarraCroquis({ svgRef, titulo, unidades, onAmpliar }) {
       marginTop: 2,
     }}>
       <span style={{ fontSize: TAM.base, color: c.txt2, marginRight: "auto" }}>{unidades}</span>
+      {setZoom && (
+        <span style={{ display: "inline-flex", gap: 2, alignItems: "center" }}>
+          <span style={{ fontSize: TAM.base, color: c.txt2, marginRight: 4 }}>Escala</span>
+          {ZOOMS.map(z => (
+            <button key={z} type="button" aria-pressed={z === zoom}
+              onClick={() => setZoom(z)}
+              style={{ ...boton, fontWeight: z === zoom ? 600 : 400,
+                background: z === zoom ? c.hover : c.raised,
+                color: z === zoom ? c.txt : c.txt2 }}>
+              {String(z).replace(".", ",")}×
+            </button>
+          ))}
+        </span>
+      )}
       <button type="button" style={boton} onClick={onAmpliar}>Ampliar</button>
       <button type="button" style={boton} onClick={descargar}>Descargar SVG</button>
     </div>

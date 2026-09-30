@@ -16,6 +16,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   TXT, anchoTexto, anchoEnLienzo, ubicar, candidatosAlrededor, escalaComun, mkView,
+  escalaPorAncho, altoNecesario, ZOOMS,
 } from '../src/components/svg/kit.jsx';
 import { corto } from '../src/lib/formato.js';
 import { unidades, PERFILES } from '../src/lib/unidades.js';
@@ -286,5 +287,55 @@ describe('rotulosDeRegion — como numeran las figuras del reglamento', () => {
       pendienteHacia: "+Y" };
     // La franja del alero bajo es continua a lo ancho de la planta: un solo ②.
     expect(rotulosDeRegion(geo).filter(r => r.zona === "2")).toHaveLength(1);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LA ESCALA SALE DEL ANCHO Y EL ALTO SALE DEL DIBUJO
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('escalaPorAncho — el dibujo llena la columna en vez de encogerse', () => {
+  // La caja real de la planta de un croquis de C&R: 549 px de ancho con 56 de margen.
+  const planta = (w, h) => ({ ancho: 549, margen: 56, w, h });
+
+  it('ignora el alto: la escala la fija el ANCHO disponible', () => {
+    // ⚠ ES LA DIFERENCIA CON `escalaComun`, que toma el mínimo de los dos. Con la caja de
+    // alto fijo, el galpón de 20 × 30 se dibujaba a 8,4 px/m cuando el ancho daba para
+    // 21,9: dos tercios de la lámina eran aire y el croquis salía dos veces y media más
+    // chico de lo que podía.
+    const e = escalaPorAncho([planta(20, 30)]);
+    expect(e).toBeCloseTo((549 - 112) / 20, 9);
+    const antes = escalaComun([{ ...planta(20, 30), alto: 363 }]);
+    expect(e / antes).toBeGreaterThan(2.5);
+  });
+
+  it('el alto de la caja se deriva del dibujo', () => {
+    const v = planta(20, 30);
+    const e = escalaPorAncho([v]);
+    expect(altoNecesario(v, e)).toBe(Math.ceil(30 * e + 112));
+  });
+
+  it('con varias vistas toma la más exigente: es la escala COMÚN', () => {
+    // Sigue valiendo la regla de que dos vistas del mismo edificio comparten escala.
+    const e = escalaPorAncho([planta(20, 30), planta(50, 10)]);
+    expect(e).toBeCloseTo((549 - 112) / 50, 9);
+  });
+
+  it('el tope de alto evita una lámina de varias pantallas', () => {
+    // Una planta de 10 × 200 m pediría 8.700 px de alto. Pasado el tope vuelve a
+    // gobernar el alto, que es el comportamiento de antes.
+    const v = planta(10, 200);
+    const sinTope = escalaPorAncho([v]);
+    const conTope = escalaPorAncho([v], { altoMaximo: 900 });
+    expect(conTope).toBeLessThan(sinTope);
+    expect(altoNecesario(v, conTope)).toBeLessThanOrEqual(900);
+  });
+
+  it('los factores de zoom arrancan en 1 y llegan al 3', () => {
+    // El 1× tiene que ser el primero: es el que sale por defecto, y con la escala ya
+    // ajustada al ancho es el que la mayoría no va a necesitar cambiar.
+    expect(ZOOMS[0]).toBe(1);
+    expect(Math.max(...ZOOMS)).toBe(3);
+    expect([...ZOOMS].sort((a, b) => a - b)).toEqual(ZOOMS);
   });
 });

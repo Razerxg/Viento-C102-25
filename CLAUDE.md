@@ -266,7 +266,19 @@ corrige un defecto que estaba medido.
 7. **LAS VISTAS DEL MISMO EDIFICIO COMPARTEN ESCALA** (`escalaComun` + `escalaFija`), y el
    `Lienzo` la declara en `data-escala`. La pared de C&R se dibujaba a 10:1 contra una
    planta a 1:100.
-8. **NI UN COLOR LITERAL EN UN CROQUIS.** La tinta sale de los tokens del tema, que son
+8. **LA ESCALA LA FIJA EL ANCHO Y EL ALTO SALE DEL DIBUJO** (`escalaPorAncho` +
+   `altoNecesario`). Con la lámina de alto fijo, el galpón de 20 × 30 se dibujaba a 8,4
+   px/m cuando el ancho daba para 21,9: dos tercios eran aire a los costados. El reparto
+   de columnas también sale del contenido —una planta angosta al lado de una elevación
+   larga, o dos paredes de anchos distintos—: a porcentaje fijo, la columna que sobra
+   baja la escala COMÚN de todas. Topes de alto para que una planta alargada no pida una
+   lámina de varias pantallas, y para que una pared alta y angosta no la desborde.
+9. **EL ZOOM AGRANDA EL DIBUJO Y NO EL TEXTO.** El SVG se renderiza a `zoom` veces el
+   ancho de la columna con el MISMO `viewBox`: cada unidad mide más píxeles y el dibujo
+   crece, y como `Lienzo` mide el render y publica `k`, el cuerpo de letra en unidades de
+   viewBox se achica en la misma proporción y el texto sigue a 11 px. Es la regla 1
+   trabajando al revés, y por eso ningún croquis necesita saber que el zoom existe.
+10. **NI UN COLOR LITERAL EN UN CROQUIS.** La tinta sale de los tokens del tema, que son
    variables CSS y se invierten solas. Las escalas de DATOS —presión, paleta categórica,
    rampa de regiones, velo de sombreado— viven en `lib/escalaPresion.js` y
    `lib/paletaDatos.js`, porque tienen que seguir significando lo mismo aunque cambie el

@@ -17,9 +17,11 @@ import { c as tok } from '../tokens.js';
 
 const ESP = 10;          // espesor de la banda coloreada, en px
 const SEP = 30;          // separación del rótulo respecto de la banda
+/** Margen del dibujo: tiene que contener la cota más lejana, `SEP + 150` más su texto. */
+export const MARGEN = 215;
 
 export function PlantaZonas({ analisis, maxAbs, tema = "claro", ancho = 620, alto = 470,
-  escala }) {
+  escala, zoom = 1, setZoom }) {
   const { geo, dir } = analisis;
   // ⚠ LA TINTA SALE DE LOS TOKENS DEL TEMA, NO DE DOS LITERALES ELEGIDOS POR `tema`. Los
   // literales obligaban a pasar el tema a cada croquis y a re-renderizar al cambiarlo; los
@@ -45,8 +47,12 @@ export function PlantaZonas({ analisis, maxAbs, tema = "claro", ancho = 620, alt
 
   // El dibujo ocupa la franja central; arriba queda el título y abajo la leyenda.
   const yTop = 28, yBot = alto - 46;
+  // ⚠ EL MARGEN TIENE QUE DAR PARA LA COTA MÁS LEJANA, que es la de B_Y: va a
+  // `SEP + 150` del borde para no tapar el rótulo de la cara izquierda. Con 118 el dibujo
+  // entraba porque la escala lo dejaba chico; desde que llena su caja, la cota se salía
+  // del lienzo 45 unidades.
   const v = mkView({ ancho, alto: yBot - yTop, xMin: 0, xMax: a, yMin: 0, yMax: b,
-    margen: 118, escalaFija: escala });
+    margen: MARGEN, escalaFija: escala });
   const desp = (f) => ({ x: v.x(f), y: v.y(f) });
   const Y = (my) => v.y(my) + yTop;
 
@@ -93,7 +99,7 @@ export function PlantaZonas({ analisis, maxAbs, tema = "claro", ancho = 620, alt
 
   return (
     <Lienzo ancho={ancho} alto={alto} titulo={`Planta — ${dir.label}`} escala={v.esc}
-      edificio="cap2" unidades="Cotas en m · presiones en kN/m²">
+      edificio="cap2" unidades="Cotas en m · presiones en kN/m²" zoom={zoom} setZoom={setZoom}>
       <Rotulo x={ancho / 2} y={14} color={txt} tam={TXT.titulo} peso={600}
         texto={`${dir.label} · L/B = ${coef(analisis.L / analisis.B)}`} />
 

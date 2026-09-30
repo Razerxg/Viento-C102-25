@@ -80,7 +80,8 @@ function RotulosDeCara({ caras, info, px, color }) {
   );
 }
 
-export function Vista3D({ analisis, maxAbs, fmt, tema = "claro", ancho = 620, alto = 440 }) {
+export function Vista3D({ analisis, maxAbs, tema = "claro", ancho = 620, alto = 440,
+  zoom = 1, setZoom }) {
   const { geo, dir, superficies, modo, caraUnica } = analisis;
   const orb = useOrbita("iso");
   // Tinta por tokens del tema: son variables CSS y se invierten solas. Lo único que
@@ -170,7 +171,8 @@ export function Vista3D({ analisis, maxAbs, fmt, tema = "claro", ancho = 620, al
   return (
     <div>
       <div {...orb.props} style={orb.estilo}>
-        <Lienzo ancho={ancho} alto={alto} titulo={`Vista 3D — ${dir.label}`}>
+        <Lienzo ancho={ancho} alto={alto} titulo={`Vista 3D — ${dir.label}`}
+          zoom={zoom} setZoom={setZoom}>
           <Rotulo x={ancho / 2} y={14} texto={`${dir.label} — presión gobernante por cara`}
             color={txt} tam={TXT.titulo} peso={600} />
           {caras.map((c, i) => (

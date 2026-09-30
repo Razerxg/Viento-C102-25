@@ -13,7 +13,8 @@ import { PerfilQ } from '../svg/PerfilQ.jsx';
 import { PlantaZonas } from '../svg/PlantaZonas.jsx';
 import { ElevacionCubierta } from '../svg/ElevacionCubierta.jsx';
 import { Vista3D } from '../svg/Vista3D.jsx';
-import { escalaComun } from '../svg/kit.jsx';
+import { escalaPorAncho, altoNecesario, useZoomCroquis } from '../svg/kit.jsx';
+import { MARGEN as MARGEN_PLANTA } from '../svg/PlantaZonas.jsx';
 import { Encabezado, Card, Nota } from '../ui.jsx';
 import { SP } from '../tokens.js';
 
@@ -39,27 +40,47 @@ export function CroquisTab() {
   // escala métrica única —el fondo se dibuja más chico que el frente, que es el punto—.
   const { geo, L } = act;
   const zTope = Math.max(geo.hCumbre ?? geo.hAlero, geo.hAlero);
-  const escala = escalaComun([
-    { ancho: 620, alto: 470 - 74, w: geo.a, h: geo.b, margen: 118 },        // planta
-    { ancho: 620, alto: 470 - 92, w: L * 1.2, h: zTope * 1.18, margen: 58 }, // elevación
-  ]);
-  const props = { analisis: act, maxAbs, tema, ancho: 620, escala };
+
+  // ── LA ESCALA LA FIJA EL ANCHO Y CADA CROQUIS PIDE EL ALTO QUE NECESITA ──────
+  // ⚠ ANTES LAS DOS LÁMINAS MEDÍAN 620 × 470 Y EL DIBUJO SE ENCOGÍA PARA ENTRAR. Con el
+  // alto fijo, el galpón de 20 × 30 se dibujaba a 8,4 px/m cuando el ancho daba para
+  // 21,9: el croquis salía dos veces y media más chico de lo que podía, con dos tercios
+  // de la lámina en blanco a los costados.
+  const ANCHO = 620;
+  // Los márgenes son los que cada croquis usa de verdad: si acá se pusieran otros, la
+  // escala calculada no sería la que el dibujo puede usar y volvería a sobrar o faltar.
+  const vPlanta = { ancho: ANCHO, margen: MARGEN_PLANTA, w: geo.a, h: geo.b };
+  const vElev = { ancho: ANCHO, margen: 96, w: L * 1.2, h: zTope * 1.18 };
+  const escala = escalaPorAncho([vPlanta, vElev], { altoMaximo: 760 });
+  // El alto total suma lo que no es dibujo pero ocupa lugar: el título arriba, la leyenda
+  // de presión abajo y, en la elevación por franjas, las tres filas de rótulos colgados.
+  const altoPlanta = altoNecesario(vPlanta, escala) + 74;
+  const altoElev = altoNecesario(vElev, escala) + 92
+    + (act.modo === "franjas" ? 78 : 0);
+
+  const props = { analisis: act, maxAbs, tema, ancho: ANCHO, escala };
+  const zPerfil = useZoomCroquis(), zPlanta = useZoomCroquis();
+  const zElev = useZoomCroquis(), z3D = useZoomCroquis();
 
   // La escala de color es la MISMA en los cuatro y está normalizada sobre todas las
   // direcciones, no sobre la que se está mirando: si cada croquis usara su propio máximo,
   // dos croquis lado a lado dirían cosas distintas con el mismo color.
   const croquis = [
-    ["Perfil de q(z) en altura", <PerfilQ key="a" {...props} escala={undefined} />,
+    ["Perfil de q(z) en altura",
+      <PerfilQ key="a" {...props} escala={undefined} alto={520} {...zPerfil} />,
       "Cómo crece la presión dinámica con la altura sobre la pared a barlovento. Es la única "
       + "superficie donde q varía: todas las demás usan q_h, constante. El escalonado son "
       + "los tramos con los que se integra."],
-    ["Planta con zonas y presiones", <PlantaZonas key="b" {...props} />,
+    ["Planta con zonas y presiones",
+      <PlantaZonas key="b" {...props} alto={altoPlanta} {...zPlanta} />,
       "Las cuatro paredes vistas desde arriba, coloreadas por la presión que les toca, y la "
       + "zonificación de la cubierta cuando se resuelve por franjas."],
-    ["Elevación con zonas de cubierta", <ElevacionCubierta key="c" {...props} />,
+    ["Elevación con zonas de cubierta",
+      <ElevacionCubierta key="c" {...props} alto={altoElev} {...zElev} />,
       "Corte por el plano del viento. Muestra el reparto entre faldón a barlovento y faldón "
       + "a sotavento, o las franjas, según cómo trate la cubierta esta dirección."],
-    ["Vista 3D coloreada por presión", <Vista3D key="d" {...props} escala={undefined} />,
+    ["Vista 3D coloreada por presión",
+      <Vista3D key="d" {...props} escala={undefined} alto={540} {...z3D} />,
       "El volumen completo. Se arrastra para girar. Sirve para confirmar que la cubierta "
       + "está orientada como uno cree: un error de cumbrera se ve acá y en ningún otro lado."],
   ];
@@ -71,8 +92,12 @@ export function CroquisTab() {
           las cuatro direcciones. Los valores son la presión gobernante de cada superficie,
           con el caso de presión interna que resulta más desfavorable para esa superficie." />
 
+      {/* ⚠ UNA COLUMNA MÁS ANCHA, NO DOS. Con `minmax(420px, 1fr)` la pantalla entraba
+          dos croquis por fila y cada uno se dibujaba en 470 px: es el mismo aire
+          desperdiciado, sólo que repartido en dos. El mínimo de 560 px deja dos columnas
+          en una pantalla ancha de verdad y una sola en una normal. */}
       <div style={{ display: "grid", gap: SP.md,
-        gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))" }}>
+        gridTemplateColumns: "repeat(auto-fit, minmax(560px, 1fr))" }}>
         {croquis.map(([titulo, el, desc]) => (
           <Card key={titulo} titulo={titulo}>
             {el}

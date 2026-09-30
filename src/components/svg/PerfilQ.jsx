@@ -90,7 +90,8 @@ function RotulosDeQ({ tramos, yDe, xDe }) {
   );
 }
 
-export function PerfilQ({ analisis, ancho = 620, alto = 380, escala }) {
+export function PerfilQ({ analisis, ancho = 620, alto = 380, escala,
+  zoom = 1, setZoom }) {
   const { perfil, geo } = analisis;
   const qMax = Math.max(...perfil.map(t => t.q), 1);
   const tramos = agrupar(perfil);
@@ -118,7 +119,8 @@ export function PerfilQ({ analisis, ancho = 620, alto = 380, escala }) {
 
   return (
     <Lienzo ancho={ancho} alto={alto} titulo="Perfil de presión dinámica en altura"
-      escala={v.esc} edificio="perfil-q" unidades="Cotas en m · presiones en kN/m²">
+      escala={v.esc} edificio="perfil-q" unidades="Cotas en m · presiones en kN/m²"
+      zoom={zoom} setZoom={setZoom}>
       {/* terreno */}
       <line x1={v.x(-0.9)} y1={v.y(0)} x2={v.x(anchoDiag + 0.35)} y2={v.y(0)}
         stroke={c.txt2} strokeWidth="1.5" />

@@ -47,7 +47,7 @@ function fundir(franjas) {
 }
 
 export function ElevacionCubierta({ analisis, maxAbs, tema = "claro", ancho = 620,
-  alto = 470, escala }) {
+  alto = 470, escala, zoom = 1, setZoom }) {
   const { geo, L, superficies, modo, caraUnica } = analisis;
   // La tinta sale de los tokens del tema; lo único que depende de `tema` es la escala de
   // presión, que es una escala de DATOS y vive en `lib/escalaPresion.js`.
@@ -70,9 +70,15 @@ export function ElevacionCubierta({ analisis, maxAbs, tema = "claro", ancho = 62
         : [[0, geo.hAlero], [L / 2, hC], [L, geo.hAlero]];
   const zTope = Math.max(...linea.map(p => p[1]));
 
-  const yTop = 46, yBot = alto - 46;
+  // ⚠ EL MARGEN SUPERIOR DEPENDE DEL MODO. Los rótulos de franja cuelgan de una línea
+  // común por encima del techo y se apilan hasta en tres filas: con el dibujo llenando su
+  // caja —que es lo que hace desde que la escala la fija el ancho— la tercera fila llegaba
+  // al título de la lámina. El margen lateral, por su parte, tiene que dar para la cota de
+  // cumbrera, que va por fuera del edificio.
+  const espacioRotulos = modo === "franjas" ? 78 : 0;
+  const yTop = 46 + espacioRotulos, yBot = alto - 46;
   const v = mkView({ ancho, alto: yBot - yTop, xMin: -L * 0.1, xMax: L * 1.1,
-    yMin: 0, yMax: zTope * 1.18, margen: 58, escalaFija: escala });
+    yMin: 0, yMax: zTope * 1.18, margen: 96, escalaFija: escala });
   const Y = (z) => v.y(z) + yTop;
   // altura de la silueta en una abscisa, interpolando entre los vértices
   const zEn = (x) => {
@@ -121,7 +127,8 @@ export function ElevacionCubierta({ analisis, maxAbs, tema = "claro", ancho = 62
 
   return (
     <Lienzo ancho={ancho} alto={alto} titulo="Elevación con zonas de cubierta"
-      escala={v.esc} edificio="cap2" unidades="Cotas en m · presiones en kN/m²">
+      escala={v.esc} edificio="cap2" unidades="Cotas en m · presiones en kN/m²"
+      zoom={zoom} setZoom={setZoom}>
       <Rotulo x={ancho / 2} y={14} texto={`${t.label} · θ = ${coef(geo.theta, 1)}°`}
         color={txt} tam={TXT.titulo} peso={700} />
       <Rotulo x={ancho / 2} y={31} color={txt} tam={TXT.min}
