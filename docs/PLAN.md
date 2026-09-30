@@ -298,6 +298,15 @@ La cota que no se ve es la que no se transcribe. El mecanismo queda entero —el
 renderiza a `ZOOM · 100 %` del ancho con el mismo `viewBox`— así que devolver la elección es
 cambiar `kit.jsx` y nada más.
 
+**El perfil de q(z) se rehízo como diagrama de presión.** ⚠ Eran dos bloques del mismo ancho
+que se leían como dos edificios, y en un edificio bajo —donde `q` es constante— el escalonado
+es un solo escalón, así que el diagrama tampoco se distinguía de una caja. Ahora: muro
+delgado y hachurado, contorno cerrado con relleno tenue, y flechas escaladas apuntando contra
+la cara —el idioma de una reacción de suelo—. ⚠ Y el largo del diagrama pasó a expresarse en
+METROS —el de `q_máx` mide lo que el edificio es alto— porque `mkView` usa una sola escala
+para los dos ejes: con el eje horizontal en unidades de 0 a 1, el dibujo se encogía a una
+columna angosta en el medio de la lámina.
+
 **Escala de color: cinco pasos por brazo, y no tres.** ⚠ Con tres, un caso real se pintaba de
 dos colores: en el galpón con voladizo en modo C&R, la zona 1 de cubierta, la zona 4 de pared
 y la zona 2 caían todas en el mismo paso. Con cinco usa cuatro. Y ⚠ el paso más débil ya no se

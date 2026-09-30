@@ -495,6 +495,38 @@ comprobaba y el control contó doscientos solapes, porque el valor de una tira c
 nombre de la de al lado. Ahora se reparten de la pieza más grande a la más chica, cada una
 reserva su caja, y la que no encuentra lugar se queda sin rótulo.
 
+### El perfil de q(z): un muro esbelto con su diagrama, no dos cajas
+
+⚠ **ERAN DOS BLOQUES DEL MISMO ANCHO Y SE LEÍAN COMO DOS EDIFICIOS.** El edificio ocupaba de
+−0,75 a −0,03 y el diagrama de 0 a 1: dos rectángulos altos, pegados, de ancho parecido y con
+el mismo aspecto. Y en un edificio bajo —donde todo el perfil cae por debajo de `z_mín` y `q`
+es constante— el «escalonado» es UN escalón, así que el diagrama tampoco se distinguía de una
+caja. El croquis no mostraba un perfil de presiones: mostraba dos cajas.
+
+Ahora es el idioma con el que se dibuja una reacción de suelo: la superficie cargada como un
+elemento **delgado y hachurado**, el diagrama como un **contorno cerrado** con relleno tenue, y
+**flechas** escaladas con el valor local apuntando contra la cara. La flecha es lo que
+convierte un rectángulo en una presión: dice que empuja, y hacia dónde.
+
+⚠ **EL EJE HORIZONTAL NO ESTÁ EN METROS, PERO SE MIDE EN METROS.** `mkView` toma UNA escala
+para los dos ejes —el menor de los dos factores— porque en todos los demás croquis los dos
+ejes son longitudes. Acá el horizontal es `q` normalizado, y estaba expresado en unidades de 0
+a 1: contra una altura de tres metros el dibujo medía dos unidades de ancho por tres de alto y
+se encogía a una columna angosta en el medio de una lámina de mil píxeles. La salida **no** es
+darle a este croquis una escala por eje —eso rompería `data-escala`, que es lo que el control
+compara entre vistas del mismo edificio— sino **expresar el largo del diagrama en metros**: el
+diagrama de `q_máx` mide lo que el edificio es alto. La proporción del dibujo pasa a ser
+constante (2,06 × 1,06) sea cual sea la geometría, y por eso el alto de la lámina también
+puede ser fijo.
+
+**El contorno es UNA poligonal cerrada**, no un rectángulo por tramo: con rectángulos se
+dibujaban bordes internos donde el valor no cambia y el escalonado parecía tener más peldaños
+de los que tiene. Las **flechas van por tramo tabulado** y no por grupo: en un perfil de diez
+tramos iguales, diez flechas del mismo largo dicen «constante» mejor que cualquier rótulo.
+
+⚠ **`q_h` SE MARCA SOBRE EL DIAGRAMA, NO AL LADO DEL MURO.** Estaba anclado al borde del
+diagrama a la altura `h`, o sea justo encima de la cota de `h`, y la línea de cota lo tachaba.
+
 ### La escala de color de la presión: cinco pasos por brazo
 
 Es una escala DIVERGENTE —azul succión · gris cero · rojo presión— porque la presión tiene
