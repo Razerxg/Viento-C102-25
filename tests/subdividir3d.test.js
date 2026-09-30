@@ -100,6 +100,23 @@ describe('subdividir en franjas', () => {
     const piezas = porFranjas(cuadrado(), 0, [{ desde: 50, hasta: 60, dato: "x" }]);
     expect(piezas).toHaveLength(0);
   });
+
+  it('⚠ UNA PARED VERTICAL SE SUBDIVIDE IGUAL QUE UNA CUBIERTA', () => {
+    // El filtro de astillas medía el área EN PLANTA, y la de una pared vertical es CERO: se
+    // descartaban todas las franjas de todas las paredes y el modo de componentes y
+    // revestimientos dibujaba el edificio SIN PAREDES —justo las zonas 4 y 5—. Ningún chequeo
+    // del control lo veía: mide solapes, contraste y rótulos, no caras que desaparecen.
+    const pared = [[0, 0, 0], [10, 0, 0], [10, 0, 6], [0, 0, 6]];
+    const piezas = porFranjas(pared, 0, [
+      { desde: -1e6, hasta: 2, dato: "5" },
+      { desde: 2, hasta: 8, dato: "4" },
+      { desde: 8, hasta: 1e6, dato: "5" },
+    ]);
+    expect(piezas).toHaveLength(3);
+    expect(piezas.map(p => p.dato)).toEqual(["5", "4", "5"]);
+    const suma = piezas.reduce((s2, p) => s2 + areaReal(p.pts), 0);
+    expect(suma).toBeCloseTo(60, 6);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════

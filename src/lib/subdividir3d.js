@@ -89,9 +89,11 @@ export function recortarACaja(pts, { x0, x1, y0, y1 }) {
 /**
  * El área de la PROYECCIÓN HORIZONTAL de un polígono, en m².
  *
- * Sirve para descartar astillas: una grilla de cortes sobre una cara produce pedazos de área
- * nula en los bordes, y dibujarlos agrega cientos de polígonos invisibles con su trazo
- * encima —que sí se ve, como una línea de más—.
+ * ⚠ NO SIRVE PARA DESCARTAR ASTILLAS, y ése fue el error: una PARED es vertical y su área en
+ * planta es CERO, así que filtrando por ella se descartaban todas las franjas de todas las
+ * paredes y el modo de componentes y revestimientos dibujaba el edificio sin paredes. Para
+ * eso está `areaReal`. Esta función queda porque es lo que hace falta para repartir cargas de
+ * cubierta —el levantamiento actúa sobre la proyección horizontal— y para los tests.
  */
 export const areaEnPlanta = (pts) => {
   let s = 0;
@@ -102,7 +104,10 @@ export const areaEnPlanta = (pts) => {
   return Math.abs(s) / 2;
 };
 
-/** El área REAL de un polígono plano en 3D, en m². Es la de planta dividida por cos θ. */
+/**
+ * El área REAL de un polígono plano en 3D, en m². Es la que hay que mirar para saber si un
+ * pedazo existe: vale lo mismo para una cubierta que para una pared vertical.
+ */
 export const areaReal = (pts) => {
   let [nx, ny, nz] = [0, 0, 0];
   for (let i = 0; i < pts.length; i++) {
@@ -128,7 +133,7 @@ export function porFranjas(pts, eje, franjas, areaMinima = 1e-6) {
   for (const f of franjas) {
     let q = recortarPorPlano(pts, eje, Math.min(f.desde, f.hasta), 1);
     if (q.length) q = recortarPorPlano(q, eje, Math.max(f.desde, f.hasta), -1);
-    if (q.length && areaEnPlanta(q) > areaMinima) salida.push({ pts: q, dato: f.dato });
+    if (q.length && areaReal(q) > areaMinima) salida.push({ pts: q, dato: f.dato });
   }
   return salida;
 }
@@ -145,7 +150,7 @@ export function porCeldas(pts, celdas, areaMinima = 1e-6) {
   const salida = [];
   for (const cel of celdas) {
     const q = recortarACaja(pts, cel);
-    if (q.length && areaEnPlanta(q) > areaMinima) salida.push({ pts: q, dato: cel.dato });
+    if (q.length && areaReal(q) > areaMinima) salida.push({ pts: q, dato: cel.dato });
   }
   return salida;
 }

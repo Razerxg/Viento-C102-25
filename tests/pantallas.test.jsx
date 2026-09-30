@@ -226,6 +226,10 @@ describe('la vista 3D y sus dos repartos', () => {
     // (GC_p) es función del área efectiva de viento. Un croquis que no lo diga está pintando
     // la presión de un elemento concreto sin declarar cuál.
     expect(svg3D().textContent).toMatch(/A = /);
+    // ⚠ Y LAS PAREDES ESTÁN. El filtro de astillas medía el área EN PLANTA, que en una pared
+    // vertical es cero: se descartaban todas sus franjas y el volumen salía sin paredes,
+    // justo sin las zonas 4 y 5. Ningún chequeo del control lo veía.
+    expect(svg3D().textContent).toMatch(/Zona [45]/);
     expect(errores, errores.join("\n")).toEqual([]);
   });
 
