@@ -516,8 +516,11 @@ se encogía a una columna angosta en el medio de una lámina de mil píxeles. La
 darle a este croquis una escala por eje —eso rompería `data-escala`, que es lo que el control
 compara entre vistas del mismo edificio— sino **expresar el largo del diagrama en metros**: el
 diagrama de `q_máx` mide lo que el edificio es alto. La proporción del dibujo pasa a ser
-constante (2,06 × 1,06) sea cual sea la geometría, y por eso el alto de la lámina también
-puede ser fijo.
+constante (1,71 × 1,06) sea cual sea la geometría, y por eso el alto de la lámina también
+puede ser fijo. ⚠ **El largo del diagrama —0,65 de la altura— se ELIGE**, no sale de ningún
+cálculo: el eje horizontal no representa una longitud, así que es una proporción de dibujo.
+Arrancó en 1,0 y a esa proporción el diagrama dominaba la lámina y el muro parecía un detalle
+al costado.
 
 **El contorno es UNA poligonal cerrada**, no un rectángulo por tramo: con rectángulos se
 dibujaban bordes internos donde el valor no cambia y el escalonado parecía tener más peldaños

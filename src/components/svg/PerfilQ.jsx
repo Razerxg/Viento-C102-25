@@ -139,7 +139,13 @@ export function PerfilQ({ analisis, ancho = 620, alto = 380, escala,
   // DIAGRAMA EN METROS: el diagrama más largo mide lo que el edificio es alto. Así la
   // proporción del dibujo no depende de la altura, la escala declarada sigue siendo la
   // vertical —que es la única que está en metros de verdad— y la lámina se llena.
-  const LARGO_DIAG = zTope;            // el diagrama de q = qMax mide tanto como zTope
+  // ⚠ EL LARGO SE ELIGE, NO SALE DE NINGÚN CÁLCULO: el eje horizontal no representa una
+  // longitud, así que 0,65 es una proporción de dibujo. Arrancó en 1,0 —el diagrama tan largo
+  // como alto el edificio— y a esa proporción el diagrama dominaba la lámina y el muro parecía
+  // un detalle al costado. A 0,65 el muro conserva el mismo tamaño en pantalla —la escala no
+  // cambia, porque la manda el alto— y el diagrama deja de pesar más que la superficie que
+  // carga.
+  const LARGO_DIAG = zTope * 0.65;     // el diagrama de q = qMax, en metros
   const ANCHO_MURO = zTope * 0.06;
   const MARGEN_ROTULOS = zTope * 0.70; // a la izquierda: los rótulos de cada tramo
   const MARGEN_COTA = zTope * 0.30;    // a la derecha: la cota de `h`

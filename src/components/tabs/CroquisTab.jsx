@@ -72,9 +72,9 @@ export function CroquisTab() {
   const croquis = [
     ["Perfil de q(z) en altura",
       // ⚠ EL ALTO DE ESTA LÁMINA ES FIJO Y SE PUEDE CALCULAR. Desde que el largo del
-      // diagrama se expresa en metros —tanto como el edificio es alto—, la PROPORCIÓN del
-      // dibujo no depende de la geometría: mide 2,06 de ancho por 1,06 de alto, siempre. Con
-      // 520 sobraba casi la mitad del alto en todos los casos.
+      // diagrama se expresa en metros —una fracción de la altura del edificio—, la PROPORCIÓN
+      // del dibujo no depende de la geometría: mide 1,71 de ancho por 1,06 de alto, siempre.
+      // Con 520 sobraba casi la mitad del alto en todos los casos.
       <PerfilQ key="a" {...props} escala={undefined} alto={400} {...zPerfil} />,
       "Cómo crece la presión dinámica con la altura sobre la pared a barlovento. Es la única "
       + "superficie donde q varía: todas las demás usan q_h, constante. El escalonado son "
