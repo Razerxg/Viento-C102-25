@@ -121,6 +121,30 @@ export const MATRIZ = [
         cumbrera: "Y", pendienteHacia: "-Y" } },
   },
   {
+    id: "alero-adosado",
+    nombre: "Galpón 12 × 24 · h = 5 · con alero adosado a la pared +X",
+    porque: "Art. 5.9. El croquis del alero adosado dibuja TRES alturas en un mismo alzado "
+      + "—h del edificio, h_e del alero de la cubierta y h_c del alero adosado— y las tres "
+      + "cotas arrancan del terreno: es el único croquis de la app donde tres cotas "
+      + "verticales compiten por el mismo lugar.",
+    datos: { proyecto: "Galpón con alero adosado", exposicion: "C",
+      geo: { a: "12", b: "24", hAlero: "5", theta: "10", tipo: "dos_aguas", cumbrera: "X" },
+      aleroAdosado: { hay: true, pared: "+X", ancho: "8", vuelo: "3", hc: "3.2", he: "",
+        pendiente: "0.01", dosSuperficies: true, interpolarH: false } },
+  },
+  {
+    id: "alero-adosado-alto",
+    nombre: "Edificio de 24 m con un alero adosado bajo, a 3,5 m",
+    porque: "La trampa del art. 5.9 dibujada: el alero está a 3,5 m y se verifica con las "
+      + "figuras de h > 20 m y con q_h de los 24 m. Además h_c/h_e = 0,15 cae en el rango "
+      + "que la Tabla C 5.9-4 escribe y la C 5.9-2 no: dos bandas distintas para el mismo "
+      + "alero. Y con h entre 20 y 30 se ofrece la interpolación de las excepciones.",
+    datos: { proyecto: "Edificio alto con alero", exposicion: "C",
+      geo: { a: "18", b: "28", hAlero: "24", theta: "5", tipo: "dos_aguas", cumbrera: "Y" },
+      aleroAdosado: { hay: true, pared: "-Y", ancho: "10", vuelo: "2.5", hc: "3.5", he: "",
+        pendiente: "0.015", dosSuperficies: false, interpolarH: true } },
+  },
+  {
     id: "nave-plana",
     nombre: "Nave plana 100 × 150 · h = 10",
     porque: "La excepción a ≤ 0,8h de la notación: con h = 10 la dimensión de borde queda "
@@ -139,5 +163,11 @@ export const MATRIZ = [
   },
 ];
 
+/** Un elemento del alero adosado, sin el cual sus tablas de presiones no aparecen. */
+const ELEMENTOS_ALERO = [
+  { id: "al-1", nombre: "Viga del alero", tipo: "correa", L: "2.5", s: "1.2", area: "" },
+];
+
 /** El estado completo que se escribe en `localStorage` para un caso de la matriz. */
-export const estadoDe = (caso) => ({ ...caso.datos, elementosCyR: ELEMENTOS });
+export const estadoDe = (caso) => ({ ...caso.datos, elementosCyR: ELEMENTOS,
+  elementosAlero: ELEMENTOS_ALERO });

@@ -299,6 +299,96 @@ control de croquis corre antes de una entrega. Ninguno reemplaza al otro.
 
 No entra en `npm run build`: necesita un Chromium instalado, que en CI no está.
 
+## Aleros — dos tipologías que el reglamento separa a propósito
+
+⚠ **UN VOLADIZO DE CUBIERTA Y UN ALERO ADOSADO NO SON LA MISMA COSA**, y confundirlos cambia
+de artículo, de figura y de expresión. C 5.9 lo dice con todas las letras: «Los aleros
+adosados son diferentes de los voladizos de cubierta, que son simplemente extensiones de las
+cubiertas, de igual pendiente».
+
+| | Voladizo de cubierta | Alero adosado a pared |
+|---|---|---|
+| Qué es | la cubierta que sigue de largo, igual pendiente | una estructura plana colgada de una pared |
+| Cap. 2 | art. 2.4.4 — `C_p = +0,8` en la cara inferior a barlovento | no aporta al SPRFV del edificio |
+| Cap. 5 | art. 5.7 (y curva de ALERO propia en la Fig. 5.3-2A con θ ≤ 7°) | art. 5.9, Figs. 5.9-1A-B y 5.9-2A-B |
+| Expresión | `p = q_h[(GC_p) − (GC_pi)]` | `p = q_h (GC_p)` — **sin presión interna** |
+| Dónde se carga | pestaña Edificio, por borde de la planta | sección propia en C&R, detrás de su casilla |
+| Motor | `engine/voladizo.js` | `engine/aleroAdosado.js` |
+
+### Voladizo de cubierta
+
+**El modelo son CUATRO BORDES, no un vuelo** (`+X` · `−X` · `+Y` · `−Y`). El art. 2.4.4 trata
+distinto el voladizo a BARLOVENTO y cuál es depende de la dirección que se analice: con un
+solo número «vuelo» esa pregunta no se puede responder. La pantalla los agrupa por tipo de
+cubierta porque es como se piensa el vuelo al proyectar, pero eso es PRESENTACIÓN.
+
+⚠ **Lo que el voladizo NO cambia:** `h`, `a`, `b` y el área de pared. La altura media se mide
+sobre la línea de PARED. Sumar el vuelo a `b` cambiaría el remonte, la altura media, el área
+de las paredes y la relación h/L de las cuatro direcciones.
+
+⚠ **`normalizarVoladizo` tiene que ser idempotente.** `normalizarGeo` corre sobre geometrías
+ya normalizadas en más de un camino, y un voladizo normalizado trae `grupos` como ARREGLO:
+leído como objeto daba `undefined` por grupo, los cuatro vuelos se iban a cero y el voladizo
+desaparecía en silencio. Hay test que normaliza dos veces.
+
+⚠ **La cara inferior lleva `tipo: "voladizo"`, no `"cubierta"`,** aunque su coeficiente salga
+del capítulo de cubiertas. Con `"cubierta"` el reparto de franjas la barría como una parte
+sobre toda la planta y el levantamiento cambiaba de signo.
+
+**Del art. 2.4.4 el proyectista definió lo que el artículo no escribe** —está en `docs/PLAN.md`
+y en `constants/presionesExternas.js`—: `q_h` para la cara inferior, **sólo el borde a
+barlovento**, y **con `G`** (`p = q·G·C_p`, porque es un `C_p` y no un `(GC_p)`).
+
+### Alero adosado a pared — art. 5.9
+
+⚠ **`q_h` SE EVALÚA A LA ALTURA MEDIA DE CUBIERTA DEL EDIFICIO, NO DEL ALERO.** Es el único
+error de uso real de este artículo. Un alero a 3 m colgado de un edificio de 25 m se carga con
+la presión dinámica de los 25 m y con las figuras de `h > 20 m`. La notación de las figuras
+distingue tres alturas: `h` (del edificio, elige la figura y `q_h`), `h_c` (media del alero
+adosado) y `h_e` (media del alero de la cubierta). `h_c/h_e` **sólo** elige la banda de las
+figuras netas; no entra en `q_h`.
+
+⚠ **La (5.9-1) NO lleva `(GC_pi)`.** El artículo escribe la expresión con un solo término y su
+lista de símbolos tiene tres entradas. Copiar la (5.3-1) es el error fácil y el número
+seguiría siendo plausible: hay test que lo impide.
+
+**Cuatro figuras, DOS verificaciones en paralelo y no dos caminos.** Las «A» dan los
+coeficientes sobre cada superficie, para las fijaciones de la cara superior y de la inferior;
+las «B» dan el coeficiente neto, para la estructura del alero. Con dos superficies físicas
+«se necesita aplicar ambas Figuras»; **con una sola superficie, «solo se aplica la Figura
+5.9-1B»** —pedirle la figura A sería verificar una cara que no existe—.
+
+**Las curvas salen de las Tablas C 5.9-1 a C 5.9-4**, transcriptas como poligonales de puntos
+de quiebre igual que las de la 5.3, y `tests/aleroAdosado.test.js` transcribe las cuatro
+tablas otra vez como ecuaciones y las cruza. No se leyó ningún valor de los gráficos.
+
+⚠ **Los bordes de las bandas se comparan como los escribe la tabla.** `0,9 ≤ r ≤ 1` y
+`0,5 < r < 0,9`: el **0,9 cae en la banda alta**. Un `<=` por un `<` ahí baja la succión un
+36 %. Las figuras de superficies no tienen bandas, y no por falta de transcripción: su nota 1
+dice que sus valores son «los más críticos para todas las relaciones de h_c/h_e».
+
+**Dos cosas que el reglamento no cierra, y que se avisan en vez de resolverse en silencio:**
+
+1. la **Tabla C 5.9-4 no cubre `h_c/h_e ≤ 0,1`** —no hay tercera fila, y su par de `h ≤ 20 m`
+   sí la tiene—. Se extiende la banda contigua hacia abajo, que es lo coherente con la
+   tendencia de las dos tablas, y se avisa;
+2. la **nota 5 de las Figs. 5.9-1B y 5.9-2B pide interpolar «para valores intermedios de
+   h_c/h_e»**, pero las tablas dan curvas por RANGO y los rangos cubren el dominio sin
+   huecos: no queda ningún valor intermedio. Se adopta la tabla.
+
+**Y dos propiedades de las tablas que parecen errores y no lo son:** la cara inferior de las
+Figs. 5.9-1A y 5.9-2A **se cruza en A ≈ 31,6 m²** (ahí la figura de `h > 20 m` pasa a
+succionar MENOS), y los negativos de las C 5.9-3 y C 5.9-4 **terminan en A = 100 m² sin
+meseta** —la poligonal congela ese valor, que es lo conservador, y el motor lo avisa—. Las dos
+están fijadas con test para que nadie las «arregle» sin volver al papel.
+
+**La pendiente `≤ 2 %` está en el COMENTARIO, no en el artículo** (C 5.9: los datos
+experimentales son limitados «y por ello se restringe la aplicabilidad»). Es una restricción
+de alcance: el motor la informa como error y no la corrige.
+
+La hoja de control contra el papel —las cuatro tablas renglón por renglón y qué mirar en orden
+de riesgo— está en **`docs/verificar-alero-5.9.md`**.
+
 ## Estructura
 
 | Ruta | Contenido |
@@ -893,6 +983,13 @@ salieron de MIRAR LA PANTALLA RENDERIZADA, no de un test.
   el propio reglamento admite.
 - **Falta el factor `Ri`** de reducción por gran volumen: está implementado en
   `constants/presionInterna.js` pero no cableado a la interfaz.
+
+- **El alero adosado no va a las salidas CSV/JSON.** El capítulo 5 tiene su `csvCyR` y su
+  `jsonCyR`, y el alero adosado quedó en pantalla, en la traza y en la memoria pero no en esos
+  dos archivos. No es un olvido: sus filas no tienen ni superficie ni zona, y sí tienen
+  destino, cara y banda de `h_c/h_e`, así que en la tabla de C&R la mitad de las columnas
+  quedaría vacía y `area` significaría dos cosas según la fila. Cuando se agregue, va como
+  archivo propio, con el mismo criterio con que C&R no comparte CSV con el capítulo 2.
 
 - **La expresión (2.4-5) de la excentricidad no está transcripta.** Sólo afecta a
   estructuras FLEXIBLES: se adopta el `e = ±0,15·B` de rígidas y se avisa en rojo.

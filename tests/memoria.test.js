@@ -12,6 +12,7 @@ import { riAplicado, gcpiDe } from '../src/constants/presionInterna.js';
 import { memoriaMarkdown, indiceDe, num, tabla, tablaCSVU, figura } from '../src/lib/memoria.js';
 import { INICIAL } from '../src/constants/inicial.js';
 import { analizarCyR } from '../src/engine/cyrPresiones.js';
+import { analizarAleroAdosado } from '../src/engine/aleroAdosado.js';
 import { APP, RESPONSABILIDAD } from '../src/constants/version.js';
 
 /** Arma el estado completo, igual que el contexto. */
@@ -53,9 +54,25 @@ function caso(over = {}) {
     elementos: (d.elementosCyR ?? []).map(el => ({ ...el, L: Number(el.L) || 0,
       s: Number(el.s) || 0, area: Number(el.area) || 0 })),
   });
+  // El alero adosado se arma SIEMPRE, igual que en el contexto: lo que decide si aparece
+  // en la memoria es `d.aleroAdosado.hay`, no que el análisis exista.
+  const alero = analizarAleroAdosado({
+    alero: {
+      pared: d.aleroAdosado?.pared ?? "+X",
+      ancho: Number(d.aleroAdosado?.ancho) || 0, vuelo: Number(d.aleroAdosado?.vuelo) || 0,
+      hc: Number(d.aleroAdosado?.hc) || 0,
+      he: d.aleroAdosado?.he === "" ? 0 : Number(d.aleroAdosado?.he) || 0,
+      pendiente: Number(d.aleroAdosado?.pendiente) || 0,
+      dosSuperficies: d.aleroAdosado?.dosSuperficies !== false,
+      interpolarH: d.aleroAdosado?.interpolarH === true,
+    },
+    geo: geoN, V: vel.V, exposicion: d.exposicion, altitud: 0, kd: 0.85, kztDe: () => [1],
+    elementos: (d.elementosAlero ?? []).map(el => ({ ...el, L: Number(el.L) || 0,
+      s: Number(el.s) || 0, area: Number(el.area) || 0 })),
+  });
   return { d, geoN, vel, sitio, topo, cerr, todas, act, resDe, envCasos,
     aplic: aplicabilidadDeTodas(todas), gDe, rafaga: rt[act.dir.id],
-    env: envCasos, res: resDe(act), cyr, kdCyR: 0.85 };
+    env: envCasos, res: resDe(act), cyr, kdCyR: 0.85, alero };
 }
 
 const MD = (over = {}, avisos = []) => memoriaMarkdown({ ...caso(over), avisos });
@@ -482,5 +499,83 @@ describe('Capítulo de componentes y revestimientos', () => {
     expect(idx.some(l => /Componentes y revestimientos/.test(l))).toBe(true);
     const n = idx.map(l => Number(l.match(/^- (\d+)\./)[1]));
     expect(n).toEqual(n.map((_, i) => i + 1));
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+describe('el capítulo del alero adosado — art. 5.9', () => {
+  const CON = { aleroAdosado: { ...INICIAL.aleroAdosado, hay: true } };
+
+  it('no aparece si no se declaró un alero adosado', () => {
+    // La mayoría de los proyectos no tiene uno. Un capítulo que informe una tipología que el
+    // edificio no tiene es peor que ninguno: invita a leer coeficientes que no aplican.
+    expect(BASE).not.toMatch(/Alero adosado a pared/);
+  });
+
+  it('aparece cuando se declaró, con su expresión y sus tres alturas', () => {
+    const md = MD(CON);
+    const cap = capitulo(md, "Alero adosado a pared");
+    expect(cap).toMatch(/p = q_h · \(GC_p\)\s+\(5\.9-1\)/);
+    expect(cap).toMatch(/Altura media de cubierta del EDIFICIO/);
+    expect(cap).toMatch(/\| h_c \|/);
+    expect(cap).toMatch(/\| h_e \|/);
+    expect(cap).toMatch(/h_c\/h_e/);
+  });
+
+  it('⚠ DICE QUE LA EXPRESIÓN NO LLEVA (GC_pi)', () => {
+    // Es la diferencia con la (5.3-1) del capítulo anterior, y las dos tablas de presiones
+    // quedan una debajo de la otra en el mismo documento: si la memoria no lo dice, quien la
+    // audite va a buscar el término de presión interna y va a concluir que se olvidó.
+    expect(capitulo(MD(CON), "Alero adosado a pared"))
+      .toMatch(/no lleva `\(GC_pi\)`/);
+  });
+
+  it('va DESPUÉS del capítulo de componentes y revestimientos', () => {
+    const md = MD(CON);
+    expect(md.indexOf("Alero adosado a pared"))
+      .toBeGreaterThan(md.indexOf("Componentes y revestimientos"));
+  });
+
+  it('con dos superficies nombra las dos figuras y para qué sirve cada una', () => {
+    const cap = capitulo(MD(CON), "Alero adosado a pared");
+    expect(cap).toMatch(/Fig\. 5\.9-1A/);
+    expect(cap).toMatch(/Fig\. 5\.9-1B/);
+    expect(cap).toMatch(/fijaciones/);
+    expect(cap).toMatch(/estructura del alero/);
+    // Y la tabla trae una fila por cara más la neta.
+    expect(cap).toMatch(/fijación de la cara superior/);
+    expect(cap).toMatch(/fijación de la cara inferior/);
+    expect(cap).toMatch(/estructura del alero \(neta\)/);
+  });
+
+  it('con una sola superficie sólo nombra la figura neta — C 5.9', () => {
+    const cap = capitulo(MD({ aleroAdosado: { ...INICIAL.aleroAdosado, hay: true,
+      dosSuperficies: false } }), "Alero adosado a pared");
+    expect(cap).toMatch(/una sola superficie física/);
+    expect(cap).toMatch(/\*\*sólo la Fig\. 5\.9-1B\*\*/);
+    expect(cap).not.toMatch(/fijación de la cara superior/);
+  });
+
+  it('un edificio de más de 20 m usa las figuras 5.9-2', () => {
+    const cap = capitulo(MD({ ...CON,
+      geo: { ...INICIAL.geo, a: "20", b: "30", hAlero: "24", theta: "5",
+        tipo: "dos_aguas", cumbrera: "Y" } }), "Alero adosado a pared");
+    expect(cap).toMatch(/Fig\. 5\.9-2A/);
+    expect(cap).toMatch(/Fig\. 5\.9-2B/);
+  });
+
+  it('la pendiente fuera del 2 % llega a la memoria como aviso', () => {
+    const cap = capitulo(MD({ aleroAdosado: { ...INICIAL.aleroAdosado, hay: true,
+      pendiente: "0.08" } }), "Alero adosado a pared");
+    expect(cap).toMatch(/C 5\.9/);
+    expect(cap).toMatch(/aleros planos con pendiente/);
+  });
+
+  it('las figuras siguen numeradas en orden con el capítulo nuevo adentro', () => {
+    // El contador de figuras vive en el generador y un capítulo intercalado ya rompió la
+    // numeración una vez.
+    const md = MD(CON);
+    const nums = [...md.matchAll(/\*\*\[FIGURA (\d+)/g)].map(x => Number(x[1]));
+    expect(nums).toEqual(nums.map((_, i) => i + 1));
   });
 });

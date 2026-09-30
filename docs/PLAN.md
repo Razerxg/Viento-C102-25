@@ -159,9 +159,10 @@ prueba las reglas.
 | ✅ | **Contraste**: `txt3` subido a 4,65:1 en oscuro y 5,23:1 en claro | `components/tokens.js` |
 | ✅ | **Ampliar, Descargar SVG y control de escala** en cada croquis | `kit.jsx → BarraCroquis` |
 | ✅ | **Croquis 2–3× más grandes**: la escala la fija el ancho y el alto sale del dibujo | `kit.jsx → escalaPorAncho` + `ZonasCyR.jsx` + `CroquisTab.jsx` |
-| 🔄 | **Voladizo de cubierta** — capítulo 5 completo (art. 5.7 + nota 7); capítulo 2 📥 | `engine/voladizo.js` + `engine/cyrPresiones.js`, con `tests/voladizo.test.js` (29 tests) |
-| ⏳ | **Alero adosado a pared** (art. 5.9) — parte 3B | |
-| 📥 | La geometría **«shelter con voladizo»** de la matriz se agrega con la parte 3A | `scripts/qa-matriz.js` |
+| ✅ | **Voladizo de cubierta** — capítulo 5 (art. 5.7 + nota 7) y capítulo 2 (art. 2.4.4) | `engine/voladizo.js` + `engine/cyrPresiones.js` + `engine/edificio.js` + `engine/resultantes.js`, con `tests/voladizo.test.js` (44 tests) |
+| ✅ | **Alero adosado a pared** (art. 5.9) — parte 3B | `constants/aleroAdosado.js` + `engine/aleroAdosado.js` + `components/svg/AleroAdosadoSVG.jsx` + `components/tabs/AleroAdosado.jsx`, con `tests/aleroAdosado.test.js` (51 tests) |
+| ✅ | **Matriz de 14 geometrías**: dos con voladizo y dos con alero adosado | `scripts/qa-matriz.js` · 564 croquis, 0 fallas |
+| 📥 | El **alero adosado en las salidas CSV/JSON** — archivo propio, no mezclado con C&R | `lib/exportar.js` |
 
 **Antes: 7.536 fallas sobre 400 croquis.** 6.298 de letra por debajo de 11 px —el texto
 escalaba con el dibujo— y 1.022 de contraste, que era el token `txt3` dando 3,68:1 en
@@ -212,21 +213,125 @@ la altura media, el área de las paredes y la relación h/L de las cuatro direcc
   exterior del voladizo». Son DOS cosas en dos lugares: `a` se calcula con la planta del
   edificio y se aplica sobre la planta de la CUBIERTA.
 
-**Capítulo 2 — 📥 FRENADO, esperando tres definiciones.** El art. 2.4.4 completo dice:
+**Capítulo 2 — ✅ completo, con tres definiciones del proyectista.** El art. 2.4.4 completo
+dice:
 
 > La presión externa positiva en la superficie inferior de voladizos de cubierta a
 > barlovento se debe calcular usando **C_p = +0,8** y combinada con las presiones en la
 > superficie superior calculadas usando la **Figura 2.4-1**.
 
 Eso es todo: no tiene comentario (C 2.4.4 no existe) y las siete notas de la Fig. 2.4-1
-no mencionan voladizos. Queda sin escribir:
+no mencionan voladizos. Lo que el artículo NO escribe y el proyectista definió —anotado acá
+y en `constants/presionesExternas.js` para distinguir lo transcripto de lo decidido—:
 
-1. **con qué presión dinámica** se evalúa la cara inferior. La columna «Usar con» de la
-   Fig. 2.4-1 da `q_z` para la pared a barlovento y `q_h` para todo lo demás, y la cara
-   inferior del voladizo no está en esa tabla;
-2. **la zonificación**: el artículo habla del voladizo «a barlovento», sin decir si los
-   laterales entran en algo;
-3. **si el factor de ráfaga G multiplica** a ese `C_p = +0,8`.
+1. **con qué presión dinámica** se evalúa la cara inferior → **`q_h`**, la misma del resto
+   de la cubierta. La columna «Usar con» de la Fig. 2.4-1 da `q_z` sólo para la pared a
+   barlovento y `q_h` para todo lo demás, y el artículo trata la cara inferior como una
+   superficie de cubierta más;
+2. **la zonificación** → **sólo el borde a barlovento**. Los otros tres vuelos aportan área
+   de cubierta al levantamiento, pero no la presión positiva de la cara inferior: el viento
+   entra por debajo del vuelo que enfrenta, no por los que están a sotavento;
+3. **si el factor de ráfaga G multiplica** → **sí**: `p = q·G·C_p`. Es un `C_p`, no un
+   `(GC_p)`; la Fig. 2.4-1 los da todos así y el capítulo entero los multiplica por `G`.
+
+⚠ **La cara inferior NO es una superficie de cubierta**, aunque el coeficiente salga del
+capítulo de cubiertas. Nació con `tipo: "cubierta"` y el reparto de franjas la barrió como
+una parte sobre toda la planta: el levantamiento cambiaba de signo. Lleva
+`tipo: "voladizo"`, y en `resultantes.js` una parte con `caraInferior` aporta su presión al
+eje vertical con signo opuesto y nada al horizontal.
+
+⚠ **`normalizarVoladizo` tiene que ser idempotente.** `normalizarGeo` corre sobre
+geometrías ya normalizadas en más de un camino, y un voladizo normalizado trae `grupos` como
+ARREGLO: leído como objeto daba `undefined` en cada grupo, los cuatro vuelos se iban a cero
+y el voladizo desaparecía en silencio. Hay test que normaliza dos veces y compara campo por
+campo.
+
+### Aleros adosados a paredes — art. 5.9 ✅
+
+**No es un voladizo de cubierta**, y el comentario lo separa con todas las letras: «Los
+aleros adosados son diferentes de los voladizos de cubierta, que son simplemente extensiones
+de las cubiertas, de igual pendiente» (C 5.9). Otra expresión, otras figuras:
+
+```
+p = q_h (GC_p)                              (5.9-1)
+```
+
+⚠ **La (5.9-1) NO lleva `(GC_pi)`.** El artículo escribe la expresión con un solo término y
+su lista de símbolos tiene tres entradas —`p`, `q_h`, `(GC_p)`—. Un alero adosado no encierra
+un recinto. Copiar la (5.3-1), que sí resta presión interna, es el error fácil, y hay test
+que lo impide: con `(GC_pi)` el número seguiría siendo plausible.
+
+⚠ **`q_h` se evalúa a la altura media de cubierta del EDIFICIO, no del alero.** «q_h presión
+dinámica del artículo 1.13 evaluada a la altura media de cubierta, h». Un alero a 3 m colgado
+de un edificio de 25 se carga con la presión dinámica de los 25 m y con las figuras de
+h > 20 m. Es la trampa del artículo, y la notación de las figuras distingue las tres alturas:
+`h` (del edificio), `h_c` (media del alero adosado) y `h_e` (media del alero de la cubierta).
+`h_c/h_e` no entra en `q_h`: entra sólo en elegir la banda de las figuras netas.
+
+**Cuatro figuras, dos preguntas distintas** (C 5.9):
+
+| Figura | Tabla | Qué da | Para qué |
+|---|---|---|---|
+| 5.9-1A | C 5.9-1 | coeficientes sobre cada superficie, `h ≤ 20 m` | fijaciones de la cara superior y de la inferior |
+| 5.9-1B | C 5.9-2 | coeficiente **neto**, `h ≤ 20 m` | estructura del alero: vigas, columnas, fijación al edificio |
+| 5.9-2A | C 5.9-3 | superficies, `h > 20 m` | ídem, edificio alto |
+| 5.9-2B | C 5.9-4 | neto, `h > 20 m` | ídem, edificio alto |
+
+Con dos superficies físicas «se necesita aplicar ambas Figuras»; **con una sola superficie,
+«solo se aplica la Figura 5.9-1B»**. No son dos caminos entre los que elegir el peor: son dos
+elementos distintos del mismo alero, y el motor devuelve las dos en paralelo.
+
+Las curvas salen de las **Tablas C 5.9-1 a C 5.9-4** —«los valores de (GC_p) de las figuras
+se dan en formato de ecuación»—, transcriptas como poligonales de puntos de quiebre igual que
+las de la 5.3, con `tests/aleroAdosado.test.js` transcribiendo las cuatro tablas otra vez
+como ecuaciones y cruzándolas en diez áreas.
+
+**Las bandas de `h_c/h_e` sólo existen en las figuras netas.** La nota 1 de las 5.9-1A y
+5.9-2A dice que sus valores «se basan en los valores más críticos para todas las relaciones
+de h_c/h_e»: ya son la envolvente. Y los bordes se comparan como los escribe la tabla —
+`0,9 ≤ r ≤ 1` contra `0,5 < r < 0,9`—: `r = 0,9` cae en la banda alta, y un `<=` por un `<`
+ahí baja la succión un 36 %.
+
+**Excepciones 1 y 2 — la interpolación entre 20 y 30 m.** «Como alternativa al uso de (GC_p)
+de la Figura 5.9-2A/B para edificios con altura media de cubierta entre 20 m y 30 m, el valor
+puede ser interpolado linealmente» entre el de la figura de 20 m y el de la de 30 m, «para
+cada relación h_c/h_e». Da coeficientes MENORES que la figura de h > 20 m sola, así que el
+defecto es NO usarla: el proyectista la declara. La curva interpolada se arma sobre la UNIÓN
+de las dos abscisas —las de h ≤ 20 m quiebran en 1 y 10, las de h > 20 m en 1, 10 y 100—
+porque casándolas por índice se uniría el quiebre de 10 de una con el de 100 de la otra.
+
+**Pendiente ≤ 2 %, y está en el comentario, no en el artículo.** C 5.9: «Los datos
+experimentales que se disponen para esta tipología son limitados y por ello se restringe la
+aplicabilidad de esta sección a aleros planos con pendiente menor o igual a 2 %». Es una
+restricción de ALCANCE: el motor la informa como error y no la corrige.
+
+**El mínimo de 0,80 kN/m² del art. 5.2.2 SÍ aplica**: está en «REQUISITOS GENERALES» del
+capítulo, antes de las partes, y habla de «componentes y revestimientos de edificios y otras
+estructuras», sin restringirlo a una parte.
+
+#### Dos cosas que el reglamento no cierra, avisadas y no resueltas en silencio
+
+1. ⚠ **La Tabla C 5.9-4 no cubre `h_c/h_e ≤ 0,1`.** Sus bandas son `0,9 ≤ r ≤ 1` y
+   `0,1 < r < 0,9`, y no hay tercera fila; su par de `h ≤ 20 m`, la C 5.9-2, sí cubre el
+   fondo con `r ≤ 0,5`. Se extiende la banda contigua hacia abajo y **se avisa**. Es lo
+   coherente con la tendencia que muestran las dos tablas —cuanto más bajo el alero respecto
+   del alero de la cubierta, menos succión—; tomar la banda alta sería conservador pero diría
+   lo contrario de lo que el reglamento muestra. Con el aviso, el proyectista decide.
+2. ⚠ **La nota 5 de las Figs. 5.9-1B y 5.9-2B pide «interpolación lineal para valores
+   intermedios de h_c/h_e»**, pero las tablas del comentario no dan curvas de un `h_c/h_e`
+   puntual: dan curvas válidas en todo un rango, y los rangos cubren el dominio sin huecos.
+   No queda ningún «valor intermedio» entre ellos: la nota y la tabla no dicen lo mismo. Se
+   adopta la tabla —la nota sin curvas puntuales no es aplicable— y el coeficiente salta en
+   `h_c/h_e = 0,5` y `0,9`. Interpolar entre los centros de banda sería suavizarlo con una
+   regla que nadie escribió.
+
+Y una propiedad de las tablas que conviene tener anotada porque parece un error y no lo es:
+⚠ **la cara inferior se cruza en A ≈ 31,6 m².** En general la figura de `h > 20 m` succiona
+más que la de `h ≤ 20 m`, pero la cara inferior es la excepción: la C 5.9-1 la congela en
+−0,65 desde A = 10 m² y el último tramo de la C 5.9-3 —`−1,1 + 0,3 log A`— la cruza en
+10^1,5 = 31,6 m² y llega a −0,50 en A = 100 m². Y los negativos de las Tablas C 5.9-3 y
+C 5.9-4 terminan en A = 100 m² sin meseta: la poligonal congela ahí el valor, que es lo
+conservador —esos tramos crecen con el área— y el motor lo avisa.
 
 ## Fase 4 — Capítulo 5, componentes y revestimientos 🔄
 

@@ -31,6 +31,7 @@ import { U } from '../lib/unidades.js';
 import { velocidadDe } from '../constants/velocidades.js';
 import { kdDe } from '../constants/direccionalidad.js';
 import { analizarCyR } from '../engine/cyrPresiones.js';
+import { analizarAleroAdosado } from '../engine/aleroAdosado.js';
 import { TABS, idxTab } from '../constants/tabs.js';
 import { INICIAL } from '../constants/inicial.js';
 import { migrar, serializar, nombreArchivo } from '../lib/proyecto.js';
@@ -81,6 +82,10 @@ export function ProyectoProvider({ children }) {
   const setAnexo = useCallback((k) => (v) => setD(x => ({ ...x, anexo: { ...x.anexo, [k]: v } })), []);
   const setEnv = useCallback((k) => (v) => setD(x => ({ ...x, env: { ...x.env, [k]: v } })), []);
   const setCyR = useCallback((k) => (v) => setD(x => ({ ...x, cyr: { ...x.cyr, [k]: v } })), []);
+  const setAlero = useCallback((k) => (v) => setD(x => ({
+    ...x, aleroAdosado: { ...x.aleroAdosado, [k]: v } })), []);
+  const setElementosAlero = useCallback((f) => setD(x => ({
+    ...x, elementosAlero: typeof f === "function" ? f(x.elementosAlero ?? []) : f })), []);
   const setElementosCyR = useCallback((f) => setD(x => ({
     ...x, elementosCyR: typeof f === "function" ? f(x.elementosCyR ?? []) : f })), []);
 
@@ -390,6 +395,37 @@ export function ProyectoProvider({ children }) {
   }), [geoN, V, d.exposicion, d.altitud, kdCyR, sitioDe, gcpiEfectivo, d.cyr.parapeto,
     elementosCyR]);
 
+  // ── ART. 5.9 — EL ALERO ADOSADO ────────────────────────────────────────────
+  //
+  // ⚠ ES UNA TIPOLOGÍA APARTE, NO UNA ZONA DEL EDIFICIO, y por eso tiene su propio análisis
+  // y no una entrada en `cyr`. Su q_h se evalúa a la altura media de cubierta del EDIFICIO
+  // —igual que en el resto del capítulo— pero las figuras 5.9 no zonifican la planta, no
+  // llevan presión interna y traen dos verificaciones en paralelo. Colgarlo de `analizarCyR`
+  // obligaría a que la mitad de ese resultado no aplicara.
+  //
+  // Se calcula siempre, incluso con `hay: false`: así la pantalla puede mostrar los números
+  // en cuanto se tilda, sin que el primer render llegue vacío. Lo que `hay` gobierna es si
+  // el alero aparece en la memoria, en el croquis y en los avisos.
+  const elementosAlero = useMemo(() => (d.elementosAlero ?? []).map(el => ({
+    ...el, L: num(el.L), s: num(el.s), area: num(el.area),
+  })), [d.elementosAlero]);
+
+  const alero = useMemo(() => analizarAleroAdosado({
+    alero: {
+      pared: d.aleroAdosado?.pared ?? "+X",
+      ancho: num(d.aleroAdosado?.ancho), vuelo: num(d.aleroAdosado?.vuelo),
+      hc: num(d.aleroAdosado?.hc),
+      // `""` significa automático: el motor cae a la altura del alero de la cubierta.
+      he: d.aleroAdosado?.he === "" ? 0 : num(d.aleroAdosado?.he),
+      pendiente: num(d.aleroAdosado?.pendiente),
+      dosSuperficies: d.aleroAdosado?.dosSuperficies !== false,
+      interpolarH: d.aleroAdosado?.interpolarH === true,
+    },
+    geo: geoN, V, exposicion: d.exposicion, altitud: num(d.altitud, 0), kd: kdCyR,
+    kztDe: (z) => DIRECCIONES.map(dir => kztEn(sitioDe(dir), z)),
+    elementos: elementosAlero,
+  }), [d.aleroAdosado, geoN, V, d.exposicion, d.altitud, kdCyR, sitioDe, elementosAlero]);
+
   // ── APLICABILIDAD ──────────────────────────────────────────────────────────
   // En qué fila y en qué columna de la Figura 2.4-1 cayó cada dirección, y cuáles de esas
   // lecturas la figura no escribe. Es lo que convierte «el número salió» en «el número
@@ -401,8 +437,9 @@ export function ProyectoProvider({ children }) {
   // formatos, lo que pasa es que el panel se corrige y la memoria queda atrás —o al
   // revés— y dos salidas de la misma corrida dicen cosas distintas.
   const traza = useMemo(() => consolidar({ vel, sitio, topo, geoN, cerr, rafaga, G,
-    modoG: d.modoG, act, res, envCasos, U, d, cyr, kdCyR }),
-  [vel, sitio, topo, geoN, cerr, rafaga, G, d.modoG, act, res, envCasos, d, cyr, kdCyR]);
+    modoG: d.modoG, act, res, envCasos, U, d, cyr, kdCyR, alero }),
+  [vel, sitio, topo, geoN, cerr, rafaga, G, d.modoG, act, res, envCasos, d, cyr, kdCyR,
+    alero]);
   const trazaMotor = useMemo(() => trazaDelMotor(act), [act]);
 
   const avisos = useMemo(() => avisosDe({
@@ -463,6 +500,7 @@ export function ProyectoProvider({ children }) {
       todas, act, res, resDe, maxAbs, curvas,
       cerr, cerramiento, envCasos, setEnv, aplic, traza, trazaMotor,
       cyr, kdCyR, setCyR, elementosCyR: d.elementosCyR, setElementosCyR,
+      alero, setAlero, elementosAlero: d.elementosAlero, setElementosAlero,
       avisos, avisosPorTab: porTab(avisos), conteo: contar(avisos),
       guardadoEn, nuevo, exportar, importar, fileRef,
       aperturaAvisos, descartarAperturaAvisos: () => setAperturaAvisos([]),

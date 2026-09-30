@@ -13,6 +13,8 @@ import { riAplicado, gcpiDe } from '../src/constants/presionInterna.js';
 import { U, unidades, PERFILES } from '../src/lib/unidades.js';
 import { analizarCyR } from '../src/engine/cyrPresiones.js';
 
+import { analizarAleroAdosado } from '../src/engine/aleroAdosado.js';
+
 // ── UN CASO COMPLETO, ARMADO COMO LO ARMA EL CONTEXTO ──────────────────────────
 const GEO = { a: "20", b: "30", hAlero: "6", theta: "25", tipo: "dos_aguas", cumbrera: "Y" };
 const geoN = normalizarGeo(GEO);
@@ -347,5 +349,74 @@ describe('Traza de componentes y revestimientos', () => {
     const b = consolidar({ vel, sitio, topo, geoN, cerr: cerrCyR, rafaga, G, modoG: "defecto",
       act, res, envCasos, U: Ud, d: {}, cyr: conA, kdCyR: 0.85 }).find(x => x.id === "cyr");
     expect(b.pasos.find(x => x.id === "cyr_a").valor).toBe(Ud.val.longitud(conA.a.a));
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+describe('el bloque del alero adosado — art. 5.9', () => {
+  const alero = analizarAleroAdosado({
+    alero: { pared: "+X", ancho: 8, vuelo: 3, hc: 3.2, he: 0, pendiente: 0.01,
+      dosSuperficies: true, interpolarH: false },
+    geo: geoN, V: vel.V, exposicion: "C", altitud: 0, kd: 0.85, kztDe: () => [1],
+    elementos: [{ id: "al-1", nombre: "Viga del alero", tipo: "correa", L: 2.5, s: 1.2 }],
+  });
+  const conAlero = (d) => consolidar({ vel, sitio, topo, geoN, cerr, rafaga, G,
+    modoG: "defecto", act, res, envCasos, U, d, alero });
+
+  it('no está en el árbol si no se declaró un alero', () => {
+    // El análisis se calcula siempre —para que la pantalla no llegue vacía al tildar la
+    // casilla— así que lo que tiene que gobernar el árbol es la declaración, no que el
+    // objeto exista. Con la condición al revés, la traza informaría un alero inexistente.
+    expect(conAlero({}).map(b => b.id)).not.toContain("alero");
+    expect(conAlero({ aleroAdosado: { hay: false } }).map(b => b.id)).not.toContain("alero");
+  });
+
+  it('va último, después de los bloques del capítulo 2', () => {
+    const ids = conAlero({ aleroAdosado: { hay: true } }).map(b => b.id);
+    expect(ids.at(-1)).toBe("alero");
+  });
+
+  it('⚠ SEPARA LAS TRES ALTURAS Y DICE CUÁL ELIGE LA FIGURA', () => {
+    // Es el único error de uso real del artículo: h elige la figura y evalúa q_h; h_c y h_e
+    // sólo forman la relación de la banda. Si la traza no lo separa, no sirve para auditar.
+    const b = conAlero({ aleroAdosado: { hay: true } }).find(x => x.id === "alero");
+    const h = b.pasos.find(p => p.id === "al_h");
+    expect(h.nota).toMatch(/ELIGE LA FIGURA/);
+    expect(h.nota).toMatch(/No es la altura del alero/);
+    const r = b.pasos.find(p => p.id === "al_r");
+    expect(r.formula).toBe("h_c / h_e");
+    expect(r.donde.map(x => x.sim)).toEqual(["h_c", "h_e"]);
+  });
+
+  it('la fórmula de la presión declara que NO lleva (GC_pi)', () => {
+    const b = conAlero({ aleroAdosado: { hay: true } }).find(x => x.id === "alero");
+    const p = b.pasos.find(x => x.id === "al_p");
+    expect(p.formula).toBe("p = q_h · (GC_p)");
+    expect(p.donde.map(x => x.sim)).not.toContain("(GC_pi)");
+    expect(p.nota).toMatch(/NO lleva \(GC_pi\)/);
+  });
+
+  it('trae un paso por elemento y por cara, con su banda', () => {
+    const b = conAlero({ aleroAdosado: { hay: true } }).find(x => x.id === "alero");
+    const els = b.pasos.filter(p => p.id.startsWith("al_el_"));
+    expect(els).toHaveLength(3);   // cara superior, cara inferior y la neta
+    expect(els.map(p => p.titulo).join(" ")).toMatch(/cara superior/);
+    expect(els.map(p => p.titulo).join(" ")).toMatch(/cara inferior/);
+    expect(els.some(p => /presión neta/.test(p.titulo))).toBe(true);
+    expect(els.some(p => /Banda /.test(p.nota ?? ""))).toBe(true);
+  });
+
+  it('sus identificadores no chocan con los de los otros bloques', () => {
+    const ids = conAlero({ aleroAdosado: { hay: true } }).flatMap(b => b.pasos.map(p => p.id));
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('todo paso del bloque tiene título, artículo y algo que mostrar', () => {
+    const b = conAlero({ aleroAdosado: { hay: true } }).find(x => x.id === "alero");
+    for (const p of b.pasos) {
+      expect(p.titulo, p.id).toBeTruthy();
+      expect(p.art, p.id).toBeTruthy();
+      expect(p.valor != null || p.texto != null || p.formula != null, p.id).toBe(true);
+    }
   });
 });

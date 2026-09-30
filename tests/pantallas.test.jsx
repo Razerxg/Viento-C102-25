@@ -111,3 +111,56 @@ describe('el proyecto de ejemplo llega efectivamente a la pantalla', () => {
     expect(main).not.toContain("sin efecto topográfico");
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+describe('el alero adosado en pantalla — art. 5.9', () => {
+  // ⚠ EL SMOKE TEST DE ARRIBA NO CUBRE ESTA SECCIÓN. El alero adosado arranca APAGADO, así
+  // que en el recorrido de las pantallas su formulario, su croquis y sus dos tablas no se
+  // renderizan nunca: el caso que el test creía cubrir es el único que no ejercita. Acá se
+  // enciende, que es la mitad del código de esa pantalla.
+  const conAlero = (extra = {}) => {
+    window.localStorage.setItem("viento_proyecto_v1", JSON.stringify({
+      ...EJEMPLO,
+      aleroAdosado: { hay: true, pared: "+X", ancho: "8", vuelo: "3", hc: "3.2", he: "",
+        pendiente: "0.01", dosSuperficies: true, interpolarH: false, ...extra },
+      elementosAlero: [
+        { id: "al-1", nombre: "Viga del alero", tipo: "correa", L: "2.5", s: "1.2", area: "" },
+      ],
+    }));
+  };
+
+  it('con el alero encendido, la pantalla de C&R lo dibuja y lo tabula', () => {
+    conAlero();
+    render(<App />);
+    const main = abrir("Componentes y revestimientos");
+    expect(main).toContain("Alero adosado a pared");
+    expect(main).toContain("h_c / h_e");
+    // Las dos verificaciones que C 5.9 pide con dos superficies físicas.
+    expect(main).toContain("Fijaciones de las superficies superior e inferior");
+    expect(main).toContain("Estructura del alero");
+    expect(errores, errores.join("\n")).toEqual([]);
+  });
+
+  it('con una sola superficie sólo aparece la verificación de la estructura', () => {
+    conAlero({ dosSuperficies: false });
+    render(<App />);
+    const main = abrir("Componentes y revestimientos");
+    expect(main).toContain("Estructura del alero");
+    expect(main).not.toContain("Fijaciones de las superficies");
+    expect(errores, errores.join("\n")).toEqual([]);
+  });
+
+  it('el croquis del alero se renderiza sin errores y trae sus tres alturas', () => {
+    conAlero();
+    render(<App />);
+    abrir("Componentes y revestimientos");
+    const svg = [...document.querySelectorAll("svg")]
+      .find(x => x.getAttribute("data-edificio") === "alero-adosado");
+    expect(svg, "no se encontró el croquis del alero adosado").toBeTruthy();
+    const texto = svg.textContent;
+    expect(texto).toMatch(/h = /);
+    expect(texto).toMatch(/h_e = /);
+    expect(texto).toMatch(/h_c = /);
+    expect(errores, errores.join("\n")).toEqual([]);
+  });
+});

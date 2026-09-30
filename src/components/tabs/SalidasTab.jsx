@@ -32,7 +32,7 @@ const limpio = (s) => String(s || "viento").replace(/[^\w\- ]+/g, "").trim() || 
 
 export function SalidasTab() {
   const { todas, resDe, envCasos, sitio, geoN, cerr, gDe, d, aplic,
-    traza, trazaMotor, act, topo, vel, rafaga, avisos, accesorio, cyr, kdCyR } = useProyecto();
+    traza, trazaMotor, act, topo, vel, rafaga, avisos, accesorio, cyr, kdCyR, alero } = useProyecto();
   const toast = useToast();
   const [dial, setDial] = useState("programa");
   const [perfilId, setPerfilId] = useState("datos");
@@ -61,7 +61,7 @@ export function SalidasTab() {
   // La memoria se genera para mostrar el índice y para descargarla: el MISMO documento,
   // así que el índice no puede prometer un capítulo que el archivo no traiga.
   const memoria = () => memoriaMarkdown({ envCasos, todas, resDe, gDe, geoN, act, d, cerr,
-    sitio, topo, aplic, vel, rafaga, avisos, accesorio, cyr, kdCyR,
+    sitio, topo, aplic, vel, rafaga, avisos, accesorio, cyr, kdCyR, alero,
     env: envCasos, res: resDe(act) });
   const errores = avisos.filter(a => a.tono === "error");
   const cabeceraCerr = csv().split("\n").filter(x => x.startsWith("# GC_pi"));

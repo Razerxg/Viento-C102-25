@@ -118,6 +118,27 @@ export const INICIAL = {
   // dispara con 1 m o más alrededor de TODO el perímetro. Pedir la altura haría creer que
   // un parapeto de 0,60 m produce media sustitución.
   cyr: { parapeto: false, sombrear: false, zonaVista: "todas" },
+  // ART. 5.9 — ALERO ADOSADO A UNA PARED. Apagado por defecto: es una tipología aparte, no
+  // un dato del edificio, y un proyecto sin alero adosado no tiene por qué mostrar sus
+  // campos ni sus avisos.
+  //
+  // `he` arranca vacío y el motor cae a la altura del alero de la cubierta, que es lo que
+  // dice la notación de las figuras. Es el patrón de «"" significa automático» del resto de
+  // la app: quien tenga una pared que no llega al alero lo carga a mano.
+  //
+  // `pendiente` en tanto por uno, con el 1 % de un alero que sólo desagua: el art. 5.9 se
+  // aplica hasta el 2 % y un default en el límite haría que cualquier redondeo lo pasara.
+  //
+  // `dosSuperficies` en true es lo conservador en el sentido de que pide LAS DOS
+  // verificaciones —figura A para las fijaciones de cada cara, figura B para la estructura—;
+  // con una sola superficie física, C 5.9 deja sólo la B.
+  //
+  // `interpolarH` en false porque la interpolación de las excepciones 1 y 2 es una
+  // ALTERNATIVA que da coeficientes menores: el defecto es la figura de h > 20 m sola.
+  aleroAdosado: {
+    hay: false, pared: "+X", ancho: "6", vuelo: "2.5", hc: "3", he: "",
+    pendiente: "0.01", dosSuperficies: true, interpolarH: false,
+  },
   // Los elementos van en un arreglo de primer nivel, como las aberturas: son una lista que
   // el usuario edita fila por fila, no un puñado de campos de un formulario.
   //
@@ -130,6 +151,13 @@ export const INICIAL = {
       L: "6", s: "1.5", area: "" },
     { id: "cyr-2", nombre: "Larguero de pared", tipo: "larguero", superficie: "pared",
       L: "4", s: "1.2", area: "" },
+  ],
+  // Los elementos del alero adosado van en SU PROPIA lista y no en `elementosCyR`. No es
+  // orden por orden: un elemento de alero no tiene «superficie» ni zona —las figuras 5.9 no
+  // zonifican la planta— y sí tiene destino, cara y banda de h_c/h_e. Mezclarlos obligaría a
+  // que la mitad de las columnas de cada tabla estuviera vacía.
+  elementosAlero: [
+    { id: "al-1", nombre: "Viga del alero", tipo: "correa", L: "2.5", s: "1.2", area: "" },
   ],
   // ANEXO I — secciones de forma uniforme. Lleva su propio K_d por el mismo motivo que el
   // silo: un caño redondo va por la fila de chimeneas redondas, no por el 0,85 del edificio.

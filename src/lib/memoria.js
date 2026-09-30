@@ -111,7 +111,7 @@ import { consolidar } from './consolidar.js';
  */
 export function memoriaMarkdown(e) {
   const { avisos = [], envCasos, todas, resDe, gDe, geoN, act, d, cerr, sitio,
-    topo, aplic, vel, rafaga, env, accesorio, cyr, kdCyR } = e;
+    topo, aplic, vel, rafaga, env, accesorio, cyr, kdCyR, alero } = e;
   // ⚠ SE VUELVE A CONSOLIDAR CON EL PERFIL «MEMORIA». Es el MISMO árbol —la misma
   // función— pero la conversión de unidades ocurre en el borde, y el borde de la memoria
   // no es el de la pantalla: acá las longitudes van en mm y las presiones en kN/m².
@@ -209,6 +209,15 @@ export function memoriaMarkdown(e) {
     push("Componentes y revestimientos — Capítulo 5, art. 5.3",
       C.componentesYRevestimientos({ cyr, cerr, kdCyR, nFig: nf(), nFigCurvas: nf(),
         bloque: bloque("cyr") }));
+  }
+
+  // ⚠ EL ALERO ADOSADO VA DESPUÉS DE C&R Y SÓLO SI SE DECLARÓ. Es otra tipología del mismo
+  // capítulo —otra expresión, otras figuras, sin presión interna—, así que lleva capítulo
+  // propio y no una sección adentro del anterior: dos tablas de presiones seguidas con
+  // coeficientes de figuras distintas es el error de lectura que C 5.9 se ocupa de evitar.
+  if (alero && d.aleroAdosado?.hay) {
+    push("Alero adosado a pared — art. 5.9",
+      C.aleroAdosadoCap({ alero, nFig: nf() }));
   }
 
   if (conEquipo) {

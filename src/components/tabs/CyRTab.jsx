@@ -21,6 +21,7 @@ import { TIPOS_LISTA, ETIQUETA_TIPO, TIPO_ELEMENTO, AREA_SPRFV } from '../../eng
 import { FIGURAS } from '../../constants/figuras.js';
 import { P_MINIMA, curvasUsadas } from '../../engine/cyrPresiones.js';
 import { reduccionPared } from '../../engine/cyrFiguras.js';
+import { AleroAdosado } from './AleroAdosado.jsx';
 
 // `Sel` toma pares [valor, texto]: no un objeto {id, label}. Pasarle el objeto renderiza
 // «[object Object]» en el mejor caso y revienta en React en el peor, que es lo que hizo.
@@ -440,6 +441,12 @@ export function CyRTab() {
           ))}
         </Card>
       ))}
+
+      {/* El alero adosado va al FINAL y detrás de su propia casilla: es otra tipología del
+          mismo capítulo, con su propia expresión y sin presión interna. Arriba, entre los
+          elementos de la envolvente, invitaría a leer sus coeficientes como si salieran de
+          las figuras 5.3. */}
+      <AleroAdosado />
 
       <Card titulo="Vista" desc="Filtra la tabla; no cambia ningún número.">
         <Campo label="Mostrar sólo la zona" ayuda={AYUDA.zona}>

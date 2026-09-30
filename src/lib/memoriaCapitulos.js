@@ -626,3 +626,138 @@ export const componentesYRevestimientos = ({ cyr, cerr, kdCyR, nFig, nFigCurvas,
       : "",
   ].filter(Boolean).join("\n");
 };
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ALERO ADOSADO A PARED — ART. 5.9
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Capítulo propio y no una sección del anterior. Comparte el sitio y la altura media de
+// cubierta con el capítulo 5, pero la expresión es otra —no lleva presión interna—, las
+// figuras son otras y son DOS verificaciones en paralelo. Metido dentro del capítulo de C&R,
+// quien lee la memoria vería dos tablas de presiones seguidas con coeficientes que no salen
+// de las mismas figuras, y eso es exactamente lo que el comentario C 5.9 se ocupa de separar:
+// «Los aleros adosados son diferentes de los voladizos de cubierta».
+/**
+ * @param {{alero: any, nFig: number}} p
+ */
+export const aleroAdosadoCap = ({ alero, nFig }) => {
+  if (!alero) return "";
+  const p2 = (x) => num(x, 2);
+
+  const cab = [
+    "Un alero adosado es una estructura plana colgada de una pared del edificio. **No es un",
+    "voladizo de cubierta** —la cubierta que sigue de largo con la misma pendiente—: el",
+    "comentario C 5.9 lo separa explícitamente, y cada tipología tiene su artículo, sus",
+    "figuras y su expresión.", "",
+    "```",
+    "p = q_h · (GC_p)                                   (5.9-1)",
+    "```", "",
+    "donde:", "",
+    "- `q_h` — presión dinámica del art. 1.13 **evaluada a la altura media de cubierta del",
+    "  EDIFICIO**, `h`, con la exposición del art. 1.7.3. No es la altura del alero: un",
+    "  alero bajo colgado de un edificio alto se carga con la presión dinámica del edificio.",
+    "- `(GC_p)` — coeficiente de las Figuras 5.9-1A-B (`h ≤ 20 m`) o 5.9-2A-B (`h > 20 m`),",
+    "  función del área efectiva de viento del elemento.",
+    "",
+    "**La expresión no lleva `(GC_pi)`**: un alero adosado no encierra un recinto, así que no",
+    "hay presión interna que sumarle. Es la diferencia con la (5.3-1) de la envolvente.", "",
+    "El artículo se aplica a **aleros planos con pendiente ≤ 2 %** (C 5.9): los ensayos de",
+    "túnel de viento que lo respaldan se limitan a ese caso.",
+  ].join("\n");
+
+  const parametros = tablaCSVU([
+    ["Pared que sostiene el alero", "—", alero.pared ?? "—", "—"],
+    ["Ancho del alero sobre la pared", "—", num(U.val.longitud(alero.ancho), 2), U.u.longitud],
+    ["Vuelo", "—", num(U.val.longitud(alero.vuelo), 2), U.u.longitud],
+    ["Superficie del alero", "—", num(U.val.area(alero.areaAlero), 2), U.u.area],
+    ["Pendiente del alero — límite 2 % (C 5.9)", "—", `${num(alero.pendiente * 100, 2)} %`, "—"],
+    ["Altura media de cubierta del EDIFICIO — elige la figura y q_h", "h",
+      `**${num(U.val.longitud(alero.h), 2)}**`, U.u.longitud],
+    ["Altura media del alero adosado", "h_c", num(U.val.longitud(alero.hc), 2), U.u.longitud],
+    ["Altura media del alero de la cubierta", "h_e", num(U.val.longitud(alero.he), 2), U.u.longitud],
+    ["Relación que elige la banda de las figuras netas", "h_c/h_e",
+      alero.relacion == null ? "—" : `**${num(alero.relacion, 3)}**`, "—"],
+    ["Factor topográfico — máximo entre las cuatro direcciones", "K_zt", num(alero.Kzt, 3), "—"],
+    ["Presión dinámica a la altura media de cubierta", "q_h",
+      `**${num(U.val.presion(alero.qh ?? 0), 3)}**`, U.u.presion],
+    ["Presión neta mínima de diseño — art. 5.2.2", "p_mín",
+      num(U.val.presion(800), 2), U.u.presion],
+  ]);
+
+  const cualesFiguras = alero.dosSuperficies
+    ? ["Con **dos superficies físicas** se aplican **las dos figuras** (C 5.9):", "",
+      `- la **Fig. ${alero.figuras.superficies}** da los coeficientes sobre cada superficie`,
+      "  por separado, y se usa para dimensionar **las fijaciones** de los elementos de la",
+      "  cara superior y de la cara inferior;",
+      `- la **Fig. ${alero.figuras.estructura}** da el coeficiente **neto**, y se usa para`,
+      "  dimensionar **la estructura del alero**: vigas, columnas y la fijación al edificio.",
+    ].join("\n")
+    : ["El alero declarado tiene **una sola superficie física**, así que —según C 5.9— se",
+      `aplica **sólo la Fig. ${alero.figuras.estructura}**, la de presión neta. No hay dos`,
+      "caras cuyas fijaciones verificar por separado.",
+    ].join("\n");
+
+  const filas = [];
+  for (const el of alero.elementos ?? []) {
+    for (const dst of el.destinos) {
+      const fig = dst.figuras.join(" ↔ ");
+      const banda = dst.bandas.map(b => b.rango).join(" / ") || "todo h_c/h_e";
+      const fila = (que, r) => filas.push([
+        `**${el.elemento.nombre ?? "—"}**`, que, fig, banda,
+        num(U.val.area(el.area.A), 2), num(U.val.area(el.area.tributaria), 2),
+        p2(r.gcpPos), p2(r.gcpNeg),
+        num(U.val.presion(r.pPos), 3), num(U.val.presion(r.pNeg), 3)]);
+      if (dst.caras) {
+        fila("fijación de la cara superior", dst.caras.superior);
+        fila("fijación de la cara inferior", dst.caras.inferior);
+      } else {
+        fila("estructura del alero (neta)", dst.neto);
+      }
+    }
+  }
+
+  const tablaElementos = filas.length === 0
+    ? "_No se cargaron elementos del alero para verificar._"
+    : tabla(["Elemento", "Qué se dimensiona", "Figura", "Banda h_c/h_e",
+      `A efectiva [${U.u.area}]`, `A tributaria [${U.u.area}]`, "(GC_p)+", "(GC_p)−",
+      `p+ [${U.u.presion}]`, `p− [${U.u.presion}]`], filas);
+
+  const conMinimo = (alero.elementos ?? []).some(el => el.destinos.some(dst =>
+    (dst.caras ? Object.values(dst.caras) : [dst.neto])
+      .some(r => r.gobiernaMinimo.pos || r.gobiernaMinimo.neg)));
+
+  // ⚠ LOS AVISOS DE ESTE CAPÍTULO NO SON DECORACIÓN. Dos de ellos —la pendiente fuera del
+  // 2 % y el hueco de la Tabla C 5.9-4 en h_c/h_e ≤ 0,1— dicen que el número que sigue está
+  // fuera de lo que el reglamento escribe. Filtrarlos a «error» solamente los perdería: el
+  // del hueco es «aviso».
+  const avisos = (alero.avisos ?? []).filter(a => a.nivel === "error" || a.nivel === "aviso");
+
+  return [
+    cab, "",
+    "### Parámetros del cálculo", "",
+    "Ninguno del sitio se carga acá: `V`, la exposición, `K_zt`, `K_e` y `K_d` son los",
+    "mismos de los capítulos anteriores. Lo propio del alero son sus cinco medidas.", "",
+    parametros, "",
+    figura(nFig, "alero adosado a pared: las tres alturas h, h_e y h_c en un mismo alzado"),
+    "",
+    "### Qué figura se aplica, y para qué", "",
+    cualesFiguras, "",
+    "Los `(GC_p)` de las figuras se dan en forma de ecuación en las **Tablas C 5.9-1 a",
+    "C 5.9-4**, y es de ahí que se transcribieron: no se leyó ningún valor de los gráficos.",
+    "",
+    "### Elementos verificados", "",
+    "El `(GC_p)` se lee con el **área efectiva de viento** (art. 1.2) y la presión se aplica",
+    "sobre el **área tributaria real** (C 1.2). En las figuras de presión neta, el signo",
+    "negativo es presión **hacia arriba** y el positivo **hacia abajo** (nota 3 de las",
+    "Figs. 5.9-1B y 5.9-2B).", "",
+    tablaElementos, "",
+    conMinimo
+      ? "⚠ En los valores donde gobierna el mínimo, la presión adoptada es la **mínima de "
+        + `${num(U.val.presion(800), 2)} ${U.u.presion}` + " del art. 5.2.2, que está en los "
+        + "requisitos generales del capítulo y alcanza también a esta tipología."
+      : "",
+    avisos.length
+      ? `\n${avisos.map(a => `⚠ **${a.ref ?? "Aviso"}** — ${a.texto}`).join("\n\n")}`
+      : "",
+  ].filter(Boolean).join("\n");
+};

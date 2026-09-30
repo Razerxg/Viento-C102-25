@@ -41,9 +41,39 @@ const sombra = (n, luz = [0.35, -0.45, 0.82]) =>
  */
 function RotulosDeCara({ caras, info, px, color }) {
   const k = useEscalaTexto();
+  // ⚠ DOS CARAS CON EL MISMO RÓTULO SE ROTULAN UNA VEZ. Con el viento paralelo a la
+  // cumbrera los dos faldones se tratan como FRANJAS: los dos dicen «Cubierta · franjas» y
+  // el mismo valor, porque el análisis no los distingue. Dibujados los dos, en un edificio
+  // alto y de poca pendiente —donde los faldones quedan escorzados y sus centros a menos de
+  // un renglón— el nombre de uno cae sobre el valor del otro. Lo encontró el control con el
+  // edificio de 24 m.
+  //
+  // No se mueve ninguno de los dos: se rotula el de mayor área proyectada, que es el que
+  // tiene lugar, y el otro queda sin repetir un dato que ya está escrito al lado. Es la
+  // misma regla de las zonas en planta —una etiqueta por valor, no por región—.
+  const clave = (cara) => {
+    const inf = info(cara);
+    return `${inf.rot}|${inf.sinValor ? "" : fq(inf.p)}`;
+  };
+  const areaDe = (cara) => {
+    const pts = cara.proy.map(px);
+    const w = Math.max(...pts.map(q => q[0])) - Math.min(...pts.map(q => q[0]));
+    const h = Math.max(...pts.map(q => q[1])) - Math.min(...pts.map(q => q[1]));
+    return w * h;
+  };
+  /** @type {Map<string, any>} */
+  const elegida = new Map();
+  for (const cara of caras) {
+    const kk = clave(cara);
+    const previa = elegida.get(kk);
+    if (!previa || areaDe(cara) > areaDe(previa)) elegida.set(kk, cara);
+  }
+  const rotulable = new Set(elegida.values());
+
   return (
     <g>
       {caras.map((cara, i) => {
+        if (!rotulable.has(cara)) return null;
         const inf = info(cara);
         const pts = cara.proy.map(px);
         const u = pts.reduce((s, p) => s + p[0], 0) / pts.length;

@@ -444,6 +444,112 @@ function bloqueResultantes({ res, envCasos, U }) {
     desc: "Envolvente de todos los estados que el reglamento exige considerar.", pasos: p });
 }
 
+// ── 8 · ALERO ADOSADO A PARED (ART. 5.9) ────────────────────────────────────────
+//
+// Bloque propio y no unos pasos dentro del de C&R. La expresión es otra —`p = q_h (GC_p)`,
+// sin el término de presión interna—, las figuras son otras y son DOS verificaciones en
+// paralelo. Metidos en el bloque anterior, el panel mostraría la (5.3-1) arriba y estos
+// coeficientes abajo, como si salieran de la misma figura.
+//
+// ⚠ TRES ALTURAS QUE NO SON LA MISMA, Y LA TRAZA TIENE QUE DECIR CUÁL HACE QUÉ. `h` elige la
+// figura y evalúa `q_h`; `h_c` y `h_e` sólo forman la relación que elige la banda de las
+// figuras netas. Es el único error de uso real de este artículo.
+/**
+ * @param {{alero: any, d: any, U: any}} e
+ * @returns {ReturnType<typeof bloque>|null}
+ */
+function bloqueAlero({ alero, d, U }) {
+  if (!alero || !d?.aleroAdosado?.hay) return null;
+
+  const p = [
+    paso({ id: "al_h", titulo: "Altura media de cubierta del edificio", art: "Art. 5.9",
+      valor: U.val.longitud(alero.h), unidad: U.u.longitud,
+      nota: `Es la altura que ELIGE LA FIGURA (${alero.h > 20 ? "h > 20 m → Figs. 5.9-2"
+        : "h ≤ 20 m → Figs. 5.9-1"}) y a la que se evalúa q_h. No es la altura del alero: `
+        + `h_c = ${U.n.longitud(alero.hc)} ${U.u.longitud}.` }),
+    paso({ id: "al_qh", titulo: "Presión dinámica a la altura media de cubierta",
+      art: "Art. 1.13 — expresión (1.13-1)",
+      valor: U.val.presion(alero.qh ?? 0), unidad: U.u.presion, dec: 3,
+      nota: `K_zt = ${fc(alero.Kzt, 3)}, máximo entre las cuatro direcciones: los (GC_p) del `
+        + "capítulo 5 ya son envolvente de todas, así que tomar el de una sola dejaría "
+        + "afuera la que agrava." }),
+    paso({ id: "al_r", titulo: "Relación h_c/h_e", art: "Notación de las Figs. 5.9",
+      valor: alero.relacion ?? null, dec: 3,
+      formula: "h_c / h_e",
+      donde: [
+        { sim: "h_c", desc: "altura media del alero adosado", valor: U.val.longitud(alero.hc),
+          unidad: U.u.longitud },
+        { sim: "h_e", desc: "altura media del alero de la cubierta del edificio",
+          valor: U.val.longitud(alero.he), unidad: U.u.longitud },
+      ],
+      nota: "Elige la banda de las figuras de presión NETA (5.9-1B / 5.9-2B). Las figuras de "
+        + "superficies no dependen de ella: su nota 1 dice que sus valores son «los más "
+        + "críticos para todas las relaciones de h_c/h_e»." }),
+    paso({ id: "al_p", titulo: "Presión de diseño", art: "Expresión (5.9-1)",
+      formula: "p = q_h · (GC_p)",
+      donde: [
+        { sim: "q_h", desc: "presión dinámica a la altura media de cubierta del edificio",
+          valor: U.val.presion(alero.qh ?? 0), unidad: U.u.presion },
+        { sim: "(GC_p)", desc: "de las Figs. 5.9-1A-B (h ≤ 20 m) o 5.9-2A-B (h > 20 m), "
+          + "función del área efectiva de viento" },
+      ],
+      texto: "por elemento, en la tabla",
+      nota: "⚠ La expresión NO lleva (GC_pi): un alero adosado no encierra un recinto, así "
+        + "que no hay presión interna que sumarle. Es la diferencia con la (5.3-1)." }),
+    paso({ id: "al_figs", titulo: "Figuras que se aplican", art: "C 5.9",
+      texto: alero.dosSuperficies
+        ? `${alero.figuras.superficies} y ${alero.figuras.estructura}`
+        : alero.figuras.estructura,
+      nota: alero.dosSuperficies
+        ? `La ${alero.figuras.superficies} da los coeficientes sobre cada superficie, para `
+          + `las fijaciones de la cara superior y de la inferior; la ${alero.figuras.estructura} `
+          + "da el coeficiente neto, para la estructura del alero."
+        : "El alero tiene una sola superficie física, así que C 5.9 deja sólo la figura de "
+          + "presión neta: no hay dos caras cuyas fijaciones verificar por separado." }),
+    paso({ id: "al_pend", titulo: "Pendiente del alero", art: "C 5.9",
+      valor: alero.pendiente * 100, unidad: "%",
+      tono: alero.pendiente > 0.02 ? "aviso" : "info",
+      nota: alero.pendiente > 0.02
+        ? "Supera el 2 % al que C 5.9 restringe la aplicabilidad del artículo: los "
+          + "coeficientes quedan fuera del alcance declarado."
+        : "Dentro del 2 % al que C 5.9 restringe la aplicabilidad del artículo." }),
+  ];
+
+  // Un paso por elemento y por destino. En la memoria los reemplaza la tabla; en el panel
+  // no hay tabla, así que acá están.
+  for (const el of alero.elementos ?? []) {
+    for (const dst of el.destinos) {
+      const r = dst.caras ? null : dst.neto;
+      const uno = (que, x, sufijo) => p.push(paso({
+        id: `al_el_${el.elemento.id ?? el.elemento.nombre}_${dst.destino}${sufijo}`,
+        titulo: `${el.elemento.nombre ?? "Elemento"} — ${que}`,
+        art: `Fig. ${dst.figuras.join(" interpolada con ")}`,
+        texto: `(GC_p) = ${fc(x.gcpPos, 2)} / ${fc(x.gcpNeg, 2)} → `
+          + `p = ${U.n.presion(x.pPos)} / ${U.n.presion(x.pNeg)} ${U.u.presion}`,
+        nota: [
+          el.area.cuenta,
+          dst.bandas.length ? `Banda ${dst.bandas.map(b => b.rango).join(" / ")}.` : null,
+          x.gobiernaMinimo.pos || x.gobiernaMinimo.neg
+            ? "Gobierna el mínimo de 0,80 kN/m² del art. 5.2.2." : null,
+        ].filter(Boolean).join(" "),
+        tono: x.gobiernaMinimo.pos || x.gobiernaMinimo.neg ? "aviso" : "info",
+      }));
+      if (r) uno("estructura del alero (presión neta)", r, "");
+      else {
+        uno("fijación de la cara superior", dst.caras.superior, "_sup");
+        uno("fijación de la cara inferior", dst.caras.inferior, "_inf");
+      }
+    }
+  }
+
+  return bloque({ id: "alero", titulo: "Alero adosado a pared",
+    art: "Capítulo 5, Parte 4 — art. 5.9",
+    desc: "Otra tipología, no una zona del edificio: un alero adosado es una estructura "
+      + "plana colgada de una pared. C 5.9 lo separa explícitamente de los voladizos de "
+      + "cubierta, que son extensiones de la cubierta con su misma pendiente.",
+    pasos: p });
+}
+
 /**
  * TODA la traza del caso, en un solo árbol.
  *
@@ -451,11 +557,11 @@ function bloqueResultantes({ res, envCasos, U }) {
  * @param {any} e.vel @param {any} e.sitio @param {any} e.topo @param {any} e.geoN
  * @param {any} e.cerr @param {any} e.rafaga @param {number} e.G @param {string} e.modoG
  * @param {any} e.act @param {any} e.res @param {any} e.envCasos @param {any} e.U
- * @param {any} e.d @param {any} [e.cyr] @param {number} [e.kdCyR]
+ * @param {any} e.d @param {any} [e.cyr] @param {number} [e.kdCyR] @param {any} [e.alero]
  * @returns {ReturnType<typeof bloque>[]}
  */
 export function consolidar({ vel, sitio, topo, geoN, cerr, rafaga, G, modoG, act, res,
-  envCasos, U, d, cyr, kdCyR }) {
+  envCasos, U, d, cyr, kdCyR, alero }) {
   return [
     bloqueVelocidad({ vel, d }),
     bloqueSitio({ sitio, topo, geoN }),
@@ -468,6 +574,10 @@ export function consolidar({ vel, sitio, topo, geoN, cerr, rafaga, G, modoG, act
     // edificio, y mezclado entre los bloques del capítulo 2 las dos presiones se
     // confunden. `bloque()` filtra los nulos, así que sin figura aplicable no aparece.
     bloqueCyR({ cyr, cerr, kdCyR, U }),
+    // El alero adosado va DESPUÉS de C&R y sólo si se declaró: es otra tipología del mismo
+    // capítulo y su expresión no lleva presión interna. `bloqueAlero` devuelve null cuando
+    // no hay alero, y `filter(Boolean)` lo saca del árbol.
+    bloqueAlero({ alero, d, U }),
   ].filter(Boolean);
 }
 
